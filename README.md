@@ -12,7 +12,7 @@ A web app for asphalt and civil contractors. It reads RFQ emails, files the job,
 
 ## First-time setup (about 20 minutes)
 
-1. **Supabase project.** Create a project in the Sydney region. In the SQL editor, run `supabase/migrations/0001_init.sql`, then `supabase/seed.sql`.
+1. **Supabase project.** Create a project in the Sydney region. In the SQL editor, run the files in `supabase/migrations/` in order, then `supabase/seed.sql`.
 2. **Sign-in settings.** Supabase > Authentication > URL Configuration: set Site URL to `http://localhost:3000` (add your Vercel URL later) and add `http://localhost:3000/auth/callback` to Redirect URLs. Email sign-in links work straight away. Microsoft sign-in needs the Azure provider set up (milestone M1).
 3. **Local settings.** Copy `.env.example` to `.env.local` and fill in the Supabase URL and keys (Project Settings > API).
 4. **Run it.**
