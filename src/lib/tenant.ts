@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,8 +15,9 @@ export type TenantContext = {
  * The signed-in user and the tenant they are working in.
  * Sends them to /login if signed out, or /no-access if they belong to no tenant.
  * (Picking between several tenants comes later; for now the first is used.)
+ * Cached per request, so the layout and the page share one lookup.
  */
-export async function requireTenant(): Promise<TenantContext> {
+export const requireTenant = cache(async function requireTenant(): Promise<TenantContext> {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
   const claims = claimsData?.claims;
@@ -38,4 +40,4 @@ export async function requireTenant(): Promise<TenantContext> {
     tenant,
     role: membership.role as Role,
   };
-}
+});
