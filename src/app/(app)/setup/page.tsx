@@ -23,6 +23,12 @@ export default async function SetupPage() {
     return count ?? 0;
   };
 
+  const settingsPromise = supabase
+    .from("tenant_settings")
+    .select("default_binder, spray_markup_percent")
+    .eq("tenant_id", t)
+    .maybeSingle();
+
   const [mailboxes, workbooks, products, rates, activeRules, proposedRules, examples] = await Promise.all([
     count("connections", (q) => q.eq("purpose", "mailbox").eq("status", "ok")),
     count("workbook_templates"),
@@ -32,6 +38,9 @@ export default async function SetupPage() {
     count("rules", (q) => q.eq("status", "proposed")),
     count("examples"),
   ]);
+
+  const { data: settings } = await settingsPromise;
+  const settingsDone = Boolean(settings?.default_binder && settings?.spray_markup_percent != null);
 
   const steps: Step[] = [
     {
@@ -55,6 +64,12 @@ export default async function SetupPage() {
       title: "Load your products and rates",
       detail: `${products} products · ${rates} rates`,
       done: products > 0 && rates > 0,
+    },
+    {
+      title: "Set your pricing defaults",
+      detail: settingsDone ? "Defaults saved" : "Margin target, default binder and prime, spray mark-up, extra establishments",
+      done: settingsDone,
+      action: { label: settingsDone ? "Edit" : "Open settings", href: "/settings" },
     },
     {
       title: "Tell QUOTES how you quote",
