@@ -20,7 +20,7 @@ const configured = Boolean(url && anonKey && serviceKey);
 const TENANT_TABLES = [
   "tenant_modules", "connections", "customers", "jobs", "messages", "attachments",
   "catalogue_products", "rates", "rules", "examples", "workbook_templates",
-  "ai_runs", "quote_drafts", "corrections", "usage_events",
+  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings",
 ] as const;
 
 describe.skipIf(!configured)("tenant isolation", () => {
@@ -82,6 +82,7 @@ describe.skipIf(!configured)("tenant isolation", () => {
       quote_drafts: { tenant_id: tenantB, job_id: jobB!.id, ai_run_id: runB!.id, answer: {} },
       corrections: { tenant_id: tenantB, job_id: jobB!.id, field: "area" },
       usage_events: { tenant_id: tenantB, module: "quoting", kind: "rfq_drafted" },
+      tenant_settings: { tenant_id: tenantB, margin_mode: "per_shift", margin_per_shift: 9999 },
     };
     for (const [table, row] of Object.entries(seeds)) {
       const { error } = await admin.from(table).insert(row);

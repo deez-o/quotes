@@ -2,7 +2,7 @@ import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { addRule, setRuleStatus } from "./actions";
 
-type Rule = { id: string; code: string; text: string; status: string; source: string; always_on: boolean; why: string | null };
+type Rule = { id: string; code: string; grp: string | null; text: string; status: string; source: string; always_on: boolean; why: string | null };
 
 function RuleButton({ id, status, label, dark }: { id: string; status: string; label: string; dark?: boolean }) {
   return (
@@ -21,7 +21,7 @@ export default async function TeachPage() {
 
   const { data, error } = await supabase
     .from("rules")
-    .select("id, code, text, status, source, always_on, why")
+    .select("id, code, grp, text, status, source, always_on, why")
     .eq("tenant_id", ctx.tenant.id)
     .eq("module", "quoting")
     .in("status", ["proposed", "active", "off"])
@@ -31,6 +31,13 @@ export default async function TeachPage() {
   const byNumber = (a: Rule, b: Rule) => Number(a.code.slice(1)) - Number(b.code.slice(1));
   const proposed = rules.filter((r) => r.status === "proposed").sort(byNumber);
   const live = rules.filter((r) => r.status !== "proposed").sort(byNumber);
+  const groups: [string, Rule[]][] = [];
+  for (const r of live) {
+    const g = r.grp ?? "Your own rules";
+    const found = groups.find(([name]) => name === g);
+    if (found) found[1].push(r);
+    else groups.push([g, [r]]);
+  }
 
   return (
     <div className="page">
@@ -88,23 +95,28 @@ export default async function TeachPage() {
 
       <section className="card">
         <h2>Your rules · {live.filter((r) => r.status === "active").length} active</h2>
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {live.map((r) => (
-            <li key={r.id} className="row" style={{ padding: "10px 0", borderBottom: "1px solid var(--line-soft)", gap: 12 }}>
-              <span className="sub" style={{ marginTop: 0, width: 36 }}>{r.code}</span>
-              <span className="grow" style={{ color: r.status === "off" ? "var(--muted)" : undefined }}>{r.text}</span>
-              {r.always_on ? (
-                <span className="badge quiet">Always on</span>
-              ) : r.status === "off" ? (
-                isAdmin ? <RuleButton id={r.id} status="active" label="Switch on" /> : <span className="badge quiet">Off</span>
-              ) : isAdmin ? (
-                <RuleButton id={r.id} status="off" label="Switch off" />
-              ) : (
-                <span className="badge good">On</span>
-              )}
-            </li>
-          ))}
-        </ul>
+        {groups.map(([grp, items]) => (
+          <div key={grp} style={{ marginTop: 12 }}>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "8px 0 0", textTransform: "uppercase", letterSpacing: 0.4 }}>{grp}</h3>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+              {items.map((r) => (
+                <li key={r.id} className="row" style={{ padding: "10px 0", borderBottom: "1px solid var(--line-soft)", gap: 12 }}>
+                  <span className="sub" style={{ marginTop: 0, width: 36 }}>{r.code}</span>
+                  <span className="grow" style={{ color: r.status === "off" ? "var(--muted)" : undefined }}>{r.text}</span>
+                  {r.always_on ? (
+                    <span className="badge quiet">Always on</span>
+                  ) : r.status === "off" ? (
+                    isAdmin ? <RuleButton id={r.id} status="active" label="Switch on" /> : <span className="badge quiet">Off</span>
+                  ) : isAdmin ? (
+                    <RuleButton id={r.id} status="off" label="Switch off" />
+                  ) : (
+                    <span className="badge good">On</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </section>
     </div>
   );

@@ -40,23 +40,15 @@ insert into public.rates (tenant_id, kind, key, value, unit, notes) values
   ('00000000-0000-4000-8000-000000000001', 'markup',        'spray_markup',                  10, '%',         'Demo value only')
 on conflict do nothing;
 
--- Starter pack (platform level) and the demo tenant's copy of it
-insert into public.starter_rules (module, code, text, always_on) values
-  ('quoting', 'S1', 'Only use product codes from the customer''s product list. If nothing fits, leave the product empty and flag it.', false),
-  ('quoting', 'S2', 'The BoQ beats the email. If they disagree, flag it.', false),
-  ('quoting', 'S3', 'The latest customer email overrides the original RFQ.', false),
-  ('quoting', 'S4', 'Plain "sealer" means prime, unless it says primer seal. Flag it.', false),
-  ('quoting', 'S5', 'Anything marked by others, existing, or outside the works boundary goes in Not ours.', false),
-  ('quoting', 'S6', 'Shifts = area divided by the production rate for the job type, rounded up, allowing the customer''s leeway before adding a shift.', false),
-  ('quoting', 'S7', 'Pick the crew rate by job type and travel band only; never invent a rate.', false),
-  ('quoting', 'S8', 'Never write a total, price or contribution. Write "calc in Excel".', true),
-  ('quoting', 'S9', 'Quantities for pricing come from the RFQ. Drawing measurements are a check: flag differences over the tolerance.', false)
-on conflict do nothing;
-
-insert into public.rules (tenant_id, module, code, text, status, source, always_on)
-select '00000000-0000-4000-8000-000000000001', module, replace(code, 'S', 'R'), text, 'active', 'starter', always_on
+-- Demo tenant's copy of the starter pack (the pack itself is in migration 0003)
+insert into public.rules (tenant_id, module, code, grp, text, status, source, always_on)
+select '00000000-0000-4000-8000-000000000001', module, replace(code, 'S', 'R'), grp, text, 'active', 'starter', always_on
 from public.starter_rules
 on conflict do nothing;
+
+insert into public.tenant_settings (tenant_id, margin_mode, default_binder, default_prime, spray_markup_percent, extra_establishment_rate, info_request_signature)
+values ('00000000-0000-4000-8000-000000000001', 'none', 'C320', 'PRIME', 10, 2500, 'Demo Asphalt Co Sales Team')
+on conflict (tenant_id) do nothing;
 
 insert into public.customers (tenant_id, name, aliases, email_domains) values
   ('00000000-0000-4000-8000-000000000001', 'Bayside Developments', '{"Bayside Dev"}', '{"baysidedev.example"}'),
