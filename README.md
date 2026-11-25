@@ -2,7 +2,16 @@
 
 A web app for asphalt and civil contractors. It reads RFQ emails, files the job, drafts the quote in the contractor's own products and workbook, and leaves a draft for a person to check and send. Quoting is the first module; inbox sorting and others plug into the same portal.
 
-**Status:** milestone M0 (foundations). Sign-in, customer accounts kept apart, the database, Demo Asphalt Co test data, and the Setup, Queue and Teach screens reading live data.
+**Status (26 Nov 2026):** M0 done and live. M1 (mail intake) and the M3 quote-engine core are built and tested, waiting on the Microsoft app registration and server settings below.
+
+| Area | State |
+| --- | --- |
+| Sign-in, tenants, RLS, demo data, Setup / Queue / Teach / Settings screens | Live |
+| Starter pack (40 rules) and per-customer settings | Live |
+| Job queue, Graph webhook, worker (every minute), inbox sorting, job linking, filing | Built, needs settings below |
+| Connect Microsoft 365 (OAuth, encrypted tokens, subscriptions + renewal) | Built, needs settings below |
+| Quote engine: schema v1.0, checks, maths, prompt, xAI provider, retry | Built and tested; plugs into the worker at M3 |
+| Text extraction, workbook fill, overview PDF, drawing measure-up | Not started (M2/M3/M5) |
 
 ## Stack
 
@@ -22,6 +31,27 @@ A web app for asphalt and civil contractors. It reads RFQ emails, files the job,
    ```
    Open http://localhost:3000 and sign in with your email link.
 5. **Give yourself access.** After your first sign-in, run the two `insert` lines at the bottom of `supabase/seed.sql` in the SQL editor with your email. Refresh: you're now admin of Demo Asphalt Co.
+
+## Connecting Microsoft (milestone M1)
+
+1. **Register the app** at entra.microsoft.com > App registrations > New registration:
+   - Name: QUOTES. Supported account types: *any organisational directory and personal Microsoft accounts*.
+   - Redirect URI (Web): `https://<your-site>/api/connect/microsoft/callback`
+   - API permissions > Microsoft Graph > Delegated: `offline_access`, `User.Read`, `Mail.ReadWrite`. Nothing else.
+   - Certificates & secrets > New client secret. Copy the value (shown once).
+2. **Vercel > Settings > Environment Variables** (Production), then redeploy:
+
+   | Name | Value |
+   | --- | --- |
+   | `NEXT_PUBLIC_SITE_URL` | `https://<your-site>` |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Supabase > Project Settings > API Keys > secret key |
+   | `MS_CLIENT_ID` | Application (client) ID from step 1 |
+   | `MS_CLIENT_SECRET` | Client secret value from step 1 |
+   | `TOKEN_ENCRYPTION_KEY` | 32 random bytes, base64: `openssl rand -base64 32` |
+   | `GRAPH_CLIENT_STATE` | Any long random string: `openssl rand -hex 24` |
+   | `CRON_SECRET` | Any long random string: `openssl rand -hex 24` |
+
+3. In the app: Setup > **Connect Microsoft 365**, sign in with the test mailbox, approve. Send a test RFQ to that mailbox: within about a minute it is labelled *QUOTES/1. To Be Quoted* and appears as a job.
 
 ## Tests
 
