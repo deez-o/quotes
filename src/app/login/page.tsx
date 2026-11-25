@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -21,9 +22,16 @@ export default function LoginPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error } = await createClient().auth.signInWithOtp({
+    // Email links use the "implicit" flow so they work in any browser, not
+    // just the one where the email was requested.
+    const sender = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { flowType: "implicit", persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
+    );
+    const { error } = await sender.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: redirectTo(), shouldCreateUser: true },
+      options: { emailRedirectTo: `${window.location.origin}/auth/session`, shouldCreateUser: true },
     });
     setBusy(false);
     if (error) setError(error.message);
