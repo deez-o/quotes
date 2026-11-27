@@ -19,7 +19,7 @@ export function Logo({ size = 28, dark = false }: { size?: number; dark?: boolea
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: size * 0.32 }} aria-label="quoteout">
       <Mark size={size} />
-      <span aria-hidden="true" style={{ fontFamily: "var(--font-head)", fontWeight: 700, fontSize: size * 0.82, letterSpacing: "-0.02em", lineHeight: 1 }}>
+      <span aria-hidden="true" style={{ fontFamily: "var(--font-brand)", fontWeight: 700, fontSize: size * 0.82, letterSpacing: "-0.02em", lineHeight: 1 }}>
         <span style={{ color: dark ? "#F5F3EE" : "var(--ink)" }}>quote</span><span style={{ color: "#FF6A13" }}>out</span>
       </span>
     </span>
