@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { NewQuoteForm } from "./form";
@@ -16,7 +17,8 @@ export default async function NewQuotePage() {
   return (
     <div className="page" style={{ maxWidth: 900 }}>
       <div>
-        <h1>New quote</h1>
+        <Link href="/quotes" className="sub" style={{ fontSize: 13 }}>← Quotes</Link>
+        <h1>Send in an RFQ</h1>
         <p className="sub">Send quoteout a request for quote. It files the job, reads everything and drafts the quote for you to check.</p>
       </div>
 

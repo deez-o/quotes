@@ -21,6 +21,7 @@ const STATUS_BADGE: Record<string, string> = {
 };
 const FILTERS = [
   { key: "all", label: "All" },
+  { key: "check", label: "To check" },
   { key: "site", label: "On site" },
   { key: "rfq", label: "RFQs" },
   { key: "open", label: "Not sent yet" },
@@ -54,6 +55,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
     })),
   ].sort((a, b) => b.at.localeCompare(a.at));
 
+  if (show === "check") rows = rows.filter((r) => ["drafted", "needs_attention", "draft"].includes(r.status));
   if (show === "open") rows = rows.filter((r) => !["sent", "won", "lost", "filed"].includes(r.status));
   const needle = q.trim().toLowerCase();
   if (needle) rows = rows.filter((r) => [r.no, r.title, r.customer].some((v) => v?.toLowerCase().includes(needle)));

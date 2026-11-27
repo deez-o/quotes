@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/quotes", label: "Quotes" },
   { href: "/site/new", label: "New site quote" },
-  { href: "/new", label: "Send in an RFQ" },
   { href: "/setup", label: "Setup" },
 ];
 
@@ -15,7 +14,7 @@ export function NavLinks() {
   return (
     <>
       {LINKS.map((l) => (
-        <Link key={l.href} href={l.href} aria-current={(l.href === "/quotes" ? pathname.startsWith("/quotes") || (pathname.startsWith("/site/") && !pathname.startsWith("/site/new")) : pathname.startsWith(l.href)) || (l.href === "/setup" && (pathname.startsWith("/teach") || pathname.startsWith("/costs"))) ? "page" : undefined}>
+        <Link key={l.href} href={l.href} aria-current={(l.href === "/quotes" ? pathname.startsWith("/quotes") || pathname === "/new" || (pathname.startsWith("/site/") && !pathname.startsWith("/site/new")) : pathname.startsWith(l.href)) || (l.href === "/setup" && (pathname.startsWith("/teach") || pathname.startsWith("/costs"))) ? "page" : undefined}>
           {l.label}
         </Link>
       ))}
