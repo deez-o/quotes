@@ -24,6 +24,8 @@ export async function deleteQuote(input: { kind: "site" | "rfq"; id: string }): 
   } else {
     const { data: files } = await db.from("attachments").select("storage_path").eq("job_id", input.id).eq("tenant_id", t);
     paths = (files ?? []).map((f) => f.storage_path as string).filter((p) => p?.startsWith(`${t}/`));
+    // Its drafted quote goes with it.
+    await db.from("site_quotes").delete().eq("job_id", input.id).eq("tenant_id", t);
     const { error, count } = await db.from("jobs").delete({ count: "exact" }).eq("id", input.id).eq("tenant_id", t);
     if (error) return { ok: false, message: error.message };
     if (!count) return { ok: false, message: "Quote not found, or you can't delete it." };

@@ -8,7 +8,7 @@ import { runWorkerOnce, supabaseQueue } from "@/lib/worker/run";
  * and queues renewals for mailbox subscriptions that expire within a day.
  * Called every minute by the Supabase timer (supabase/ops/worker_timer.sql), or Vercel cron with CRON_SECRET.
  */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get("authorization") ?? "";

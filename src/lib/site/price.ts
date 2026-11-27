@@ -65,6 +65,9 @@ export type SiteScope = {
   site_location?: string | null;
   /** True when the plant was picked as the nearest one (re-picked if the site moves); false once the user chooses. */
   supply_plant_auto?: boolean;
+  /** From an RFQ: who's asking (company), and their email if given. */
+  customer_name?: string | null;
+  customer_email?: string | null;
 };
 
 /** Road distance and truck time from the site to one plant, worked out when the site was located. */

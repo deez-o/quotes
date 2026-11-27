@@ -10,6 +10,7 @@ import { processMessage, type MailboxPort } from "./process-message";
 import type { Handlers, QueueJob } from "./run";
 import { supabaseStore } from "./supabase-store";
 import { processInbound, processUpload } from "./sent-in";
+import { draftRfqQuote } from "@/lib/rfq/draft";
 
 async function streamToBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
@@ -101,9 +102,8 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
     },
 
     async draft_quote(job: QueueJob) {
-      // The AI draft step (milestone M3) plugs in here. Until then the job waits in the queue view as "new".
-      await db.from("jobs").update({ status: "new", updated_at: new Date().toISOString() })
-        .eq("tenant_id", job.tenant_id).eq("id", String(job.payload.job_id));
+      // Read the RFQ and its files, and turn it into a priced draft quote for the estimator to check.
+      await draftRfqQuote(db, job.tenant_id, String(job.payload.job_id));
     },
   };
 }

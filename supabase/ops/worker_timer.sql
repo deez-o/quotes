@@ -13,8 +13,8 @@ end $$;
 select cron.unschedule('quotes-worker') where exists (select 1 from cron.job where jobname = 'quotes-worker');
 select cron.schedule('quotes-worker', '* * * * *', $job$
   select net.http_get(
-    url := 'https://quotes-three-lime.vercel.app/api/cron/worker',
+    url := 'https://quoteout.app/api/cron/worker',
     headers := jsonb_build_object('Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'worker_cron_token' limit 1)),
-    timeout_milliseconds := 55000
+    timeout_milliseconds := 290000
   );
 $job$);

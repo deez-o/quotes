@@ -8,6 +8,12 @@ import { correctSiteScope, locateSite, saveSiteQuote, sendToXero } from "../acti
 import { PlaceSearch } from "../../place-search";
 import { useDictation } from "../dictation";
 
+export type RfqView = {
+  from: string | null; subject: string | null; received: string | null;
+  emails: { name: string; from: string | null; date: string | null; subject: string | null; body: string }[];
+  files: { name: string; url: string | null; read: "text" | "image" | "no"; note: string | null }[];
+};
+
 export type QuoteView = {
   id: string; quote_no: string | null; status: "draft" | "sent" | "won" | "lost";
   customer_name: string | null; customer_email: string | null; site_address: string | null;
@@ -23,8 +29,8 @@ const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8
 let keySeq = 0;
 const newKey = (p: string) => `${p}${Date.now().toString(36)}${keySeq++}`;
 
-export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero }: {
-  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean;
+export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null }: {
+  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null;
 }) {
   const router = useRouter();
   const [scope, setScope] = useState<SiteScope>(quote.scope);
@@ -193,6 +199,36 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
               </button>
             </div>
           </section>
+        )}
+
+        {rfq && (
+          <details className="card" open>
+            <summary style={{ fontWeight: 600, cursor: "pointer", fontSize: 18 }}>From the RFQ</summary>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
+              <div className="sub" style={{ marginTop: 0, fontSize: 13 }}>
+                {rfq.from ?? "Unknown sender"}{rfq.received ? ` · ${new Date(rfq.received).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })}` : ""}
+                {rfq.subject ? <><br /><strong style={{ color: "var(--ink)" }}>{rfq.subject}</strong></> : null}
+              </div>
+              {rfq.files.length > 0 && (
+                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {rfq.files.map((f) => (
+                    <li key={f.name}>
+                      <a href={f.url ?? undefined} target="_blank" rel="noreferrer" title={f.read === "no" ? f.note ?? "Not read" : f.read === "image" ? "Looked at as a picture" : "Read"}
+                        style={{ display: "inline-flex", gap: 6, alignItems: "center", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 10px", fontSize: 13, background: f.read === "no" ? "var(--warn-bg)" : "#fff" }}>
+                        <span aria-hidden="true">{f.read === "no" ? "⚠" : "📎"}</span>{f.name}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {rfq.emails.map((e, i) => (
+                <div key={e.name} style={{ borderTop: i ? "1px solid var(--line-soft)" : undefined, paddingTop: i ? 10 : 0 }}>
+                  {i > 0 && <div className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 600 }}>Later email · {e.from ?? ""}{e.date ? ` · ${e.date}` : ""}</div>}
+                  <div style={{ whiteSpace: "pre-wrap", fontSize: 14, maxHeight: 320, overflowY: "auto", background: "var(--ground)", borderRadius: 8, padding: 12 }}>{e.body.trim() || "(no message text)"}</div>
+                </div>
+              ))}
+            </div>
+          </details>
         )}
 
         <section className="card">

@@ -33,26 +33,34 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
   const db = await createClient();
   const t = ctx.tenant.id;
 
-  const [{ data: site }, { data: jobs }, { data: mailbox }] = await Promise.all([
-    show === "rfq" ? Promise.resolve({ data: [] }) : db.from("site_quotes")
-      .select("id, quote_no, title, customer_name, status, total_ex_gst, created_at")
-      .eq("tenant_id", t).order("created_at", { ascending: false }).limit(200),
+  const [{ data: siteAll }, { data: jobs }, { data: mailbox }] = await Promise.all([
+    db.from("site_quotes")
+      .select("id, quote_no, title, customer_name, status, total_ex_gst, created_at, job_id")
+      .eq("tenant_id", t).order("created_at", { ascending: false }).limit(300),
     show === "site" ? Promise.resolve({ data: [] }) : db.from("jobs")
       .select("id, quote_no, customer_name, site, job_type, status, source, created_at")
       .eq("tenant_id", t).eq("module", "quoting").order("created_at", { ascending: false }).limit(200),
     db.from("connections").select("status, account_email").eq("tenant_id", t).eq("purpose", "mailbox")
       .in("provider", ["microsoft", "google"]).limit(1).maybeSingle(),
   ]);
+  // An RFQ that has been drafted opens its quote; quick quotes are the ones not made from an RFQ.
+  const draftFor = new Map((siteAll ?? []).filter((s) => s.job_id).map((s) => [s.job_id as string, s]));
+  const site = show === "rfq" ? [] : (siteAll ?? []).filter((s) => !s.job_id);
 
   let rows: Row[] = [
-    ...(site ?? []).map((s) => ({
+    ...site.map((s) => ({
       kind: "site" as const, id: s.id, no: s.quote_no, title: s.title ?? "Quote", customer: s.customer_name,
       source: SOURCE.site, status: s.status, total: s.total_ex_gst == null ? null : Number(s.total_ex_gst), at: s.created_at, href: `/site/${s.id}`,
     })),
-    ...(jobs ?? []).map((j) => ({
-      kind: "rfq" as const, id: j.id, no: j.quote_no, title: j.site ?? j.job_type ?? "RFQ", customer: j.customer_name,
-      source: SOURCE[(j.source ?? "inbox") as keyof typeof SOURCE] ?? "RFQ", status: j.status, total: null, at: j.created_at, href: null,
-    })),
+    ...(jobs ?? []).map((j) => {
+      const d = draftFor.get(j.id);
+      return {
+        kind: "rfq" as const, id: j.id, no: j.quote_no, title: d?.title ?? j.site ?? j.job_type ?? "RFQ", customer: d?.customer_name ?? j.customer_name,
+        source: SOURCE[(j.source ?? "inbox") as keyof typeof SOURCE] ?? "RFQ",
+        status: d && d.status !== "draft" ? d.status : j.status,
+        total: d?.total_ex_gst == null ? null : Number(d.total_ex_gst), at: j.created_at, href: d ? `/site/${d.id}` : null,
+      };
+    }),
   ].sort((a, b) => b.at.localeCompare(a.at));
 
   if (show === "check") rows = rows.filter((r) => ["drafted", "needs_attention", "draft"].includes(r.status));
