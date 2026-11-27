@@ -23,8 +23,9 @@ export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
     truck_load_minutes: Number(s?.truck_load_minutes ?? DEFAULT_PRICING.truck_load_minutes),
     truck_unload_minutes: Number(s?.truck_unload_minutes ?? DEFAULT_PRICING.truck_unload_minutes),
     shift_minutes: Number(s?.shift_minutes ?? DEFAULT_PRICING.shift_minutes),
-    road_factor: Number(s?.road_factor ?? DEFAULT_PRICING.road_factor),
-    average_speed_kmh: Number(s?.average_speed_kmh ?? DEFAULT_PRICING.average_speed_kmh),
+    // Backup only, when no road route comes back: fixed, not a customer setting.
+    road_factor: DEFAULT_PRICING.road_factor,
+    average_speed_kmh: DEFAULT_PRICING.average_speed_kmh,
     gst_percent: Number(s?.gst_percent ?? DEFAULT_PRICING.gst_percent),
   };
   return {

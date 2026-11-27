@@ -216,14 +216,6 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
           <label style={field}>Shift length (min)<input type="text" inputMode="decimal" name="shift_minutes" defaultValue={s?.shift_minutes ?? 480} /></label>
           <label style={field}>GST (%)<input type="text" inputMode="decimal" name="gst_percent" defaultValue={s?.gst_percent ?? 10} /></label>
         </fieldset>
-        <details>
-          <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--ink-2)" }}>Backup for when a road route can&apos;t be found</summary>
-          <p className="sub" style={{ fontSize: 12, margin: "6px 0" }}>Distances and drive times come from the actual road route (Google Maps once it&apos;s switched on). These two are only used if no route comes back.</p>
-          <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, ...grid }}>
-            <label style={field}>Average truck speed (km/h)<input type="text" inputMode="decimal" name="average_speed_kmh" defaultValue={s?.average_speed_kmh ?? 60} /></label>
-            <label style={field}>Road factor<input type="text" inputMode="decimal" name="road_factor" defaultValue={s?.road_factor ?? 1.3} /></label>
-          </fieldset>
-        </details>
         <label style={field}>Terms printed on quotes
           <textarea name="quote_terms" rows={4} defaultValue={s?.quote_terms ?? DEFAULT_TERMS} disabled={!canEdit} />
           <span className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 400 }}>{"{bitumen_month}"} is filled in with the month the quote was done.</span>

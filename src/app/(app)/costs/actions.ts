@@ -139,7 +139,7 @@ export async function archivePlant(formData: FormData) {
 
 export async function savePricingSettings(formData: FormData) {
   const ctx = await adminCtx();
-  const fields = ["margin_percent", "truck_load_minutes", "truck_unload_minutes", "shift_minutes", "road_factor", "average_speed_kmh", "gst_percent"] as const;
+  const fields = ["margin_percent", "truck_load_minutes", "truck_unload_minutes", "shift_minutes", "gst_percent"] as const;
   const values: Record<string, number> = {};
   for (const f of fields) {
     const n = num(formData.get(f));
@@ -147,7 +147,7 @@ export async function savePricingSettings(formData: FormData) {
     values[f] = n as number;
   }
   if (values.margin_percent >= 95) back("Margin must be under 95%.");
-  if (values.shift_minutes < 60 || values.average_speed_kmh < 5 || values.road_factor < 1) back("Check the shift length, speed and road factor.");
+  if (values.shift_minutes < 60) back("Check the shift length.");
   const supabase = await createClient();
   const { error } = await supabase.from("tenant_settings").upsert({
     tenant_id: ctx.tenant.id, ...values,
