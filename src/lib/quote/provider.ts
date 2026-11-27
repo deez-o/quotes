@@ -39,6 +39,55 @@ type ChatResponse = {
   error?: { message?: string };
 };
 
+export type ChatPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | ChatPart[] };
+
+/**
+ * One structured call to xAI (OpenAI-compatible chat completions).
+ * Returns parsed JSON and token usage. Images go in as image_url parts.
+ */
+export async function xaiStructured(opts: {
+  apiKey: string;
+  model: string;
+  schema: { name: string; strict: boolean; schema: object };
+  messages: ChatMessage[];
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<ProviderResult> {
+  const f = opts.fetchImpl ?? fetch;
+  const started = Date.now();
+  const res = await f(`${opts.baseUrl ?? "https://api.x.ai/v1"}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.apiKey}` },
+    body: JSON.stringify({
+      model: opts.model,
+      messages: opts.messages,
+      response_format: { type: "json_schema", json_schema: opts.schema },
+      temperature: 0,
+    }),
+  });
+  const data = (await res.json()) as ChatResponse;
+  if (!res.ok) throw new Error(`xAI ${res.status}: ${data.error?.message ?? "request failed"}`);
+  const content = data.choices?.[0]?.message?.content ?? "";
+  let json: unknown;
+  try {
+    json = JSON.parse(content);
+  } catch {
+    throw new Error("xAI returned text that is not JSON.");
+  }
+  return {
+    provider: "xai",
+    model: opts.model,
+    json,
+    usage: {
+      input_tokens: data.usage?.prompt_tokens ?? 0,
+      cached_tokens: data.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+      output_tokens: data.usage?.completion_tokens ?? 0,
+    },
+    latency_ms: Date.now() - started,
+  };
+}
+
 /** xAI Grok via its OpenAI-compatible chat completions API with structured outputs. */
 export class XaiProvider implements QuoteProvider {
   readonly name = "xai";
