@@ -53,8 +53,8 @@ on conflict do nothing;
 
 -- Costs library for talk-to-quote (made-up demo figures)
 insert into public.cost_items (tenant_id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t) values
-  ('00000000-0000-4000-8000-000000000001', 'crew',     null,      'Asphalt crew',               'h',     1187.5, null, false, null),
-  ('00000000-0000-4000-8000-000000000001', 'crew',     null,      'Spray crew',                 'h',     525,  null, false, null),
+  ('00000000-0000-4000-8000-000000000001', 'crew',     null,      'Asphalt crew',               'h',     1200,   null, false, null),
+  ('00000000-0000-4000-8000-000000000001', 'crew',     null,      'Spray crew',                 'h',     500,  null, false, null),
   ('00000000-0000-4000-8000-000000000001', 'material', 'asphalt', 'AC10 asphalt',               't',     150,  2.4,  false, null),
   ('00000000-0000-4000-8000-000000000001', 'material', 'asphalt', 'AC14 asphalt',               't',     140,  2.4,  false, null),
   ('00000000-0000-4000-8000-000000000001', 'material', 'base',    'Crushed rock base',          't',     45,   2.2,  true,  null),

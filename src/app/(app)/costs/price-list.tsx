@@ -19,6 +19,7 @@ const safeName = (n: string) => n.replace(/[\\/:*?"<>|#%{}^~[\]`]+/g, "_").repla
 export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenantId: string; plantId: string; plantName: string; hasAi: boolean }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [read, setRead] = useState<PriceListRead | null>(null);
@@ -59,6 +60,7 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
     } finally {
       setBusy(false);
       if (input.current) input.current.value = "";
+      if (camera.current) camera.current.value = "";
     }
   }
 
@@ -83,11 +85,15 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
     <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "12px 0", borderTop: "1px solid var(--line-soft)" }}>
       <div className="row" style={{ gap: 8, alignItems: "center" }}>
         <input ref={input} type="file" accept=".pdf,image/*" multiple hidden onChange={(e) => void upload(e.target.files)} />
+        <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void upload(e.target.files)} />
         <button type="button" className="btn" disabled={busy || !hasAi} onClick={() => input.current?.click()}>
           Upload {plantName} price list
         </button>
+        <button type="button" className="btn" disabled={busy || !hasAi} onClick={() => camera.current?.click()}>
+          Take a photo of it
+        </button>
         <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>
-          {hasAi ? "PDF, photo or phone screenshot. You check every price before it's saved." : "Reading price lists needs the AI switched on. Type the prices in below for now."}
+          {hasAi ? "A PDF, a screenshot from your photos, or a photo of the printed list. You check every price before it's saved." : "Reading price lists needs the AI switched on. Type the prices in below for now."}
         </span>
       </div>
       {status && <p className="sub" style={{ margin: 0 }} role="status">{status}</p>}
