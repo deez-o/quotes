@@ -6,7 +6,7 @@
  *   QUOTES_INBOUND_URL = https://<your-site>/api/inbound/email
  *   INBOUND_SECRET     = the same value as INBOUND_SECRET in Vercel
  */
-export default {
+const worker = {
   async email(message, env) {
     const raw = await new Response(message.raw).arrayBuffer();
     const url = `${env.QUOTES_INBOUND_URL}?to=${encodeURIComponent(message.to)}`;
@@ -19,3 +19,5 @@ export default {
     if (res.status >= 500) message.setReject(`QUOTES temporarily unavailable (${res.status})`);
   },
 };
+
+export default worker;

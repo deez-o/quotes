@@ -54,6 +54,29 @@ insert into public.inbound_addresses (local_part, tenant_id)
 values ('demo-asphalt', '00000000-0000-4000-8000-000000000001')
 on conflict do nothing;
 
+-- Costs library for talk-to-quote (made-up demo figures)
+insert into public.cost_items (tenant_id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t) values
+  ('00000000-0000-4000-8000-000000000001', 'crew',     null,      'Asphalt crew',               'shift', 9500, null, false, null),
+  ('00000000-0000-4000-8000-000000000001', 'crew',     null,      'Spray crew',                 'shift', 4200, null, false, null),
+  ('00000000-0000-4000-8000-000000000001', 'material', 'asphalt', 'AC10 asphalt',               't',     150,  2.4,  false, null),
+  ('00000000-0000-4000-8000-000000000001', 'material', 'asphalt', 'AC14 asphalt',               't',     140,  2.4,  false, null),
+  ('00000000-0000-4000-8000-000000000001', 'material', 'base',    'Crushed rock base',          't',     45,   2.2,  true,  null),
+  ('00000000-0000-4000-8000-000000000001', 'material', 'prime',   'Prime',                      'm2',    1.8,  null, false, null),
+  ('00000000-0000-4000-8000-000000000001', 'material', 'seal',    'Two coat seal C170',         'm2',    6.5,  null, false, null),
+  ('00000000-0000-4000-8000-000000000001', 'plant',    null,      'Bobcat',                     'h',     120,  null, false, null),
+  ('00000000-0000-4000-8000-000000000001', 'plant',    null,      'Profiler',                   'h',     450,  null, false, null),
+  ('00000000-0000-4000-8000-000000000001', 'truck',    null,      'Truck and driver (12 t)',    'h',     140,  null, false, 12)
+on conflict do nothing;
+
+insert into public.supply_plants (tenant_id, name, address, lat, lng) values
+  ('00000000-0000-4000-8000-000000000001', 'Narangba plant',  'Narangba QLD (demo)', -27.2016, 152.9621),
+  ('00000000-0000-4000-8000-000000000001', 'Brendale quarry', 'Brendale QLD (demo)', -27.3240, 152.9830)
+on conflict do nothing;
+
+update public.tenant_settings set margin_percent = coalesce(margin_percent, 15),
+  quote_terms = coalesce(quote_terms, 'Valid for 30 days. Price assumes clear access during normal working hours. Traffic management, line marking and kerbing excluded unless listed.')
+where tenant_id = '00000000-0000-4000-8000-000000000001';
+
 insert into public.customers (tenant_id, name, aliases, email_domains) values
   ('00000000-0000-4000-8000-000000000001', 'Bayside Developments', '{"Bayside Dev"}', '{"baysidedev.example"}'),
   ('00000000-0000-4000-8000-000000000001', 'Northpoint Civil',     '{}',             '{"northpointcivil.example"}'),

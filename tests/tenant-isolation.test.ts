@@ -20,7 +20,7 @@ const configured = Boolean(url && anonKey && serviceKey);
 const TENANT_TABLES = [
   "tenant_modules", "connections", "customers", "jobs", "messages", "attachments",
   "catalogue_products", "rates", "rules", "examples", "workbook_templates",
-  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses",
+  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses", "cost_items", "supply_plants", "site_quotes",
 ] as const;
 
 describe.skipIf(!configured)("tenant isolation", () => {
@@ -84,6 +84,9 @@ describe.skipIf(!configured)("tenant isolation", () => {
       usage_events: { tenant_id: tenantB, module: "quoting", kind: "rfq_drafted" },
       tenant_settings: { tenant_id: tenantB, margin_mode: "per_shift", margin_per_shift: 9999 },
       inbound_addresses: { tenant_id: tenantB, local_part: `iso-b-${run}` },
+      cost_items: { tenant_id: tenantB, category: "crew", name: "Secret crew", unit: "shift", rate: 12345 },
+      supply_plants: { tenant_id: tenantB, name: "Secret plant" },
+      site_quotes: { tenant_id: tenantB, title: "Secret site quote", total_ex_gst: 99999 },
     };
     for (const [table, row] of Object.entries(seeds)) {
       const { error } = await admin.from(table).insert(row);
@@ -129,6 +132,13 @@ describe.skipIf(!configured)("tenant isolation", () => {
 
     const { data: still } = await admin.from("tenants").select("name").eq("id", tenantB).single();
     expect(still?.name).toBe(`Isolation B ${run}`);
+  });
+
+  it("cannot take the other tenant's quote numbers", async () => {
+    const { error } = await asA.rpc("take_quote_number", { t: tenantB });
+    expect(error).not.toBeNull();
+    const own = await asA.rpc("take_quote_number", { t: tenantA });
+    expect(own.error).toBeNull();
   });
 
   it("can upload into its own uploads folder but not the other tenant's", async () => {
