@@ -12,13 +12,14 @@ import { isOwner } from "@/lib/owner";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { modelInfo } from "@/lib/ai/models";
 import { splitSavedEmail, type RfqSummary } from "@/lib/rfq/split";
+import type { Overview } from "@/lib/rfq/overview";
 
 export default async function SiteQuotePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ctx = await requireTenant();
   const db = await createClient();
   const { data: q } = await db.from("site_quotes")
-    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst")
+    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst, overview")
     .eq("id", id).eq("tenant_id", ctx.tenant.id).maybeSingle();
   if (!q) notFound();
 
@@ -41,6 +42,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
     id: q.id, quote_no: q.quote_no, status: q.status, customer_name: q.customer_name, customer_email: q.customer_email,
     site_address: q.site_address, site_lat: q.site_lat, site_lng: q.site_lng, haul_routes: routes, transcript: q.transcript, photoUrls,
     scope, margin_percent: Number(q.margin_percent), xero_quote_number: q.xero_quote_number ?? null,
+    areas: ((q.overview as Overview | null)?.areas) ?? [],
   };
 
   // Made from an RFQ: show the original email and files beside the quote.

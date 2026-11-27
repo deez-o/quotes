@@ -12,7 +12,7 @@ function safeName(name: string) {
   return name.replace(/[\\/:*?"<>|#%{}^~[\]`]+/g, "_").replace(/\s+/g, " ").trim().slice(0, 120) || "file";
 }
 
-export function NewQuoteForm({ tenantId, canSend, mode = "files" }: { tenantId: string; canSend: boolean; mode?: "files" | "paste" }) {
+export function NewQuoteForm({ tenantId, canSend }: { tenantId: string; canSend: boolean }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
@@ -67,15 +67,8 @@ export function NewQuoteForm({ tenantId, canSend, mode = "files" }: { tenantId: 
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {mode === "paste" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label htmlFor="pasted" style={{ fontWeight: 600 }}>Paste the RFQ email</label>
-          <textarea id="pasted" rows={14} autoFocus value={text} onChange={(e) => setText(e.target.value)}
-            placeholder={"From: Sam Turner <sam@customer.com.au>\nSubject: RFQ - Carpark resurfacing\n\nHi, please quote..."} />
-          <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>Include who it&apos;s from and the subject if you can. Add a note for quoteout at the end if you like.</span>
-        </div>
-      )}
+    <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}
+      onPaste={(e) => { if (e.clipboardData.files.length) { e.preventDefault(); add(e.clipboardData.files); } }}>
       <div
         role="button"
         tabIndex={0}
@@ -88,20 +81,11 @@ export function NewQuoteForm({ tenantId, canSend, mode = "files" }: { tenantId: 
         className="card"
         style={{
           borderStyle: "dashed", borderWidth: 2, borderColor: dragging ? "var(--accent)" : "#b6bcc4",
-          background: dragging ? "#fdf4ee" : "var(--card)", textAlign: "center", padding: mode === "paste" ? "18px 20px" : "36px 20px", cursor: "pointer",
+          background: dragging ? "#fdf4ee" : "var(--card)", textAlign: "center", padding: "32px 20px", cursor: "pointer",
         }}
       >
-        {mode === "paste" ? (
-          <>
-            <div style={{ fontWeight: 600 }}>Any attachments? Add the drawings or BoQ here</div>
-            <div className="sub">Optional. PDF, Excel, Word or pictures. Click to choose, or drag them in.</div>
-          </>
-        ) : (
-          <>
-            <div style={{ fontWeight: 600, fontSize: 16 }}>Drag the RFQ email here, with any drawings or BoQ</div>
-            <div className="sub">Drop the saved email (.msg or .eml; in Outlook you can drag it to your desktop first) plus any PDF, Excel, Word or picture files. Or click to choose files.</div>
-          </>
-        )}
+        <div style={{ fontWeight: 600, fontSize: 16 }}>Drag the RFQ email here, with any drawings or BoQ</div>
+        <div className="sub">The saved email (.msg or .eml; in Outlook you can drag it to your desktop first) plus any PDF, Excel, Word or picture files. Click to choose files, or copy them and paste here.</div>
         <input ref={input} type="file" multiple accept={ACCEPT} hidden onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
       </div>
 
@@ -120,12 +104,11 @@ export function NewQuoteForm({ tenantId, canSend, mode = "files" }: { tenantId: 
         </ul>
       )}
 
-      {mode === "files" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label htmlFor="note">Note for this quote <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span></label>
-          <textarea id="note" rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Builder wants it by Friday. Night works likely." />
-        </div>
-      )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label htmlFor="pasted" style={{ fontWeight: 600 }}>Or paste the email text <span style={{ fontWeight: 400, color: "var(--muted)" }}>(and any note for quoteout)</span></label>
+        <textarea id="pasted" rows={8} value={text} onChange={(e) => setText(e.target.value)}
+          placeholder={"From: Sam Turner <sam@customer.com.au>\nSubject: RFQ - Carpark resurfacing\n\nHi, please quote...\n\nNote: builder wants it by Friday."} />
+      </div>
 
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row" style={{ gap: 12 }}>

@@ -28,8 +28,12 @@ function loadMaps(key: string): Promise<any> {
 
 const m2 = (n: number) => `${Math.round(n).toLocaleString("en-AU")} m²`;
 
-export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey }: {
+export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, onUse, bare = false }: {
   quoteId: string; center: { lat: number; lng: number }; initial: DrawnArea[]; items: Item[]; canEdit: boolean; browserKey: string | null;
+  /** In the quote editor: put the area into the item there (saved with the quote) instead of saving it straight away. */
+  onUse?: (itemKey: string, m2: number) => void;
+  /** Leave out the card and heading (when it sits inside another section). */
+  bare?: boolean;
 }) {
   const router = useRouter();
   const box = useRef<HTMLDivElement>(null);
@@ -138,6 +142,7 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey }
     if (!r.ok) return setMsg({ ok: false, text: r.message });
     setDirty(false);
     setMsg({ ok: true, text: "Areas saved." });
+    router.refresh();
   }
   async function applyTo(a: DrawnArea) {
     const itemKey = pick[a.id] ?? items[0]?.key;
@@ -148,10 +153,15 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey }
       if (!s.ok) { setBusy(null); return setMsg({ ok: false, text: s.message }); }
       setDirty(false);
     }
+    const label = items.find((i) => i.key === itemKey)?.label ?? "the item";
+    if (onUse) {
+      onUse(itemKey, a.m2);
+      setBusy(null);
+      return setMsg({ ok: true, text: `${m2(a.m2)} put into ${label}. Save the quote to keep it.` });
+    }
     const r = await applyArea({ id: quoteId, itemKey, m2: a.m2 });
     setBusy(null);
     if (!r.ok) return setMsg({ ok: false, text: r.message });
-    const label = items.find((i) => i.key === itemKey)?.label ?? "the item";
     setMsg({ ok: true, text: `${m2(a.m2)} put into ${label}. Quote now $${Math.round(r.total).toLocaleString("en-AU")} ex GST.` });
     router.refresh();
   }
@@ -159,9 +169,9 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey }
   const total = areas.reduce((s, a) => s + a.m2, 0);
 
   return (
-    <section className="card">
+    <section className={bare ? undefined : "card"}>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
-        <strong>Measure on the map</strong>
+        {!bare && <strong>Measure on the map</strong>}
         {areas.length > 0 && <span className="sub">{areas.length} area{areas.length === 1 ? "" : "s"}, {m2(total)} in all</span>}
       </div>
       <p className="sub" style={{ margin: "4px 0 10px" }}>Trace each area on the satellite view. Click its corners, then Finish. Drag the white dots to adjust.</p>

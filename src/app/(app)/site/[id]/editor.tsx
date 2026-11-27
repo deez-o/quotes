@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { AreaMap } from "./overview/area-map";
+import type { DrawnArea } from "@/lib/rfq/overview";
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -21,7 +23,7 @@ export type QuoteView = {
   id: string; quote_no: string | null; status: "draft" | "sent" | "won" | "lost";
   customer_name: string | null; customer_email: string | null; site_address: string | null;
   site_lat: number | null; site_lng: number | null; haul_routes: HaulRoutes | null; xero_quote_number: string | null; transcript: string | null; photoUrls: string[];
-  scope: SiteScope; margin_percent: number;
+  scope: SiteScope; margin_percent: number; areas: DrawnArea[];
 };
 
 const UNIT: Record<string, string> = { shift: "shifts", day: "days", h: "hours", t: "t", m2: "m²", m3: "m³", each: "each", km: "km" };
@@ -52,6 +54,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const activeQ = useRef<number | null>(null);
   const talkingTo = useRef<string>("fix");
   const [talkTarget, setTalkTarget] = useState("fix");
+  const [mapOpen, setMapOpen] = useState(false);
   const talkTo = (t: string) => { talkingTo.current = t; setTalkTarget(t); };
   const dictation = useDictation((t) => {
     if (talkingTo.current.startsWith("q") && activeQ.current != null) {
@@ -288,6 +291,22 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             + Add item
           </button>
         </section>
+
+        <details className="card" onToggle={(e) => setMapOpen((e.currentTarget as HTMLDetailsElement).open)}>
+          <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 17 }}>
+            Measure on the map{quote.areas.length ? <span className="sub" style={{ fontWeight: 400, marginLeft: 8 }}>{quote.areas.length} area{quote.areas.length === 1 ? "" : "s"} traced</span> : null}
+          </summary>
+          <div style={{ marginTop: 10 }}>
+            {site.lat == null || site.lng == null ? (
+              <p className="sub">Add the site address first, so the map knows where to look.</p>
+            ) : mapOpen ? (
+              <AreaMap key={`${site.lat},${site.lng}`} bare quoteId={quote.id} center={{ lat: site.lat, lng: site.lng }} initial={quote.areas} canEdit={canEdit}
+                browserKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? null}
+                items={scope.items.map((i) => ({ key: i.key, label: i.description || KIND_LABEL[i.kind], area: i.area_m2 }))}
+                onUse={(key, m2) => setItem(key, { area_m2: m2 })} />
+            ) : null}
+          </div>
+        </details>
 
         {(["crew", "plant"] as const).map((group) => (
           <section key={group} className="card">
