@@ -1,9 +1,11 @@
 import { renderTerms } from "@/lib/site/terms";
+/* eslint-disable @next/next/no-img-element -- logos come from short-lived signed URLs and local previews */
 import { notFound } from "next/navigation";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { money, type Priced } from "@/lib/site/price";
 import { PrintButton } from "./print-button";
+import { DEFAULT_BRAND, inkOnWhite, isHex, textOn } from "@/lib/branding";
 
 /** The customer's quote, laid out for A4. Save as PDF from the browser's print or share menu. */
 export default async function PrintSiteQuote({ params }: { params: Promise<{ id: string }> }) {
@@ -14,10 +16,17 @@ export default async function PrintSiteQuote({ params }: { params: Promise<{ id:
     db.from("site_quotes").select("quote_no, title, customer_name, customer_email, site_address, costing, created_at, updated_at")
       .eq("id", id).eq("tenant_id", ctx.tenant.id).maybeSingle(),
     db.from("tenants").select("name, abn").eq("id", ctx.tenant.id).maybeSingle(),
-    db.from("tenant_settings").select("quote_terms, gst_percent").eq("tenant_id", ctx.tenant.id).maybeSingle(),
+    db.from("tenant_settings").select("quote_terms, gst_percent, logo_path, brand_color, business_name, business_abn, business_phone, business_email, business_address, business_website").eq("tenant_id", ctx.tenant.id).maybeSingle(),
   ]);
   if (!q) notFound();
   const c = q.costing as Priced;
+  const brand = isHex(settings?.brand_color) ? settings!.brand_color : DEFAULT_BRAND;
+  const onBrand = textOn(brand);
+  const accent = inkOnWhite(brand);
+  const logo = settings?.logo_path ? (await db.storage.from("job-files").createSignedUrl(settings.logo_path, 3600)).data?.signedUrl : null;
+  const bizName = settings?.business_name || tenant?.name;
+  const abn = settings?.business_abn || tenant?.abn;
+  const contact = [settings?.business_phone, settings?.business_email, settings?.business_website].filter(Boolean).join(" · ");
   const date = new Date(q.updated_at ?? q.created_at).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" });
 
   return (
@@ -25,13 +34,18 @@ export default async function PrintSiteQuote({ params }: { params: Promise<{ id:
       <style>{`@page { size: A4; margin: 16mm } @media print { .no-print { display: none !important } body { background: #fff } main { padding: 0 !important } }`}</style>
       <div className="no-print" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}><PrintButton /></div>
 
-      <header style={{ display: "flex", justifyContent: "space-between", gap: 24, borderBottom: "3px solid #c2410c", paddingBottom: 16 }}>
+      <div style={{ height: 8, background: brand, margin: "0 0 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }} />
+      <header style={{ display: "flex", justifyContent: "space-between", gap: 24, paddingBottom: 16, borderBottom: "1px solid #e3e1dc" }}>
         <div>
-          <div style={{ fontFamily: "var(--font-head)", fontSize: 26, fontWeight: 600 }}>{tenant?.name}</div>
-          {tenant?.abn && <div style={{ fontSize: 13, color: "#5b6168" }}>ABN {tenant.abn}</div>}
+          {logo ? <img src={logo} alt={bizName ?? ""} style={{ maxHeight: 64, maxWidth: 240, objectFit: "contain", display: "block", marginBottom: 8 }} />
+            : <div style={{ fontFamily: "var(--font-head)", fontSize: 26, fontWeight: 600 }}>{bizName}</div>}
+          {logo && <div style={{ fontSize: 14, fontWeight: 600 }}>{bizName}</div>}
+          {abn && <div style={{ fontSize: 13, color: "#5b6168" }}>ABN {abn}</div>}
+          {settings?.business_address && <div style={{ fontSize: 13, color: "#5b6168" }}>{settings.business_address}</div>}
+          {contact && <div style={{ fontSize: 13, color: "#5b6168" }}>{contact}</div>}
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>Quote</div>
+          <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: 1, color: accent }}>QUOTE</div>
           <div style={{ fontSize: 14 }}>{q.quote_no}</div>
           <div style={{ fontSize: 14, color: "#5b6168" }}>{date}</div>
         </div>
@@ -45,8 +59,8 @@ export default async function PrintSiteQuote({ params }: { params: Promise<{ id:
       <h1 style={{ fontSize: 18, margin: "0 0 10px" }}>{q.title}</h1>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
         <thead>
-          <tr style={{ textAlign: "left", borderBottom: "2px solid #1c1f23" }}>
-            <th style={{ padding: "8px 4px" }}>Description</th>
+          <tr style={{ textAlign: "left", background: brand, color: onBrand, WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }}>
+            <th style={{ padding: "8px 8px" }}>Description</th>
             <th style={{ padding: "8px 4px", textAlign: "right" }}>Qty</th>
             <th style={{ padding: "8px 4px", textAlign: "right" }}>Rate</th>
             <th style={{ padding: "8px 4px", textAlign: "right" }}>Amount</th>
@@ -65,7 +79,7 @@ export default async function PrintSiteQuote({ params }: { params: Promise<{ id:
         <tfoot>
           <tr><td colSpan={3} style={{ padding: "10px 4px", textAlign: "right", fontWeight: 600 }}>Total ex GST</td><td style={{ padding: "10px 4px", textAlign: "right", fontWeight: 600 }}>{money(c.priceExGst)}</td></tr>
           <tr><td colSpan={3} style={{ padding: "2px 4px", textAlign: "right" }}>GST ({settings?.gst_percent ?? 10}%)</td><td style={{ padding: "2px 4px", textAlign: "right" }}>{money(c.gst)}</td></tr>
-          <tr><td colSpan={3} style={{ padding: "10px 4px", textAlign: "right", fontWeight: 600, fontSize: 16 }}>Total inc GST</td><td style={{ padding: "10px 4px", textAlign: "right", fontWeight: 600, fontSize: 16 }}>{money(c.priceIncGst)}</td></tr>
+          <tr><td colSpan={3} style={{ padding: "10px 4px", textAlign: "right", fontWeight: 700, fontSize: 16, color: accent }}>Total inc GST</td><td style={{ padding: "10px 4px", textAlign: "right", fontWeight: 700, fontSize: 16, color: accent, borderTop: `2px solid ${brand}` }}>{money(c.priceIncGst)}</td></tr>
         </tfoot>
       </table>
 

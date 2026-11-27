@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SettingsForm } from "../settings/form";
+import { BrandingForm, type Branding } from "./branding-form";
 import { loadSettings } from "../settings/data";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
@@ -17,6 +18,16 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const { error: setupError, connected } = await searchParams;
   const ctx = await requireTenant();
   const pricing = await loadSettings(ctx.tenant.id);
+  const supa = await createClient();
+  const { data: b } = await supa.from("tenant_settings")
+    .select("logo_path, brand_color, business_name, business_abn, business_phone, business_email, business_address, business_website")
+    .eq("tenant_id", ctx.tenant.id).maybeSingle();
+  const logoUrl = b?.logo_path ? (await supa.storage.from("job-files").createSignedUrl(b.logo_path, 3600)).data?.signedUrl ?? null : null;
+  const branding: Branding = {
+    logo_path: b?.logo_path ?? null, logo_url: logoUrl, brand_color: b?.brand_color ?? null,
+    business_name: b?.business_name ?? null, business_abn: b?.business_abn ?? null, business_phone: b?.business_phone ?? null,
+    business_email: b?.business_email ?? null, business_address: b?.business_address ?? null, business_website: b?.business_website ?? null,
+  };
   const supabase = await createClient();
   const t = ctx.tenant.id;
 
@@ -66,6 +77,13 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       detail: activeRules ? `${activeRules} of your own rules in use${proposedRules ? ` · ${proposedRules} suggested` : ""}` : "Optional. quoteout already knows how to quote; add how you do things differently.",
       done: activeRules > 0,
       action: { label: activeRules ? "Edit rules" : "Add a rule", href: "/teach" },
+    },
+    {
+      title: "Add your branding",
+      detail: branding.logo_path ? "Logo and colour on your quotes" : "Your logo, colour and business details on printed quotes and PDFs",
+      done: !!branding.logo_path,
+      optional: true,
+      action: { label: branding.logo_path ? "Edit" : "Add it below", href: "#branding" },
     },
     {
       title: "Connect Xero",
@@ -118,6 +136,8 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       </div>
 
       <SettingsForm initial={pricing} canEdit={ctx.role === "admin"} />
+
+      <BrandingForm tenantId={ctx.tenant.id} initial={branding} fallbackName={ctx.tenant.name} canEdit={ctx.role === "admin"} />
 
       {setupError && <p className="error" role="alert">{setupError}</p>}
       {connected && <p style={{ color: "var(--good)", fontWeight: 600 }}>Connected {connected}. New emails will now be picked up.</p>}
