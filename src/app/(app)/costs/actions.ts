@@ -6,7 +6,7 @@ import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { searchPlaces } from "@/lib/maps";
 
-const CATEGORIES = ["crew", "material", "plant", "truck", "other"] as const;
+const CATEGORIES = ["crew", "material", "plant", "truck", "float", "other"] as const;
 const KINDS = ["asphalt", "base", "prime", "seal", "other"] as const;
 const UNITS = ["shift", "day", "h", "t", "m2", "m3", "each", "km"] as const;
 
@@ -34,6 +34,16 @@ export async function saveCostItem(formData: FormData) {
   const rate = num(formData.get("rate"));
   const density = num(formData.get("density_t_per_m3"));
   const capacity = num(formData.get("truck_capacity_t"));
+  const ordinary = num(formData.get("ordinary_hours"));
+  const ot1h = num(formData.get("ot1_hours"));
+  const ot1m = num(formData.get("ot1_multiplier"));
+  const ot2m = num(formData.get("ot2_multiplier"));
+  const hourly = (category === "crew" || category === "plant") && unit === "h";
+  if (hourly && ordinary != null) {
+    if (Number.isNaN(ordinary) || ordinary <= 0 || ordinary > 24) back("Ordinary hours must be between 0 and 24.");
+    if (Number.isNaN(ot1h) || (ot1h != null && (ot1h < 0 || ot1h > 24))) back("Time-and-a-half hours must be between 0 and 24.");
+    if ([ot1m, ot2m].some((m) => Number.isNaN(m) || (m != null && (m < 1 || m > 5)))) back("Overtime rates are multiples of the hourly rate, e.g. 1.5 or 2.");
+  }
   const plantRaw = String(formData.get("supply_plant_id") ?? "");
   const supply_plant_id = category === "material" && /^[0-9a-f-]{36}$/i.test(plantRaw) ? plantRaw : null;
 
@@ -52,7 +62,9 @@ export async function saveCostItem(formData: FormData) {
   const row = {
     tenant_id: ctx.tenant.id, name, category, unit, rate, material_kind,
     density_t_per_m3: density, includes_delivery: formData.get("includes_delivery") === "on",
-    truck_capacity_t: category === "truck" ? capacity ?? 12 : null, supply_plant_id, active: true, updated_at: new Date().toISOString(),
+    truck_capacity_t: category === "truck" ? capacity ?? 12 : null, supply_plant_id, active: true,
+    ordinary_hours: hourly ? ordinary : null, ot1_hours: hourly && ordinary ? ot1h ?? 2 : null,
+    ot1_multiplier: hourly && ordinary ? ot1m ?? 1.5 : null, ot2_multiplier: hourly && ordinary ? ot2m ?? 2 : null, updated_at: new Date().toISOString(),
   };
   const { error } = id
     ? await supabase.from("cost_items").update(row).eq("id", id).eq("tenant_id", ctx.tenant.id)

@@ -12,8 +12,8 @@ export const SITE_PROMPT_VERSION = "site-v1";
 const nullableNumber = { type: ["number", "null"] } as const;
 const nullableString = { type: ["string", "null"] } as const;
 const line = {
-  type: "object", additionalProperties: false, required: ["key", "cost_item_id", "amount", "note"],
-  properties: { key: { type: "string" }, cost_item_id: { type: "string" }, amount: { type: "number" }, note: nullableString },
+  type: "object", additionalProperties: false, required: ["key", "cost_item_id", "amount", "days", "note"],
+  properties: { key: { type: "string" }, cost_item_id: { type: "string" }, amount: nullableNumber, days: nullableNumber, note: nullableString },
 } as const;
 
 export const SITE_SCOPE_SCHEMA = {
@@ -22,7 +22,7 @@ export const SITE_SCOPE_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["title", "job_type", "items", "crew", "plant", "supply_plant_id", "truck_cost_item_id", "assumptions", "questions"],
+    required: ["title", "job_type", "site_location", "items", "crew", "plant", "supply_plant_id", "truck_cost_item_id", "assumptions", "questions"],
     properties: {
       title: { type: "string" },
       job_type: { type: "string", enum: ["carpark", "driveway", "road", "subdivision", "patching", "spray_seal", "other"] },
@@ -44,6 +44,7 @@ export const SITE_SCOPE_SCHEMA = {
       },
       crew: { type: "array", items: line },
       plant: { type: "array", items: line },
+      site_location: { type: ["string", "null"], description: "Where the job is, if they say it: street address, or street and suburb, or suburb. Null if not said." },
       supply_plant_id: nullableString,
       truck_cost_item_id: nullableString,
       assumptions: { type: "array", items: { type: "string" } },
@@ -67,14 +68,17 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `1. Only use cost_item_id values from the library below. If nothing fits, set cost_item_id to null and add a question.`,
     `2. Quantities only from what was said or clearly visible: area in m2, depth in mm. Convert units (e.g. "100 mil" = 100 mm, "2,000 squares" = 2000 m2, "half a day" = 4 h if shifts are 8 h). Never invent a number: if a needed quantity is missing, leave it null and ask.`,
     `3. Asphalt and base items need area_m2 and depth_mm. Prime and seal need area_m2. "other" items use quantity in the cost item's unit.`,
-    `4. Crew lines: amount is shifts (or days or hours, per the cost item's unit). Plant lines: amount in the cost item's unit, usually hours.`,
+    `4. Crew and plant lines: amount is per day in the cost item's unit (hours a day for hourly crew and hire, shifts for per-shift crew); days is how many days (1 if it's one day). If the hours a day aren't said, set amount to null and ask. Overtime is worked out by the app from the hours.`,
     `5. Prime under new asphalt on a new base is normal practice: add it and say so in assumptions if it wasn't mentioned.`,
     `6. supply_plant_id: only if they name a plant (match it to the list). Otherwise null: the app picks the nearest plant to the site.`,
     `6a. Mixes marked "from <plant> only" are that plant's prices. Pick the right mix by name from any plant; the app swaps it to the chosen plant's price.`,
+    `6b. Never add the float (category float) as an item or plant line: the app adds float moves itself.`,
     `7. truck_cost_item_id: the truck item from the library if any material must be carted (not delivered by the supplier).`,
     `8. Use short, clear descriptions a customer would understand ("Supply and lay AC10, 40 mm").`,
     `9. Every assumption you make goes in assumptions. Anything you need to know goes in questions, briefly.`,
-    `10. If a previous scope is given, apply the correction to it and keep everything else unchanged, including keys.`,
+    `10. If a previous scope is given, apply the correction to it and keep everything else unchanged, including keys. Answers to earlier questions count as corrections: remove questions that have been answered.`,
+    `10a. site_location: the job's address or suburb if they say it (e.g. "12 Smith St Strathpine", "Strathpine"), even if the site address given below differs: they may be quoting from home. Null if not said; don't ask if a site address is given.`,
+    `11. Ask for anything needed to price the job that wasn't said or shown: area, depth, mix, hours on site each day, how many days, plant hours, where the job is. One short question per missing thing, answerable in a few words (e.g. "How many hours on site each day?"). Don't ask about things the app works out (tonnes, trucks, distance, overtime).`,
     ``,
     ...(rules && (rules.house.length || rules.own.length)
       ? [`# How this company quotes (apply what's relevant to this job; rules 1-10 above still hold: you never price)`, rulesBlock(rules.house, rules.own), ``]
@@ -97,7 +101,7 @@ export function buildSiteUserMessage(input: {
   correction?: string | null;
 }): ChatPart[] {
   const text = [
-    input.siteAddress ? `Site: ${input.siteAddress}` : "Site address not given.",
+    input.siteAddress ? `Phone's location when this was recorded (may not be the job site): ${input.siteAddress}` : "Phone location not available.",
     ``,
     `What they said:`,
     input.transcript.trim() || "(nothing said)",
@@ -132,10 +136,13 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
   });
   const lines = (arr: SiteScope["crew"], prefix: string) =>
     arr.filter((l) => {
-      const ok = ids.has(l.cost_item_id) && Number.isFinite(l.amount) && l.amount >= 0;
+      const ok = ids.has(l.cost_item_id) && (l.amount == null || (Number.isFinite(l.amount) && l.amount >= 0));
       if (!ok) fixes.push(`A ${prefix === "c" ? "crew" : "plant"} line pointed at a cost that isn't in your library.`);
       return ok;
-    }).map((l, n) => ({ ...l, key: uniqueKey(l.key, `${prefix}${n + 1}`) }));
+    }).map((l, n) => ({
+      ...l, key: uniqueKey(l.key, `${prefix}${n + 1}`), amount: l.amount ?? 0,
+      days: l.days != null && Number.isFinite(l.days) && l.days > 0 ? l.days : null,
+    }));
 
   const plantOk = raw.supply_plant_id && plants.some((p) => p.id === raw.supply_plant_id) ? raw.supply_plant_id : null;
   const truckOk = raw.truck_cost_item_id && ids.has(raw.truck_cost_item_id) ? raw.truck_cost_item_id : null;

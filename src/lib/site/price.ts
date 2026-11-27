@@ -8,7 +8,7 @@
 
 export type CostItem = {
   id: string;
-  category: "crew" | "material" | "plant" | "truck" | "other";
+  category: "crew" | "material" | "plant" | "truck" | "float" | "other";
   material_kind: "asphalt" | "base" | "prime" | "seal" | "other" | null;
   name: string;
   unit: "shift" | "day" | "h" | "t" | "m2" | "m3" | "each" | "km";
@@ -19,6 +19,11 @@ export type CostItem = {
   active: boolean;
   /** Set for a mix priced at one supply plant; null for general costs. */
   supply_plant_id?: string | null;
+  /** Hourly crew with overtime: ordinary hours a day, then ot1_hours at ot1_multiplier, then ot2_multiplier. */
+  ordinary_hours?: number | null;
+  ot1_hours?: number | null;
+  ot1_multiplier?: number | null;
+  ot2_multiplier?: number | null;
 };
 
 export type SupplyPlant = { id: string; name: string; lat: number | null; lng: number | null };
@@ -37,7 +42,8 @@ export type ScopeItem = {
   quantity: number | null;
 };
 
-export type LabourLine = { key: string; cost_item_id: string; amount: number; note: string | null }; // shifts, hours, days...
+/** amount: per day, in the cost item's unit (hours, shifts...). days: how many days (1 if not set). */
+export type LabourLine = { key: string; cost_item_id: string; amount: number; days?: number | null; note: string | null };
 
 export type SiteScope = {
   title: string;
@@ -51,6 +57,10 @@ export type SiteScope = {
   questions: string[];
   /** Set by the user when the GPS estimate is wrong (one-way). */
   haul_override?: { km: number; minutes: number } | null;
+  /** Float moves (paver and roller to site and back). Null = automatic: 1 when the job has asphalt. */
+  float_moves?: number | null;
+  /** The job's address or suburb as they said it (the AI hears it); used instead of the phone's location. */
+  site_location?: string | null;
   /** True when the plant was picked as the nearest one (re-picked if the site moves); false once the user chooses. */
   supply_plant_auto?: boolean;
 };
@@ -102,7 +112,7 @@ export type Priced = {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const fmtN = (n: number, dp = 1) => Number(n.toFixed(dp)).toLocaleString("en-AU");
 export const money = (n: number) =>
-  `$${n.toLocaleString("en-AU", { minimumFractionDigits: 0, maximumFractionDigits: n % 1 === 0 ? 0 : 2 })}`;
+  `$${n.toLocaleString("en-AU", { minimumFractionDigits: n % 1 === 0 ? 0 : 2, maximumFractionDigits: n % 1 === 0 ? 0 : 2 })}`;
 
 /** Straight-line distance (km) between two points. */
 export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -165,6 +175,19 @@ export function choosePlant(input: {
     pick = fromMixes.size === 1 ? [...fromMixes][0] : plants.length === 1 ? plants[0].id : null;
   }
   return { ...alignToPlant(scope, library, pick), supply_plant_auto: pick != null };
+}
+
+/** Cost of one day's hours with overtime: ordinary, then time-and-a-half, then double time (by default). */
+export function overtimeDay(ci: CostItem, hours: number): { cost: number; parts: { hours: number; rate: number }[] } {
+  const ord = ci.ordinary_hours ?? Infinity;
+  const ot1h = ci.ot1_hours ?? 2;
+  const m1 = ci.ot1_multiplier ?? 1.5;
+  const m2 = ci.ot2_multiplier ?? 2;
+  const a = Math.min(hours, ord);
+  const b = Math.min(Math.max(hours - ord, 0), ot1h);
+  const c = Math.max(hours - ord - ot1h, 0);
+  const parts = [{ hours: a, rate: ci.rate }, { hours: b, rate: round2(ci.rate * m1) }, { hours: c, rate: round2(ci.rate * m2) }].filter((p) => p.hours > 0);
+  return { cost: round2(parts.reduce((s, p) => s + p.hours * p.rate, 0)), parts };
 }
 
 /** Tonnes of material for an area at a depth. */
@@ -274,13 +297,38 @@ export function priceSiteQuote(input: {
         warnings.push(`A ${group} line refers to a cost that isn't in your library.`);
         continue;
       }
-      const cost = round2(l.amount * ci.rate);
-      costLines.push({
-        key: l.key, group, label: ci.name,
-        working: `${fmtN(l.amount)} ${UNIT_LABEL[ci.unit]} × ${money(ci.rate)}/${UNIT_LABEL[ci.unit]}${l.note ? ` (${l.note})` : ""}`,
-        cost,
-      });
+      const days = l.days && l.days > 0 ? l.days : 1;
+      if (!l.amount || l.amount <= 0) {
+        warnings.push(`${ci.name}: how many ${ci.unit === "h" ? "hours a day" : UNIT_LABEL[ci.unit] + "s"}?`);
+        continue;
+      }
+      const dayPrefix = days !== 1 ? `${fmtN(days)} days × ` : "";
+      const note = l.note ? ` (${l.note})` : "";
+      if (ci.unit === "h" && ci.ordinary_hours) {
+        const day = overtimeDay(ci, l.amount);
+        const parts = day.parts.map((p) => `${fmtN(p.hours)} h × ${money(p.rate)}`).join(" + ");
+        costLines.push({
+          key: l.key, group, label: ci.name, cost: round2(day.cost * days),
+          working: `${dayPrefix}${days !== 1 || day.parts.length > 1 ? `(${parts})` : parts}${day.parts.length > 1 ? ` (overtime after ${fmtN(ci.ordinary_hours)} h)` : ""}${note}`,
+        });
+      } else {
+        costLines.push({
+          key: l.key, group, label: ci.name, cost: round2(l.amount * days * ci.rate),
+          working: `${dayPrefix}${fmtN(l.amount)} ${UNIT_LABEL[ci.unit]} × ${money(ci.rate)}/${UNIT_LABEL[ci.unit]}${note}`,
+        });
+      }
     }
+  }
+
+  // Float: a cost spread into the asphalt rate, never its own customer line. Asphalt establishments only.
+  const hasAsphalt = scope.items.some((i) => i.kind === "asphalt");
+  const floatItem = library.find((c) => c.category === "float" && c.active);
+  const moves = scope.float_moves ?? (hasAsphalt ? 1 : 0);
+  if (floatItem && moves > 0) {
+    costLines.push({
+      key: "float", group: "plant", label: floatItem.name, cost: round2(moves * floatItem.rate),
+      working: `${fmtN(moves)} move${moves === 1 ? "" : "s"} × ${money(floatItem.rate)}${scope.float_moves == null ? " (one per asphalt job)" : ""}`,
+    });
   }
 
   const cost = round2(costLines.reduce((s, l) => s + l.cost, 0));
@@ -327,7 +375,12 @@ export function priceSiteQuote(input: {
     const sell = customerLines.filter((l) => asphaltKeys.includes(l.key)).reduce((s, l) => s + l.total, 0);
     perTonne = { tonnes: round2(asphaltT), cost: round2(costShare / asphaltT), price: round2(sell / asphaltT), profit: round2((sell - costShare) / asphaltT) };
   }
-  const shifts = scope.crew.reduce((s, l) => s + (byId.get(l.cost_item_id)?.unit === "shift" ? l.amount : 0), 0);
+  // Shifts: per-shift crew counts its shifts; hourly or daily crew counts its days.
+  const shifts = scope.crew.reduce((s, l) => {
+    const u = byId.get(l.cost_item_id)?.unit;
+    const days = l.days && l.days > 0 ? l.days : 1;
+    return s + (u === "shift" ? l.amount * days : u === "h" || u === "day" ? (l.amount > 0 ? days : 0) : 0);
+  }, 0);
   const profit = round2(priceExGst - cost);
 
   return {

@@ -1,6 +1,7 @@
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
-import { addRule, setRuleStatus } from "./actions";
+import { setRuleStatus } from "./actions";
+import { RuleForm } from "./rule-form";
 
 type Rule = { id: string; code: string; grp: string | null; text: string; status: string; source: string; always_on: boolean; why: string | null };
 
@@ -45,33 +46,16 @@ export default async function TeachPage() {
       <div>
         <h1>Teach QUOTES</h1>
         <p className="sub">
-          Tell it how you quote, in plain English. Nothing changes until an admin approves it, and every rule can be switched off.
+          Your own way of quoting, in plain English. Your rules apply to every quote from now on and come first. Switch one off any time.
         </p>
       </div>
 
-      {ctx.role !== "viewer" && (
-        <form action={addRule} className="card focus" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <label htmlFor="text" style={{ fontSize: 15 }}>Tell QUOTES something new</label>
-          <textarea
-            id="text"
-            name="text"
-            rows={3}
-            required
-            placeholder="e.g. For any carpark over 2,000 m², always allow 3 establishments, not 2."
-          />
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>
-              It&apos;s saved as a suggestion. Testing it against your past RFQs arrives with the AI step.
-            </span>
-            <button type="submit" className="btn primary">Save rule</button>
-          </div>
-        </form>
-      )}
+      {ctx.role !== "viewer" && <RuleForm />}
 
       {error && <p className="error">Couldn&apos;t load rules: {error.message}</p>}
 
-      <section className="card">
-        <h2>Waiting for approval · {proposed.length}</h2>
+      {proposed.length > 0 && <section className="card">
+        <h2>Suggested by QUOTES · {proposed.length}</h2>
         {proposed.length === 0 ? (
           <p className="sub" style={{ marginTop: 0 }}>Nothing waiting.</p>
         ) : (
@@ -92,10 +76,11 @@ export default async function TeachPage() {
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       <section className="card">
         <h2>Your rules · {live.filter((r) => r.status === "active").length} active</h2>
+        {live.length === 0 && <p className="sub" style={{ marginTop: 0 }}>None yet. QUOTES uses its standard method until you add your own.</p>}
         {groups.map(([grp, items]) => (
           <div key={grp} style={{ marginTop: 12 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "8px 0 0", textTransform: "uppercase", letterSpacing: 0.4 }}>{grp}</h3>

@@ -8,7 +8,8 @@ import { xaiStructured } from "@/lib/quote/provider";
 import { emptyScope, haulFor, loadPricingContext } from "@/lib/site/load";
 import { routesToPlants } from "@/lib/site/routes";
 import { loadLayeredRules } from "@/lib/rules-load";
-import { choosePlant, priceSiteQuote, type HaulRoutes, type SiteScope } from "@/lib/site/price";
+import { searchPlaces } from "@/lib/maps";
+import { choosePlant, haversineKm, priceSiteQuote, type HaulRoutes, type SiteScope } from "@/lib/site/price";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type ActionResult = { ok: true; id: string } | { ok: false; message: string };
@@ -70,16 +71,33 @@ export async function buildSiteQuote(input: {
     }
     if (!scope.title) scope.title = title;
 
+    // They said where the job is: use that over the phone's location (they may be quoting from home).
+    let site = { lat: input.lat, lng: input.lng, address: input.address };
+    const spoken = scope.site_location?.trim();
+    if (spoken && spoken.length >= 3) {
+      try {
+        const near = input.lat != null && input.lng != null ? { lat: input.lat, lng: input.lng } : null;
+        const [hit] = await searchPlaces(spoken, { apiKey: process.env.GOOGLE_MAPS_API_KEY || null, near });
+        const far = hit && near ? haversineKm(near.lat, near.lng, hit.lat, hit.lng) > 1 : !!hit;
+        if (hit && far) {
+          site = { lat: hit.lat, lng: hit.lng, address: hit.address || spoken };
+          scope.assumptions.push(`Job location taken from what was said ("${spoken}"), not the phone's location.`);
+          const gpsStreet = input.address ? input.address.split(",")[0].trim() : "";
+          if (scope.title === title || (gpsStreet && scope.title.includes(gpsStreet))) scope.title = input.customer ? `${input.customer}, ${spoken}` : spoken;
+        }
+      } catch { /* keep the phone's location */ }
+    }
+
     const { data: quoteNo, error: qErr } = await db.rpc("take_quote_number", { t: ctx.tenant.id });
     if (qErr) return { ok: false, message: `Couldn't get a quote number: ${qErr.message}` };
 
-    const routes = await routesToPlants(input, pc.plants);
+    const routes = await routesToPlants(site, pc.plants);
     // Nobody named a plant: use the nearest one that sells the mixes.
-    if (!scope.supply_plant_id) scope = choosePlant({ scope, library: pc.library, plants: pc.plants, settings: pc.settings, site: input, routes });
-    const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, input, pc.plants, pc.settings, routes), marginPercent: pc.defaultMargin });
+    if (!scope.supply_plant_id) scope = choosePlant({ scope, library: pc.library, plants: pc.plants, settings: pc.settings, site, routes });
+    const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, site, pc.plants, pc.settings, routes), marginPercent: pc.defaultMargin });
     const { data, error } = await db.from("site_quotes").insert({
       tenant_id: ctx.tenant.id, quote_no: quoteNo, title: scope.title, customer_name: input.customer || null,
-      site_address: input.address || null, site_lat: input.lat, site_lng: input.lng, haul_routes: routes, transcript, photos,
+      site_address: site.address || null, site_lat: site.lat, site_lng: site.lng, haul_routes: routes, transcript, photos,
       scope, costing: priced, margin_percent: pc.defaultMargin, total_ex_gst: priced.priceExGst, created_by: ctx.userId,
     }).select("id").single();
     if (error || !data) return { ok: false, message: `Couldn't save: ${error?.message}` };

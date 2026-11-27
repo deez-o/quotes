@@ -5,16 +5,19 @@ export const DEFAULT_PRICING: PricingSettings = {
   truck_load_minutes: 15, truck_unload_minutes: 10, shift_minutes: 480, road_factor: 1.3, average_speed_kmh: 60, gst_percent: 10,
 };
 
+const optNum = (v: unknown) => (v == null ? null : Number(v));
+const nums = (c: CostItem) => ({ ordinary_hours: optNum(c.ordinary_hours), ot1_hours: optNum(c.ot1_hours), ot1_multiplier: optNum(c.ot1_multiplier), ot2_multiplier: optNum(c.ot2_multiplier) });
+
 /** Everything a site quote is priced from, for one tenant (RLS applies). */
 export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
   const [{ data: items }, { data: plants }, { data: s }] = await Promise.all([
-    db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active, supply_plant_id")
+    db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier")
       .eq("tenant_id", tenantId).order("name"),
     db.from("supply_plants").select("id, name, lat, lng").eq("tenant_id", tenantId).eq("active", true).order("name"),
     db.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms")
       .eq("tenant_id", tenantId).maybeSingle(),
   ]);
-  const library = ((items ?? []) as CostItem[]).map((c) => ({ ...c, rate: Number(c.rate), density_t_per_m3: c.density_t_per_m3 == null ? null : Number(c.density_t_per_m3), truck_capacity_t: c.truck_capacity_t == null ? null : Number(c.truck_capacity_t) }));
+  const library = ((items ?? []) as CostItem[]).map((c) => ({ ...c, rate: Number(c.rate), density_t_per_m3: c.density_t_per_m3 == null ? null : Number(c.density_t_per_m3), truck_capacity_t: c.truck_capacity_t == null ? null : Number(c.truck_capacity_t), ...nums(c) }));
   const settings: PricingSettings = {
     truck_load_minutes: Number(s?.truck_load_minutes ?? DEFAULT_PRICING.truck_load_minutes),
     truck_unload_minutes: Number(s?.truck_unload_minutes ?? DEFAULT_PRICING.truck_unload_minutes),

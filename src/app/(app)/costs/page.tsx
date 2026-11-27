@@ -7,14 +7,16 @@ import { PriceListUpload } from "./price-list";
 type Item = {
   id: string; category: string; material_kind: string | null; name: string; unit: string; rate: number;
   density_t_per_m3: number | null; includes_delivery: boolean; truck_capacity_t: number | null; supply_plant_id: string | null;
+  ordinary_hours: number | null; ot1_hours: number | null; ot1_multiplier: number | null; ot2_multiplier: number | null;
 };
 type Plant = { id: string; name: string; address: string | null; lat: number | null; lng: number | null; prices_valid_until: string | null; prices_note: string | null };
 
 const GROUPS = [
-  { key: "crew", title: "Crew", hint: "Per shift, day or hour" },
+  { key: "crew", title: "Crew", hint: "Best per hour, with overtime: e.g. $1,187.50 an hour, 8 ordinary hours, then 2 hours at 1.5×, then 2×. A 10-hour day then costs more than 10 ordinary hours. Per shift or day also works." },
   { key: "material", title: "Materials (any plant)", hint: "Per tonne, m² or m³. Asphalt and base sold by the tonne need a density. Mixes priced at one plant go under that plant below." },
   { key: "plant", title: "Plant and hire", hint: "Bobcat, profiler, roller and so on" },
   { key: "truck", title: "Trucks", hint: "Used for cartage from the supply plant" },
+  { key: "float", title: "Float", hint: "Moving the paver and roller to site, per move. Added to every asphalt job as a cost and built into the asphalt rate; it doesn't show as its own line on the quote." },
   { key: "other", title: "Other", hint: "Anything else you charge" },
 ] as const;
 const UNITS = [["shift", "shift"], ["day", "day"], ["h", "hour"], ["t", "tonne"], ["m2", "m²"], ["m3", "m³"], ["each", "each"], ["km", "km"]];
@@ -32,7 +34,7 @@ function ItemForm({ item, category, canEdit, plantId }: { item?: Item; category:
         <label style={{ ...field, gridColumn: "span 2" }}>Name<input type="text" name="name" defaultValue={item?.name ?? ""} required placeholder={item ? "" : plantId ? "Add a mix, e.g. AC10 C320" : "Add a new one"} /></label>
         <label style={field}>Rate (AUD ex GST)<input type="text" inputMode="decimal" name="rate" defaultValue={item?.rate ?? ""} required /></label>
         <label style={field}>Per
-          <select name="unit" defaultValue={item?.unit ?? (category === "crew" ? "shift" : category === "material" ? "t" : "h")} style={{ font: "inherit", padding: 11, borderRadius: 8, border: "1px solid #b5b2ab" }}>
+          <select name="unit" defaultValue={item?.unit ?? (category === "material" ? "t" : category === "float" ? "each" : "h")} style={{ font: "inherit", padding: 11, borderRadius: 8, border: "1px solid #b5b2ab" }}>
             {UNITS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
         </label>
@@ -47,6 +49,18 @@ function ItemForm({ item, category, canEdit, plantId }: { item?: Item; category:
             <label style={{ ...field, flexDirection: "row", alignItems: "center", gap: 8, fontWeight: 400 }}>
               <input type="checkbox" name="includes_delivery" defaultChecked={item?.includes_delivery ?? false} /> Supplier delivers
             </label>
+          </>
+        )}
+        {(category === "crew" || category === "plant") && (
+          <>
+            <label style={field}>Ordinary hours a day<input type="text" inputMode="decimal" name="ordinary_hours" defaultValue={item?.ordinary_hours ?? (category === "crew" ? 8 : "")} placeholder={category === "crew" ? "8" : "none"} /></label>
+            <label style={field}>Then hours at
+              <span className="row" style={{ gap: 4, flexWrap: "nowrap" }}>
+                <input type="text" inputMode="decimal" name="ot1_hours" defaultValue={item?.ot1_hours ?? 2} style={{ width: "50%" }} aria-label="Time and a half hours" />
+                <input type="text" inputMode="decimal" name="ot1_multiplier" defaultValue={item?.ot1_multiplier ?? 1.5} style={{ width: "50%" }} aria-label="Time and a half rate (×)" />
+              </span>
+            </label>
+            <label style={field}>After that (×)<input type="text" inputMode="decimal" name="ot2_multiplier" defaultValue={item?.ot2_multiplier ?? 2} /></label>
           </>
         )}
         {category === "truck" && (
@@ -69,7 +83,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
   const canEdit = ctx.role === "admin";
   const supabase = await createClient();
   const [{ data: items }, { data: plants }, { data: s }] = await Promise.all([
-    supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id")
+    supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms")

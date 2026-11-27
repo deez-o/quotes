@@ -5,9 +5,8 @@ import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Save a new plain-English rule. It starts as "proposed" and changes nothing
- * until a client admin approves it. (Testing a rule against past RFQs before
- * approval arrives with the AI step in M3.)
+ * Save a new plain-English rule. It applies to quotes straight away and wins over the
+ * house method where they conflict. Rules the app learns itself still arrive as "proposed".
  */
 export async function addRule(formData: FormData) {
   const text = String(formData.get("text") ?? "").trim();
@@ -32,9 +31,10 @@ export async function addRule(formData: FormData) {
     tenant_id: ctx.tenant.id,
     module: "quoting",
     code: `R${highest + 1}`,
-    text,
-    status: "proposed",
+    text: text.slice(0, 2000),
+    status: "active",
     source: "manual",
+    approved_by: ctx.userId,
   });
 
   revalidatePath("/teach");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { alignToPlant, choosePlant, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
 import { haulFor } from "@/lib/site/load";
@@ -39,7 +39,21 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const [site, setSite] = useState({ lat: quote.site_lat, lng: quote.site_lng });
   const [routes, setRoutes] = useState<HaulRoutes | null>(quote.haul_routes);
   const [locating, setLocating] = useState(false);
-  const dictation = useDictation((t) => setCorrection((c) => (c ? `${c} ${t}` : t)));
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const activeQ = useRef<number | null>(null);
+  const talkingTo = useRef<string>("fix");
+  const [talkTarget, setTalkTarget] = useState("fix");
+  const talkTo = (t: string) => { talkingTo.current = t; setTalkTarget(t); };
+  const dictation = useDictation((t) => {
+    if (talkingTo.current.startsWith("q") && activeQ.current != null) {
+      const i = activeQ.current;
+      setAnswers((a) => ({ ...a, [i]: a[i] ? `${a[i]} ${t}` : t }));
+    } else setCorrection((c) => (c ? `${c} ${t}` : t));
+  });
+  const answerFor = (i: number) => {
+    const live = dictation.listening && talkTarget === `q${i}` && dictation.interim ? ` ${dictation.interim}` : "";
+    return `${answers[i] ?? ""}${live}`;
+  };
 
   const active = library.filter((c) => c.active);
   const haul = useMemo(() => haulFor(scope, site, plants, settings, routes), [scope, site, plants, settings, routes]);
@@ -69,7 +83,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   // Mixes from the chosen plant (and general costs) first, then other plants' mixes.
   const plantOrder = (c: CostItem) => (!c.supply_plant_id || c.supply_plant_id === scope.supply_plant_id ? 0 : 1);
   const optionsFor = (kind: ScopeItem["kind"]) =>
-    active.toSorted((a, b) => plantOrder(a) - plantOrder(b)).filter((c) => (["asphalt", "base", "prime", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck"));
+    active.toSorted((a, b) => plantOrder(a) - plantOrder(b)).filter((c) => (["asphalt", "base", "prime", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck" && c.category !== "float"));
 
   async function save(then?: "print") {
     setBusy(then ?? "save");
@@ -81,6 +95,21 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
     if (then === "print") window.open(`/print/site/${quote.id}`, "_blank");
     else setMsg({ ok: true, text: "Saved." });
     router.refresh();
+  }
+
+  /** Send the answers to the questions as a correction; answered questions drop off. */
+  async function applyAnswers() {
+    dictation.stop();
+    const text = scope.questions.map((q, i) => (answers[i]?.trim() ? `Q: ${q}\nA: ${answers[i].trim()}` : null)).filter(Boolean).join("\n\n");
+    if (!text) return;
+    setBusy("fix");
+    setMsg(null);
+    const r = await correctSiteScope({ id: quote.id, scope, correction: `Answers to your questions:\n\n${text}` });
+    setBusy(null);
+    if (!r.ok) return setMsg({ ok: false, text: r.message });
+    update(r.scope);
+    setAnswers({});
+    setMsg({ ok: true, text: "Updated with your answers. Check it, then save." });
   }
 
   async function applyCorrection() {
@@ -104,19 +133,42 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         {(scope.questions.length > 0 || scope.assumptions.length > 0) && (
           <section className="card" style={{ background: "var(--warn-bg)", borderColor: "#f0dba5", display: "flex", flexDirection: "column", gap: 6 }}>
             <strong>To confirm</strong>
-            {scope.questions.map((q, i) => <div key={`q${i}`}>• {q}</div>)}
+            {scope.questions.map((q, i) => (
+              <div key={`q${i}`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontWeight: 600 }}>{q}</span>
+                {hasAi && (
+                  <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                    <input type="text" aria-label={q} value={answerFor(i)} placeholder="Your answer"
+                      onFocus={() => (activeQ.current = i)} onChange={(e) => setAnswers((a) => ({ ...a, [i]: e.target.value }))} style={{ flex: 1, minWidth: 0 }} />
+                    {dictation.supported && (
+                      <button type="button" className="btn" style={{ padding: "9px 12px" }} aria-label={`Answer by voice: ${q}`}
+                        onClick={() => { if (dictation.listening && talkTarget === `q${i}`) { dictation.stop(); return; } talkTo(`q${i}`); activeQ.current = i; dictation.start(); }}>
+                        {dictation.listening && talkTarget === `q${i}` ? "Stop" : "Talk"}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            {hasAi && scope.questions.length > 0 && (
+              <div>
+                <button type="button" className="btn dark" disabled={busy !== null || !Object.values(answers).some((a) => a.trim())} onClick={applyAnswers}>
+                  {busy === "fix" ? "Updating..." : "Update the quote"}
+                </button>
+              </div>
+            )}
             {scope.assumptions.map((a, i) => <div key={`a${i}`} style={{ color: "var(--ink-2)" }}>• Assumed: {a}</div>)}
           </section>
         )}
 
         {hasAi && (
           <section className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <label htmlFor="fix" style={{ fontWeight: 600 }}>{dictation.listening ? <span style={{ color: "var(--accent)" }}>● Listening...</span> : "Change something"}</label>
-            <textarea id="fix" rows={2} value={dictation.interim ? `${correction} ${dictation.interim}`.trim() : correction}
+            <label htmlFor="fix" style={{ fontWeight: 600 }}>{dictation.listening && talkTarget === "fix" ? <span style={{ color: "var(--accent)" }}>● Listening...</span> : "Change something"}</label>
+            <textarea id="fix" rows={2} value={dictation.interim && talkTarget === "fix" ? `${correction} ${dictation.interim}`.trim() : correction}
               onChange={(e) => setCorrection(e.target.value)} placeholder="e.g. make it 50 mil, and it's two days not one" />
             <div className="row" style={{ gap: 8 }}>
               {dictation.supported && (
-                <button type="button" className="btn" onClick={dictation.listening ? dictation.stop : dictation.start}>{dictation.listening ? "Stop" : "Talk"}</button>
+                <button type="button" className="btn" onClick={() => { if (dictation.listening) { dictation.stop(); return; } talkTo("fix"); dictation.start(); }}>{dictation.listening && talkTarget === "fix" ? "Stop" : "Talk"}</button>
               )}
               <button type="button" className="btn dark" disabled={busy !== null || correction.trim().length < 3} onClick={applyCorrection}>
                 {busy === "fix" ? "Updating..." : "Apply"}
@@ -183,8 +235,12 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                       {active.filter((c) => (group === "crew" ? c.category === "crew" : c.category === "plant" || c.category === "other")).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </label>
-                  <label style={{ ...small, flex: "1 1 90px" }}>{ci ? UNIT[ci.unit] : "Amount"}
-                    <input type="text" inputMode="decimal" value={l.amount} onChange={(e) => setLine(group, l.key, { amount: toNum(e.target.value) ?? 0 })} />
+                  <label style={{ ...small, flex: "1 1 90px" }}>{ci?.unit === "h" ? "Hours a day" : ci ? `${UNIT[ci.unit]} a day` : "Amount"}
+                    <input type="text" inputMode="decimal" value={l.amount || ""} placeholder="?" onChange={(e) => setLine(group, l.key, { amount: toNum(e.target.value) ?? 0 })}
+                      style={!l.amount ? { borderColor: "var(--accent)" } : undefined} />
+                  </label>
+                  <label style={{ ...small, flex: "1 1 70px" }}>Days
+                    <input type="text" inputMode="decimal" value={l.days ?? 1} onChange={(e) => setLine(group, l.key, { days: toNum(e.target.value) })} />
                   </label>
                   <button type="button" aria-label={`Remove ${ci?.name ?? "line"}`} onClick={() => update({ ...scope, [group]: scope[group].filter((x) => x.key !== l.key) })}
                     style={{ flex: "none", height: 44, padding: "0 14px", borderRadius: 8, border: "1px solid #f0b8a8", background: "#fdf1ed", color: "#9a3412", font: "inherit", fontWeight: 600, cursor: "pointer" }}>
@@ -227,6 +283,12 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 : "Pick a plant and find the site, or enter the distance."}
             </span>
           </div>
+          {active.some((c) => c.category === "float") && (
+            <label style={{ ...small, maxWidth: 220 }}>Float moves (cost only, not on the quote)
+              <input type="text" inputMode="decimal" value={scope.float_moves ?? (scope.items.some((i) => i.kind === "asphalt") ? 1 : 0)}
+                onChange={(e) => update({ ...scope, float_moves: toNum(e.target.value) })} />
+            </label>
+          )}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={small}>{site.lat == null ? "Where is the job? (no GPS was taken)" : "Job location"}</span>
             {site.lat != null && <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>{address || `${site.lat.toFixed(4)}, ${site.lng?.toFixed(4)}`}{locating ? " · working out distances..." : ""}</span>}
