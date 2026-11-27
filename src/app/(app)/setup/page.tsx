@@ -72,13 +72,6 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       action: { label: settingsDone ? "Edit" : "Set it below", href: "#pricing" },
     },
     {
-      optional: true,
-      title: "Your quoting rules",
-      detail: activeRules ? `${activeRules} of your own rules in use${proposedRules ? ` · ${proposedRules} suggested` : ""}` : "Optional. quoteout already knows how to quote; add how you do things differently.",
-      done: activeRules > 0,
-      action: { label: activeRules ? "Edit rules" : "Add a rule", href: "/teach" },
-    },
-    {
       title: "Add your branding",
       detail: branding.logo_path ? "Logo and colour on your quotes" : "Your logo, colour and business details on printed quotes and PDFs",
       done: !!branding.logo_path,
@@ -115,6 +108,13 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       title: "Add 3 to 5 past quotes (optional)",
       detail: `${examples} of 3 added. quoteout copies your style from these.`,
       done: examples >= 3,
+    },
+    {
+      optional: true,
+      title: "Your quoting rules",
+      detail: activeRules ? `${activeRules} of your own rules in use${proposedRules ? ` · ${proposedRules} suggested` : ""}` : "Optional. quoteout already knows how to quote; add how you do things differently.",
+      done: activeRules > 0,
+      action: { label: activeRules ? "Edit rules" : "Add a rule", href: "/teach" },
     },
   ];
 
