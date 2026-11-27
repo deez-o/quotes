@@ -18,7 +18,7 @@ export type Plan = {
 };
 
 export const PLANS: Record<PlanId, Plan> = {
-  trial: { id: "trial", name: "Trial", priceMonthly: 0, aiQuotes: 15, emailAutoQuote: true, connectedMailbox: false, maxDevices: 2, blurb: "14 days, everything in Pro, 15 AI quotes." },
+  trial: { id: "trial", name: "Trial", priceMonthly: 0, aiQuotes: 15, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "14 days, everything in Business, 15 AI quotes." },
   site: { id: "site", name: "Site", priceMonthly: 149, aiQuotes: 40, emailAutoQuote: false, connectedMailbox: false, maxDevices: 2, blurb: "Quote on site by voice and photos, import RFQs, paste emails." },
   pro: { id: "pro", name: "Pro", priceMonthly: 249, aiQuotes: 150, emailAutoQuote: true, connectedMailbox: false, maxDevices: 2, blurb: "Everything in Site, plus the email auto-quoter by forwarding." },
   business: { id: "business", name: "Business", priceMonthly: 449, aiQuotes: 500, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "Everything in Pro, plus a connected Microsoft 365 or Gmail inbox." },
@@ -50,7 +50,7 @@ export function periodNow(d = new Date()) {
 
 /** What each plan includes, as shown on sign-up and the billing page. */
 export const PLAN_FEATURES: Record<"trial" | "site" | "pro" | "business", string[]> = {
-  trial: ["Everything in Pro for 14 days", "15 AI quotes", "No card needed"],
+  trial: ["Everything in Business for 14 days, including the connected inbox", "15 AI quotes", "No card needed"],
   site: ["Quote on site by voice and photos", "Import an RFQ or paste an email", "40 AI quotes a month", "PDF and Xero, with your branding", "Your rates, plants and rules set up for you", "Unlimited users"],
   pro: ["Everything in Site", "Email auto-quoter: forward RFQs to your own quoteout address", "150 AI quotes a month"],
   business: ["Everything in Pro", "Connect your Microsoft 365 or Gmail inbox", "500 AI quotes a month"],
