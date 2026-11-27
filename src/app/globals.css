@@ -66,6 +66,13 @@ label { font-weight: 600; }
 .error { color: var(--accent-ink); font-weight: 600; }
 
 @media (max-width: 640px) {
-  .main { padding: 24px 16px; }
-  .nav { max-width: none; }
+  /* Phone: the menu becomes a scrolling strip across the top. */
+  .shell { flex-direction: column; flex-wrap: nowrap; }
+  .nav { max-width: none; flex: none; flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; gap: 2px; padding-top: max(10px, env(safe-area-inset-top)); -webkit-overflow-scrolling: touch; }
+  .nav .brand { padding: 0 10px 0 4px; font-size: 18px; }
+  .nav a { white-space: nowrap; padding: 10px 12px; }
+  .nav .who { display: none; }
+  .main { padding: 20px 16px calc(24px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 26px; }
+  input[type="text"], input[type="email"], textarea, select { font-size: 16px; } /* no zoom on focus in iOS */
 }
