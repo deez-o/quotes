@@ -12,7 +12,7 @@ import { searchPlaces } from "@/lib/maps";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { decryptToken, encryptToken } from "@/lib/crypto/tokens";
 import { renderTerms } from "@/lib/site/terms";
-import { buildXeroQuote, findOrCreateContact, xeroClient, xeroConfigFromEnv, xeroValidToken, type XeroTokens } from "@/lib/xero";
+import { buildXeroQuote, findOrCreateContact, liveXeroQuoteId, xeroClient, xeroConfigFromEnv, xeroValidToken, type XeroTokens } from "@/lib/xero";
 import { choosePlant, haversineKm, priceSiteQuote, type CustomerLine, type HaulRoutes, type SiteScope } from "@/lib/site/price";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -230,11 +230,13 @@ export async function sendToXero(input: { id: string; origin: string }): Promise
     const call = xeroClient(tokens.access_token, tokens.xero_tenant_id);
     const contactId = await findOrCreateContact(call, q.customer_name, q.customer_email ?? null);
     const { data: s } = await db.from("tenant_settings").select("quote_terms").eq("tenant_id", t).maybeSingle();
+    // Deleted in Xero (or made in another organisation)? Make a fresh draft rather than fail.
+    const existingId = await liveXeroQuoteId(call, q.xero_quote_id);
     const body = buildXeroQuote({
       contactId, quoteNo: q.quote_no, title: q.title ?? "Quote", siteAddress: q.site_address, lines,
-      terms: renderTerms(s?.quote_terms, q.created_at), date: new Date(), existingQuoteId: q.xero_quote_id,
+      terms: renderTerms(s?.quote_terms, q.created_at), date: new Date(), existingQuoteId: existingId,
     });
-    const out = (await call("/Quotes?unitdp=4", { method: q.xero_quote_id ? "POST" : "PUT", body })) as { Quotes?: { QuoteID: string; QuoteNumber: string }[] };
+    const out = (await call("/Quotes?unitdp=4", { method: existingId ? "POST" : "PUT", body })) as { Quotes?: { QuoteID: string; QuoteNumber: string }[] };
     const made = out.Quotes?.[0];
     if (!made) return { ok: false, message: "Xero didn't return the quote." };
     await db.from("site_quotes").update({ xero_quote_id: made.QuoteID, xero_quote_number: made.QuoteNumber, xero_sent_at: new Date().toISOString() })

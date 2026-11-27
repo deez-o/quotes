@@ -89,6 +89,22 @@ export function xeroClient(accessToken: string, xeroTenantId: string, f: typeof 
   };
 }
 
+/**
+ * The Xero quote we made earlier, if it's still there to update. Returns null when it was deleted in Xero
+ * or can't be found (for example after reconnecting to another organisation), so a fresh draft gets made.
+ */
+export async function liveXeroQuoteId(call: XeroCall, quoteId: string | null | undefined): Promise<string | null> {
+  if (!quoteId) return null;
+  try {
+    const out = (await call(`/Quotes/${encodeURIComponent(quoteId)}`)) as { Quotes?: { QuoteID: string; Status?: string }[] };
+    const q = out.Quotes?.[0];
+    if (!q || q.Status === "DELETED") return null;
+    return q.QuoteID;
+  } catch {
+    return null;
+  }
+}
+
 /** Find the customer in Xero by name (or email), or add them. */
 export async function findOrCreateContact(call: XeroCall, name: string, email: string | null): Promise<string> {
   const term = encodeURIComponent(name.trim());

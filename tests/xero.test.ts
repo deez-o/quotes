@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildXeroQuote, xeroSummary, findOrCreateContact, xeroAuthorizeUrl, xeroClient, xeroExchangeCode, xeroOrganisation, xeroValidToken, XERO_SCOPES } from "@/lib/xero";
+import { buildXeroQuote, xeroSummary, liveXeroQuoteId, findOrCreateContact, xeroAuthorizeUrl, xeroClient, xeroExchangeCode, xeroOrganisation, xeroValidToken, XERO_SCOPES } from "@/lib/xero";
 
 const cfg = { clientId: "cid", clientSecret: "secret", redirectUri: "https://app.example/api/connect/xero/callback" };
 function fake(handler: (url: string, init?: RequestInit) => { status?: number; body: unknown }) {
@@ -90,5 +90,17 @@ describe("Xero quote summary", () => {
     expect(s).toContain("- Establishment (1 item)");
     expect(s).not.toContain("Nothing");
     expect(s).toContain("Our ref Q-0001");
+  });
+});
+
+describe("re-sending after the quote was deleted in Xero", () => {
+  const fake = (reply: () => unknown) => (async () => reply()) as unknown as Parameters<typeof liveXeroQuoteId>[0];
+  it("makes a fresh quote when the old one is deleted or missing", async () => {
+    expect(await liveXeroQuoteId(fake(() => ({ Quotes: [{ QuoteID: "q1", Status: "DELETED" }] })), "q1")).toBeNull();
+    expect(await liveXeroQuoteId(fake(() => { throw new Error("Xero: 404"); }), "q1")).toBeNull();
+    expect(await liveXeroQuoteId(fake(() => ({})), null)).toBeNull();
+  });
+  it("updates the same quote when it's still there", async () => {
+    expect(await liveXeroQuoteId(fake(() => ({ Quotes: [{ QuoteID: "q1", Status: "DRAFT" }] })), "q1")).toBe("q1");
   });
 });
