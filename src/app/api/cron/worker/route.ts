@@ -6,15 +6,14 @@ import { runWorkerOnce, supabaseQueue } from "@/lib/worker/run";
 /**
  * Runs every minute (vercel.json cron) for the pilot: works through queued jobs
  * and queues renewals for mailbox subscriptions that expire within a day.
- * Vercel sends "Authorization: Bearer <CRON_SECRET>" when CRON_SECRET is set.
+ * Called every minute by the Supabase timer (supabase/ops/worker_timer.sql), or Vercel cron with CRON_SECRET.
  */
 export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "unauthorised" }, { status: 401 });
-  }
+  const auth = request.headers.get("authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (token.length < 16) return NextResponse.json({ error: "unauthorised" }, { status: 401 });
 
   let db;
   try {
@@ -22,6 +21,15 @@ export async function GET(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "not configured" }, { status: 503 });
   }
+
+  // Either Vercel's cron (CRON_SECRET) or the Supabase timer (token kept in Supabase Vault).
+  const secret = process.env.CRON_SECRET;
+  let ok = !!secret && token === secret;
+  if (!ok) {
+    const { data } = await db.rpc("check_worker_token", { t: token });
+    ok = data === true;
+  }
+  if (!ok) return NextResponse.json({ error: "unauthorised" }, { status: 401 });
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? request.nextUrl.origin;
 
   // Renewals: queue one per watch expiring in the next 24 hours (deduped per day).
