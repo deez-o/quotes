@@ -7,6 +7,8 @@ import { emptyScope, loadPricingContext } from "@/lib/site/load";
 import { routesToPlants } from "@/lib/site/routes";
 import type { HaulRoutes, SiteScope } from "@/lib/site/price";
 import { SiteQuoteEditor, type QuoteView, type RfqView } from "./editor";
+import { QuoteBar, type QuoteBarView } from "./quote-bar";
+import { quoteLabel } from "@/lib/quote/numbering";
 import type { CompareView } from "./compare";
 import { isOwner } from "@/lib/owner";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -19,7 +21,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
   const ctx = await requireTenant();
   const db = await createClient();
   const { data: q } = await db.from("site_quotes")
-    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst, overview")
+    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst, overview, option_group, option_label, revision, superseded_at, sent_at, accepted_at, accepted_name, accepted_po, accepted_note, inclusions, exclusions, show_map")
     .eq("id", id).eq("tenant_id", ctx.tenant.id).maybeSingle();
   if (!q) notFound();
 
@@ -43,6 +45,8 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
     site_address: q.site_address, site_lat: q.site_lat, site_lng: q.site_lng, haul_routes: routes, transcript: q.transcript, photoUrls,
     scope, margin_percent: Number(q.margin_percent), xero_quote_number: q.xero_quote_number ?? null,
     areas: ((q.overview as Overview | null)?.areas) ?? [],
+    inclusions: (q.inclusions as string[] | null) ?? [], exclusions: (q.exclusions as string[] | null) ?? [], show_map: q.show_map !== false,
+    rfqExclusions: ((q.overview as Overview | null)?.exclusions) ?? [], rfqConditions: ((q.overview as Overview | null)?.conditions) ?? [],
   };
 
   // Made from an RFQ: show the original email and files beside the quote.
@@ -94,16 +98,37 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
     }
   }
 
+  // Options of this quote, its earlier revisions, and whether the customer has accepted.
+  const t = ctx.tenant.id;
+  const [{ data: opts }, { data: revs }, { data: customers }] = await Promise.all([
+    q.option_group ? db.from("site_quotes").select("id, option_label, title, total_ex_gst, accepted_at, accepted_name, accepted_po, accepted_note").eq("tenant_id", t).eq("option_group", q.option_group).eq("revision", q.revision).order("option_label") : Promise.resolve({ data: null }),
+    q.quote_no ? db.from("site_quotes").select("id, revision, option_label, sent_at, superseded_at").eq("tenant_id", t).eq("quote_no", q.quote_no).neq("revision", q.revision).order("revision") : Promise.resolve({ data: null }),
+    db.from("customers").select("name, email").eq("tenant_id", t).order("name").limit(500),
+  ]);
+  const sameOpt = (r: { option_label: string | null }) => (r.option_label ?? "A") === (q.option_label ?? "A") || !r.option_label;
+  const earlier = (revs ?? []).filter((r) => r.revision < q.revision && sameOpt(r));
+  const latest = (revs ?? []).filter((r) => r.revision > q.revision && !r.superseded_at && sameOpt(r)).sort((a, b) => b.revision - a.revision)[0];
+  const acceptedRow = (opts ?? []).find((o) => o.accepted_at) ?? (q.accepted_at ? { ...q, option_label: null } : null);
+  const bar: QuoteBarView = {
+    id: q.id, label: quoteLabel(q), status: q.status, canEdit: ctx.role !== "viewer", sentAt: q.sent_at ?? null,
+    options: (opts ?? []).map((o) => ({ id: o.id, label: o.option_label ?? "A", title: o.title ?? "", total: o.total_ex_gst == null ? null : Number(o.total_ex_gst) })),
+    revisions: earlier.map((r) => ({ id: r.id, label: quoteLabel({ quote_no: q.quote_no, revision: r.revision }), sentAt: r.sent_at })),
+    newer: latest ? { id: latest.id, label: quoteLabel({ quote_no: q.quote_no, revision: latest.revision }) } : null,
+    accepted: acceptedRow ? { name: acceptedRow.accepted_name, po: acceptedRow.accepted_po, note: acceptedRow.accepted_note, at: acceptedRow.accepted_at!, option: (opts?.length ?? 0) > 1 ? acceptedRow.option_label : null } : null,
+  };
+
   const { data: xero } = await db.from("connections").select("id").eq("tenant_id", ctx.tenant.id).eq("provider", "xero").eq("status", "ok").limit(1).maybeSingle();
 
   return (
     <div className="page" style={{ maxWidth: 1280 }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <Link href="/quotes" className="sub" style={{ marginTop: 0 }}>← Quotes</Link>
-        <span className="sub" style={{ marginTop: 0, fontWeight: 600 }}>{q.quote_no} · {q.status}</span>
+        <span className="sub" style={{ marginTop: 0, fontWeight: 600 }}>{quoteLabel(q)} · {q.status}</span>
       </div>
+      <QuoteBar v={bar} />
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
-        hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} hasSheet />
+        hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} hasSheet
+        customers={(customers ?? []).map((c) => ({ name: c.name as string, email: (c.email as string | null) ?? null }))} />
     </div>
   );
 }

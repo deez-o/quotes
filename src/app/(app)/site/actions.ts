@@ -130,14 +130,26 @@ export async function correctSiteScope(input: { id: string; scope: SiteScope; co
   }
 }
 
+/** Add the customer to the company's list (or fill in their email), and return its id. */
+async function rememberCustomer(db: Awaited<ReturnType<typeof createClient>>, tenantId: string, name: string, email: string): Promise<string | null> {
+  const { data: found } = await db.from("customers").select("id, email").eq("tenant_id", tenantId).ilike("name", name.replace(/[%_\\]/g, "\\$&")).limit(1).maybeSingle();
+  if (found) {
+    if (email && !found.email) await db.from("customers").update({ email, updated_at: new Date().toISOString() }).eq("tenant_id", tenantId).eq("id", found.id);
+    return found.id as string;
+  }
+  const { data: made } = await db.from("customers").insert({ tenant_id: tenantId, name, email: email || null }).select("id").maybeSingle();
+  return (made?.id as string | undefined) ?? null;
+}
+
 /** Save the checked scope, margin and customer details; prices on the server too. */
 export async function saveSiteQuote(input: {
   id: string; scope: SiteScope; marginPercent: number; customer: string; customerEmail: string; address: string; status?: "draft" | "sent" | "won" | "lost";
+  inclusions?: string[]; exclusions?: string[]; showMap?: boolean;
 }): Promise<ActionResult> {
   try {
     const ctx = await writer();
     const db = await createClient();
-    const { data: q } = await db.from("site_quotes").select("id, site_lat, site_lng, haul_routes").eq("id", input.id).eq("tenant_id", ctx.tenant.id).maybeSingle();
+    const { data: q } = await db.from("site_quotes").select("id, site_lat, site_lng, haul_routes, option_group").eq("id", input.id).eq("tenant_id", ctx.tenant.id).maybeSingle();
     if (!q) return { ok: false, message: "Quote not found." };
     const pc = await loadPricingContext(db, ctx.tenant.id);
     const { scope } = cleanScope(input.scope, pc.library, pc.plants);
@@ -153,6 +165,21 @@ export async function saveSiteQuote(input: {
       site_address: input.address.slice(0, 300) || null, ...(input.status ? { status: input.status } : {}), updated_at: new Date().toISOString(),
     }).eq("id", input.id).eq("tenant_id", ctx.tenant.id);
     if (error) return { ok: false, message: error.message };
+
+    // The customer list: remember who this is for.
+    const customerName = input.customer.trim().slice(0, 200);
+    const customerId = customerName ? await rememberCustomer(db, ctx.tenant.id, customerName, input.customerEmail.trim().slice(0, 200)) : null;
+
+    // Shared by every option of the quote: who it's for, where, and what's in or out.
+    const lines = (v: string[] | undefined) => (v ?? []).map((x) => String(x).trim().slice(0, 300)).filter(Boolean).slice(0, 30);
+    const shared = {
+      customer_name: customerName || null, customer_email: input.customerEmail.slice(0, 200) || null, site_address: input.address.slice(0, 300) || null,
+      customer_id: customerId,
+      ...(input.inclusions ? { inclusions: lines(input.inclusions) } : {}), ...(input.exclusions ? { exclusions: lines(input.exclusions) } : {}),
+      ...(typeof input.showMap === "boolean" ? { show_map: input.showMap } : {}),
+    };
+    const sharedQ = db.from("site_quotes").update(shared).eq("tenant_id", ctx.tenant.id);
+    await (q.option_group ? sharedQ.eq("option_group", q.option_group).is("superseded_at", null) : sharedQ.eq("id", input.id));
     revalidatePath(`/site/${input.id}`);
     revalidatePath("/quotes");
     return { ok: true, id: input.id };

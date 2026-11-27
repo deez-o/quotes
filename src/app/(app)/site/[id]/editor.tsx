@@ -25,6 +25,7 @@ export type QuoteView = {
   customer_name: string | null; customer_email: string | null; site_address: string | null;
   site_lat: number | null; site_lng: number | null; haul_routes: HaulRoutes | null; xero_quote_number: string | null; transcript: string | null; photoUrls: string[];
   scope: SiteScope; margin_percent: number; areas: DrawnArea[];
+  inclusions: string[]; exclusions: string[]; show_map: boolean; rfqExclusions: string[]; rfqConditions: string[];
 };
 
 const UNIT: Record<string, string> = { shift: "shifts", day: "days", h: "hours", t: "t", m2: "m²", m3: "m³", each: "each", km: "km" };
@@ -35,8 +36,8 @@ const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8
 let keySeq = 0;
 const newKey = (p: string) => `${p}${Date.now().toString(36)}${keySeq++}`;
 
-export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null, hasSheet = false }: {
-  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null; compare?: CompareView | null; hasSheet?: boolean;
+export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null, hasSheet = false, customers = [] }: {
+  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null; compare?: CompareView | null; hasSheet?: boolean; customers?: { name: string; email: string | null }[];
 }) {
   const router = useRouter();
   const [scope, setScope] = useState<SiteScope>(quote.scope);
@@ -57,6 +58,11 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const [talkTarget, setTalkTarget] = useState("fix");
   const [mapOpen, setMapOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [incl, setIncl] = useState(quote.inclusions.join("\n"));
+  const [excl, setExcl] = useState(quote.exclusions.join("\n"));
+  const [showMap, setShowMap] = useState(quote.show_map);
+  const toLines = (t: string) => t.split("\n").map((x) => x.replace(/^\s*[-•*]\s*/, "").trim()).filter(Boolean);
+  const saveInput = () => ({ id: quote.id, scope, marginPercent: margin, customer, customerEmail: email, address, inclusions: toLines(incl), exclusions: toLines(excl), showMap });
   const talkTo = (t: string) => { talkingTo.current = t; setTalkTarget(t); };
   const dictation = useDictation((t) => {
     if (talkingTo.current.startsWith("q") && activeQ.current != null) {
@@ -104,7 +110,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
     setBusy("xero");
     setMsg(null);
     if (dirty) {
-      const s = await saveSiteQuote({ id: quote.id, scope, marginPercent: margin, customer, customerEmail: email, address });
+      const s = await saveSiteQuote(saveInput());
       if (!s.ok) { setBusy(null); return setMsg({ ok: false, text: s.message }); }
       setDirty(false);
     }
@@ -120,7 +126,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
     setMsg(null);
     if (dirty) {
       setBusy("save");
-      const s = await saveSiteQuote({ id: quote.id, scope, marginPercent: margin, customer, customerEmail: email, address });
+      const s = await saveSiteQuote(saveInput());
       setBusy(null);
       if (!s.ok) return setMsg({ ok: false, text: s.message });
       setDirty(false);
@@ -131,7 +137,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   async function save(then?: "print" | "excel") {
     setBusy(then ?? "save");
     setMsg(null);
-    const r = await saveSiteQuote({ id: quote.id, scope, marginPercent: margin, customer, customerEmail: email, address });
+    const r = await saveSiteQuote(saveInput());
     setBusy(null);
     if (!r.ok) return setMsg({ ok: false, text: r.message });
     setDirty(false);
@@ -306,6 +312,26 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           </button>
         </section>
 
+        <section className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <h2 style={{ margin: 0 }}>Included and not included</h2>
+          <p className="sub" style={{ margin: 0 }}>Shown on the PDF and the customer&apos;s accept page. One per line.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+            <label style={small}>Included<textarea rows={4} value={incl} disabled={!canEdit} onChange={(e) => { setIncl(e.target.value); setDirty(true); }} placeholder={"Traffic control\nTack coat"} /></label>
+            <label style={small}>Not included<textarea rows={4} value={excl} disabled={!canEdit} onChange={(e) => { setExcl(e.target.value); setDirty(true); }} placeholder={"Line marking\nNight works"} /></label>
+          </div>
+          {canEdit && (quote.rfqExclusions.length > 0) && (
+            <button type="button" className="btn" style={{ alignSelf: "flex-start" }} onClick={() => {
+              const have = new Set(toLines(excl).map((x) => x.toLowerCase()));
+              const add = quote.rfqExclusions.filter((x) => !have.has(x.toLowerCase()));
+              if (add.length) { setExcl([...toLines(excl), ...add].join("\n")); setDirty(true); }
+            }}>Add what the RFQ says is by others ({quote.rfqExclusions.length})</button>
+          )}
+          <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
+            <input type="checkbox" checked={showMap} disabled={!canEdit} onChange={(e) => { setShowMap(e.target.checked); setDirty(true); }} />
+            Put the site map with the traced areas on the PDF{quote.areas.length ? "" : " (trace an area below first)"}
+          </label>
+        </section>
+
         <details className="card" onToggle={(e) => setMapOpen((e.currentTarget as HTMLDetailsElement).open)}>
           <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 17 }}>
             Measure on the map{quote.areas.length ? <span className="sub" style={{ fontWeight: 400, marginLeft: 8 }}>{quote.areas.length} area{quote.areas.length === 1 ? "" : "s"} traced</span> : null}
@@ -398,7 +424,13 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
       </fieldset>
 
       <section className="card" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-        <label style={small}>Customer<input type="text" value={customer} disabled={!canEdit} onChange={(e) => { setCustomer(e.target.value); setDirty(true); }} /></label>
+        <label style={small}>Customer<input type="text" list="customer-list" autoComplete="off" value={customer} disabled={!canEdit} onChange={(e) => {
+          const v = e.target.value;
+          setCustomer(v); setDirty(true);
+          const known = customers.find((c) => c.name.toLowerCase() === v.trim().toLowerCase());
+          if (known?.email && !email) setEmail(known.email);
+        }} /></label>
+        <datalist id="customer-list">{customers.map((c) => <option key={c.name} value={c.name}>{c.email ?? ""}</option>)}</datalist>
         <label style={small}>Customer email<input type="email" value={email} disabled={!canEdit} onChange={(e) => { setEmail(e.target.value); setDirty(true); }} /></label>
         <label style={{ ...small, gridColumn: "1 / -1" }}>Site address<input type="text" value={address} disabled={!canEdit} onChange={(e) => { setAddress(e.target.value); setDirty(true); }} /></label>
       </section>

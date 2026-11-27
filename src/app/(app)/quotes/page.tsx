@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { quoteLabel } from "@/lib/quote/numbering";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { money } from "@/lib/site/price";
@@ -35,27 +36,33 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
 
   const [{ data: siteAll }, { data: jobs }, { data: mailbox }] = await Promise.all([
     db.from("site_quotes")
-      .select("id, quote_no, title, customer_name, status, total_ex_gst, created_at, job_id")
-      .eq("tenant_id", t).order("created_at", { ascending: false }).limit(300),
+      .select("id, quote_no, title, customer_name, status, total_ex_gst, created_at, job_id, option_group, option_label, revision")
+      .eq("tenant_id", t).is("superseded_at", null).order("created_at", { ascending: false }).limit(300),
     show === "site" ? Promise.resolve({ data: [] }) : db.from("jobs")
       .select("id, quote_no, customer_name, site, job_type, status, source, created_at")
       .eq("tenant_id", t).eq("module", "quoting").order("created_at", { ascending: false }).limit(200),
     db.from("connections").select("status, account_email").eq("tenant_id", t).eq("purpose", "mailbox")
       .in("provider", ["microsoft", "google"]).limit(1).maybeSingle(),
   ]);
+  // Options show as one row (Option A), with how many there are.
+  const optionCount = new Map<string, number>();
+  for (const s of siteAll ?? []) if (s.option_group) optionCount.set(s.option_group, (optionCount.get(s.option_group) ?? 0) + 1);
+  const shown = (siteAll ?? []).filter((s) => !s.option_group || s.option_group === s.id);
+  const named = (s: { quote_no: string | null; revision: number; option_group: string | null }) =>
+    [quoteLabel({ quote_no: s.quote_no, revision: s.revision }), s.option_group ? `(${optionCount.get(s.option_group) ?? 1} options)` : ""].filter(Boolean).join(" ");
   // An RFQ that has been drafted opens its quote; quick quotes are the ones not made from an RFQ.
   const draftFor = new Map((siteAll ?? []).filter((s) => s.job_id).map((s) => [s.job_id as string, s]));
-  const site = show === "rfq" ? [] : (siteAll ?? []).filter((s) => !s.job_id);
+  const site = show === "rfq" ? [] : shown.filter((s) => !s.job_id);
 
   let rows: Row[] = [
     ...site.map((s) => ({
-      kind: "site" as const, id: s.id, no: s.quote_no, title: s.title ?? "Quote", customer: s.customer_name,
+      kind: "site" as const, id: s.id, no: named(s), title: s.title ?? "Quote", customer: s.customer_name,
       source: SOURCE.site, status: s.status, total: s.total_ex_gst == null ? null : Number(s.total_ex_gst), at: s.created_at, href: `/site/${s.id}`,
     })),
     ...(jobs ?? []).map((j) => {
       const d = draftFor.get(j.id);
       return {
-        kind: "rfq" as const, id: j.id, no: j.quote_no, title: d?.title ?? j.site ?? j.job_type ?? "RFQ", customer: d?.customer_name ?? j.customer_name,
+        kind: "rfq" as const, id: j.id, no: d ? named(d) : j.quote_no, title: d?.title ?? j.site ?? j.job_type ?? "RFQ", customer: d?.customer_name ?? j.customer_name,
         source: SOURCE[(j.source ?? "inbox") as keyof typeof SOURCE] ?? "RFQ",
         status: d && d.status !== "draft" ? d.status : j.status,
         total: d?.total_ex_gst == null ? null : Number(d.total_ex_gst), at: j.created_at, href: d ? `/site/${d.id}` : null,

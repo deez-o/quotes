@@ -115,13 +115,14 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   scope = placed.scope;
   const { site, routes, priced } = placed;
 
+  const overview = await overviewPromise;
   const { data: made, error } = await db.from("site_quotes").insert({
     tenant_id: tenantId, job_id: jobId, quote_no: job.quote_no, title: scope.title,
     customer_name: scope.customer_name ?? null, customer_email: scope.customer_email ?? null,
     site_address: site.address || null, site_lat: site.lat, site_lng: site.lng, haul_routes: routes,
     transcript: null, photos: [], scope, costing: priced, margin_percent: pc.defaultMargin, total_ex_gst: priced.priceExGst,
     created_by: null, rfq_summary: { ...summary, model: opts.call === undefined ? mainModel : null },
-    overview: await overviewPromise,
+    overview, exclusions: (overview?.exclusions ?? []).slice(0, 30),
   }).select("id").single();
   if (error || !made) throw new Error(`Couldn't save the draft quote: ${error?.message}`);
 
