@@ -119,7 +119,7 @@ export function buildXeroQuote(input: {
       LineAmountTypes: "Exclusive",
       Reference: input.quoteNo,
       Title: input.title.slice(0, 100),
-      Summary: (input.siteAddress ?? "").slice(0, 3000),
+      Summary: xeroSummary(input).slice(0, 3000),
       Terms: input.terms.slice(0, 4000),
       LineItems: input.lines.map((l) => ({
         Description: `${l.description} (per ${XERO_UNIT[l.unit] ?? l.unit})`,
@@ -130,6 +130,24 @@ export function buildXeroQuote(input: {
       })),
     }],
   };
+}
+
+/** What the job is, in a few lines: the site, then each item of work with its quantity. */
+export function xeroSummary(input: { title: string; siteAddress: string | null; lines: CustomerLine[]; quoteNo: string }) {
+  const out: string[] = [];
+  const site = input.siteAddress?.trim();
+  if (site) out.push(`Site: ${site}`);
+  const work = input.lines.filter((l) => l.quantity > 0 && l.description.trim());
+  if (work.length) {
+    out.push("", "Scope of works:");
+    for (const l of work) out.push(`- ${l.description.trim()} (${fmtQty(l.quantity)} ${l.unit})`);
+  }
+  out.push("", `Price valid for 30 days. Our ref ${input.quoteNo}.`);
+  return out.join("\n").trim();
+}
+
+function fmtQty(n: number) {
+  return n.toLocaleString("en-AU", { maximumFractionDigits: 2 });
 }
 
 function round(n: number, dp = 2) {

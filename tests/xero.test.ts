@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildXeroQuote, findOrCreateContact, xeroAuthorizeUrl, xeroClient, xeroExchangeCode, xeroOrganisation, xeroValidToken, XERO_SCOPES } from "@/lib/xero";
+import { buildXeroQuote, xeroSummary, findOrCreateContact, xeroAuthorizeUrl, xeroClient, xeroExchangeCode, xeroOrganisation, xeroValidToken, XERO_SCOPES } from "@/lib/xero";
 
 const cfg = { clientId: "cid", clientSecret: "secret", redirectUri: "https://app.example/api/connect/xero/callback" };
 function fake(handler: (url: string, init?: RequestInit) => { status?: number; body: unknown }) {
@@ -72,5 +72,23 @@ describe("sending a quote to Xero", () => {
     expect(body.Quotes[0].QuoteID).toBe("xq1");
     const bad = fake(() => ({ status: 400, body: { Elements: [{ ValidationErrors: [{ Message: "Contact not found" }] }] } }));
     await expect(xeroClient("a", "org", bad.impl)("/Quotes", { method: "PUT", body })).rejects.toThrow("Xero: Contact not found");
+  });
+});
+
+describe("Xero quote summary", () => {
+  it("lists the site and the scope of works, not just the address", () => {
+    const s = xeroSummary({
+      title: "Newton Street, Burpengary East", siteAddress: "Newton Street, Burpengary East", quoteNo: "Q-0001",
+      lines: [
+        { key: "a", description: "Supply and lay AC10 asphalt, 40 mm", quantity: 85.5, unit: "t", rate: 200, total: 17100 },
+        { key: "b", description: "Establishment", quantity: 1, unit: "item", rate: 5000, total: 5000 },
+        { key: "c", description: "Nothing", quantity: 0, unit: "m²", rate: 0, total: 0 },
+      ],
+    });
+    expect(s).toContain("Site: Newton Street, Burpengary East");
+    expect(s).toContain("- Supply and lay AC10 asphalt, 40 mm (85.5 t)");
+    expect(s).toContain("- Establishment (1 item)");
+    expect(s).not.toContain("Nothing");
+    expect(s).toContain("Our ref Q-0001");
   });
 });

@@ -143,6 +143,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
 
   return (
     <div className="editor-grid">
+      <div className="editor-main">
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         <input type="text" aria-label="Quote title" value={scope.title} onChange={(e) => update({ ...scope, title: e.target.value })}
           style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 600, border: "1px solid transparent", background: "transparent", padding: "4px 0" }} />
@@ -315,6 +316,56 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         </section>
       </fieldset>
 
+      <section className="card" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+        <label style={small}>Customer<input type="text" value={customer} disabled={!canEdit} onChange={(e) => { setCustomer(e.target.value); setDirty(true); }} /></label>
+        <label style={small}>Customer email<input type="email" value={email} disabled={!canEdit} onChange={(e) => { setEmail(e.target.value); setDirty(true); }} /></label>
+        <label style={{ ...small, gridColumn: "1 / -1" }}>Site address<input type="text" value={address} disabled={!canEdit} onChange={(e) => { setAddress(e.target.value); setDirty(true); }} /></label>
+      </section>
+
+      <section className="card">
+        <h2>What your customer sees</h2>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {priced.customerLines.map((l) => (
+            <li key={l.key} className="row" style={{ padding: "8px 0", borderTop: "1px solid var(--line-soft)", gap: 10 }}>
+              <span className="grow">{l.description}<span className="sub" style={{ display: "block", marginTop: 0, fontSize: 12 }}>{l.quantity.toLocaleString("en-AU")} {l.unit} @ {money(l.rate)}</span></span>
+              <strong>{money(l.total)}</strong>
+            </li>
+          ))}
+          <li className="row" style={{ padding: "8px 0", borderTop: "2px solid var(--ink)", fontWeight: 600 }}><span className="grow">Total ex GST</span><span>{money(priced.priceExGst)}</span></li>
+          <li className="row" style={{ padding: "2px 0", color: "var(--muted)" }}><span className="grow">GST</span><span>{money(priced.gst)}</span></li>
+          <li className="row" style={{ padding: "2px 0", fontWeight: 600 }}><span className="grow">Total inc GST</span><span>{money(priced.priceIncGst)}</span></li>
+        </ul>
+      </section>
+
+      <details className="card" open>
+        <summary style={{ fontWeight: 600, cursor: "pointer", fontSize: 18 }}>How it&apos;s worked out</summary>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {priced.costLines.map((l) => (
+            <li key={l.key} className="row" style={{ padding: "10px 0", borderTop: "1px solid var(--line-soft)", gap: 10, alignItems: "flex-start" }}>
+              <div className="grow"><div style={{ fontWeight: 600 }}>{l.label}</div><div className="sub" style={{ marginTop: 0, fontSize: 13 }}>{l.working}</div></div>
+              <strong>{money(l.cost)}</strong>
+            </li>
+          ))}
+        </ul>
+      </details>
+
+      {quote.transcript && (
+        <details className="card">
+          <summary style={{ fontWeight: 600, cursor: "pointer" }}>What you said</summary>
+          <p style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{quote.transcript}</p>
+          {quote.photoUrls.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
+              {quote.photoUrls.map((u) => (
+                // eslint-disable-next-line @next/next/no-img-element -- signed storage URL
+                <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="Site photo" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 8 }} /></a>
+              ))}
+            </div>
+          )}
+        </details>
+      )}
+
+      </div>
+
       <div className="editor-side">
       <section className="card" style={{ background: "var(--ink)", color: "#f3f4f6", borderColor: "var(--ink)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -356,54 +407,6 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           <strong>Not priced yet</strong>
           {priced.warnings.map((w, i) => <div key={i} style={{ marginTop: 4 }}>• {w}</div>)}
         </section>
-      )}
-
-      <section className="card">
-        <h2>How it&apos;s worked out</h2>
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {priced.costLines.map((l) => (
-            <li key={l.key} className="row" style={{ padding: "10px 0", borderTop: "1px solid var(--line-soft)", gap: 10, alignItems: "flex-start" }}>
-              <div className="grow"><div style={{ fontWeight: 600 }}>{l.label}</div><div className="sub" style={{ marginTop: 0, fontSize: 13 }}>{l.working}</div></div>
-              <strong>{money(l.cost)}</strong>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="card">
-        <h2>What your customer sees</h2>
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {priced.customerLines.map((l) => (
-            <li key={l.key} className="row" style={{ padding: "8px 0", borderTop: "1px solid var(--line-soft)", gap: 10 }}>
-              <span className="grow">{l.description}<span className="sub" style={{ display: "block", marginTop: 0, fontSize: 12 }}>{l.quantity.toLocaleString("en-AU")} {l.unit} @ {money(l.rate)}</span></span>
-              <strong>{money(l.total)}</strong>
-            </li>
-          ))}
-          <li className="row" style={{ padding: "8px 0", borderTop: "2px solid var(--ink)", fontWeight: 600 }}><span className="grow">Total ex GST</span><span>{money(priced.priceExGst)}</span></li>
-          <li className="row" style={{ padding: "2px 0", color: "var(--muted)" }}><span className="grow">GST</span><span>{money(priced.gst)}</span></li>
-          <li className="row" style={{ padding: "2px 0", fontWeight: 600 }}><span className="grow">Total inc GST</span><span>{money(priced.priceIncGst)}</span></li>
-        </ul>
-      </section>
-
-      <section className="card" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-        <label style={small}>Customer<input type="text" value={customer} disabled={!canEdit} onChange={(e) => { setCustomer(e.target.value); setDirty(true); }} /></label>
-        <label style={small}>Customer email<input type="email" value={email} disabled={!canEdit} onChange={(e) => { setEmail(e.target.value); setDirty(true); }} /></label>
-        <label style={{ ...small, gridColumn: "1 / -1" }}>Site address<input type="text" value={address} disabled={!canEdit} onChange={(e) => { setAddress(e.target.value); setDirty(true); }} /></label>
-      </section>
-
-      {quote.transcript && (
-        <details className="card">
-          <summary style={{ fontWeight: 600, cursor: "pointer" }}>What you said</summary>
-          <p style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{quote.transcript}</p>
-          {quote.photoUrls.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>
-              {quote.photoUrls.map((u) => (
-                // eslint-disable-next-line @next/next/no-img-element -- signed storage URL
-                <a key={u} href={u} target="_blank" rel="noreferrer"><img src={u} alt="Site photo" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 8 }} /></a>
-              ))}
-            </div>
-          )}
-        </details>
       )}
 
       {msg && <p className={msg.ok ? "" : "error"} style={msg.ok ? { color: "var(--good)", fontWeight: 600 } : undefined} role="status">{msg.text}</p>}
