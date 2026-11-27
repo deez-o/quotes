@@ -10,6 +10,8 @@ export default function LoginPage() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [password, setPassword] = useState("");
+  const [useLink, setUseLink] = useState(false);
 
   useEffect(() => {
     const e = new URLSearchParams(window.location.search).get("error");
@@ -37,6 +39,20 @@ export default function LoginPage() {
     setBusy(false);
     if (error) setError(error.message);
     else setSent(true);
+  }
+
+  async function signInWithPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    const { error } = await createClient().auth.signInWithPassword({ email, password });
+    setBusy(false);
+    if (error) {
+      setError(error.message === "Invalid login credentials" ? "That email and password don't match. No password yet? Use \"Email me a link\" and set one in Settings." : error.message);
+      return;
+    }
+    const next = new URLSearchParams(window.location.search).get("next");
+    window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
   }
 
   async function microsoft() {
@@ -68,6 +84,15 @@ export default function LoginPage() {
 
         {sent ? (
           <p>Check your inbox: we&apos;ve sent a sign-in link to <strong>{email}</strong>.</p>
+        ) : !useLink ? (
+          <form onSubmit={signInWithPassword} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <label htmlFor="email">Work email</label>
+            <input id="email" type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label htmlFor="password">Password</label>
+            <input id="password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button type="submit" className="btn primary" disabled={busy}>{busy ? "Signing in..." : "Sign in"}</button>
+            <button type="button" className="btn" onClick={() => { setUseLink(true); setError(null); }}>No password? Email me a sign-in link</button>
+          </form>
         ) : (
           <form onSubmit={sendLink} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <label htmlFor="email">Work email</label>
@@ -82,6 +107,7 @@ export default function LoginPage() {
             <button type="submit" className="btn primary" disabled={busy}>
               {busy ? "Sending..." : "Email me a sign-in link"}
             </button>
+            <button type="button" className="btn" onClick={() => setUseLink(false)}>Use my password</button>
           </form>
         )}
 

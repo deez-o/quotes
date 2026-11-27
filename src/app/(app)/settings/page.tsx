@@ -1,6 +1,7 @@
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { SettingsForm, type Settings } from "./form";
+import { PasswordForm } from "./password-form";
 
 const DEFAULTS: Settings = {
   margin_mode: "none",
@@ -38,6 +39,7 @@ export default async function SettingsPage() {
           Your company&apos;s figures and defaults. The rules on the Teach screen use these, so quoteout drafts the way you price.
         </p>
       </div>
+      <PasswordForm />
       <SettingsForm initial={initial} canEdit={ctx.role === "admin"} />
     </div>
   );
