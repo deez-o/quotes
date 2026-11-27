@@ -24,6 +24,7 @@ export interface QuoteProvider {
 export const PRICES: Record<string, { input: number; cached: number; output: number }> = {
   // xAI, docs.x.ai, checked 28 Nov 2026.
   "grok-4.3": { input: 1.25, cached: 0.2, output: 2.5 },
+  "grok-4.6": { input: 2.0, cached: 0.5, output: 6.0 },
   "grok-4.7": { input: 2.0, cached: 0.5, output: 6.0 },
   // Anthropic, platform.claude.com pricing, checked 28 Nov 2026 (Haiku: prompts under 100k tokens).
   "claude-haiku-5-5": { input: 0.1, cached: 0.005, output: 0.5 },
