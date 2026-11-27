@@ -34,11 +34,11 @@ export function supabaseStore(db: SupabaseClient): StorePort {
       const { data: quoteNo, error: qErr } = await db.rpc("next_quote_number", { t: tenantId });
       if (qErr || !quoteNo) throw new Error(`Quote number: ${qErr?.message ?? "none returned"}`);
       const { data, error } = await db.from("jobs").insert({
-        tenant_id: tenantId, module: input.module, quote_no: quoteNo, status: "processing",
+        tenant_id: tenantId, module: input.module, quote_no: quoteNo, status: "processing", source: input.source,
         customer_name: null, site: input.subject.slice(0, 200),
       }).select("id").single();
       if (error || !data) throw new Error(`Create job: ${error?.message}`);
-      await db.from("audit_log").insert({ tenant_id: tenantId, action: "job.created", target: quoteNo, detail: { from: input.from } });
+      await db.from("audit_log").insert({ tenant_id: tenantId, action: "job.created", target: quoteNo, detail: { from: input.from, source: input.source } });
       return { jobId: data.id as string, quoteNo: quoteNo as string };
     },
 

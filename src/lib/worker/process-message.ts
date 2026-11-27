@@ -30,7 +30,7 @@ export type StorePort = {
   isSeen(tenantId: string, connectionId: string, messageId: string): Promise<boolean>;
   jobForConversation(tenantId: string, conversationId: string): Promise<string | null>;
   jobForContentHash(tenantId: string, hash: string): Promise<string | null>;
-  createJob(tenantId: string, input: { subject: string; from: string; module: "quoting" }): Promise<{ jobId: string; quoteNo: string }>;
+  createJob(tenantId: string, input: { subject: string; from: string; module: "quoting"; source: JobSource }): Promise<{ jobId: string; quoteNo: string }>;
   saveMessage(row: {
     tenant_id: string; connection_id: string; provider_message_id: string; thread_id: string;
     from_address: string; subject: string; received_at: string; content_hash: string;
@@ -42,6 +42,17 @@ export type StorePort = {
     sha256: string; storage_path: string; read_ok: boolean | null;
   }): Promise<void>;
   enqueueDraft(tenantId: string, jobId: string): Promise<void>;
+};
+
+export type JobSource = "inbox" | "forward" | "upload";
+
+export type ProcessOptions = {
+  /** Where the email came from. Forwarded and uploaded emails were chosen by the estimator. */
+  source?: JobSource;
+  /** Treat as an RFQ whatever the sorting says (the estimator sent it in to be quoted). */
+  forceRfq?: boolean;
+  /** Label the email in the mailbox (only for a connected inbox). */
+  label?: boolean;
 };
 
 export type ProcessResult = {
@@ -82,8 +93,11 @@ export async function processMessage(
   args: { tenantId: string; connectionId: string; messageId: string },
   mailbox: MailboxPort,
   store: StorePort,
+  options: ProcessOptions = {},
 ): Promise<ProcessResult> {
   const { tenantId, connectionId, messageId } = args;
+  const source = options.source ?? "inbox";
+  const label = options.label ?? source === "inbox";
 
   if (await store.isSeen(tenantId, connectionId, messageId)) {
     return { action: "already_seen", category: "general", jobId: null, quoteNo: null, filesSaved: 0, skipped: [], labels: [] };
@@ -111,7 +125,10 @@ export async function processMessage(
     files.push({ name: a.name, type: a.contentType, bytes, hash });
   }
 
-  const sort = sortMessage(msg);
+  const sorted = sortMessage(msg);
+  const sort = options.forceRfq && sorted.category !== "rfq"
+    ? { category: "rfq" as const, confident: true, reason: "Sent in by the estimator to be quoted." }
+    : sorted;
   const hash = contentHash(msg);
   const threadJob = await store.jobForConversation(tenantId, msg.conversationId);
   const hashJob = sort.category === "rfq" && !threadJob ? await store.jobForContentHash(tenantId, hash) : null;
@@ -127,7 +144,7 @@ export async function processMessage(
   const labels: string[] = [];
 
   if (decision.action === "new_job") {
-    const created = await store.createJob(tenantId, { subject: msg.subject, from: msg.from, module: "quoting" });
+    const created = await store.createJob(tenantId, { subject: msg.subject, from: msg.from, module: "quoting", source });
     jobId = created.jobId;
     quoteNo = created.quoteNo;
     labels.push(LABELS.toBeQuoted);
@@ -169,7 +186,20 @@ export async function processMessage(
     await store.enqueueDraft(tenantId, jobId);
   }
 
-  if (labels.length) await mailbox.addCategories(msg.id, [], labels);
+  if (label && labels.length) await mailbox.addCategories(msg.id, [], labels);
 
-  return { action: decision.action, category: sort.category, jobId, quoteNo, filesSaved, skipped, labels };
+  return { action: decision.action, category: sort.category, jobId, quoteNo, filesSaved, skipped, labels: label ? labels : [] };
+}
+
+/** A mailbox port for an email already in hand (uploaded or forwarded): no remote calls. */
+export function inMemoryMailbox(message: IncomingMessage, files: Map<string, Uint8Array>): MailboxPort {
+  return {
+    getMessage: async () => message,
+    downloadAttachment: async (_mid, aid) => {
+      const bytes = files.get(aid);
+      if (!bytes) throw new Error(`Attachment ${aid} missing.`);
+      return bytes;
+    },
+    addCategories: async () => {},
+  };
 }

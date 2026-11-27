@@ -9,6 +9,7 @@ import { msConfigFromEnv, validAccessToken, type MsTokens } from "@/lib/microsof
 import { processMessage, type MailboxPort } from "./process-message";
 import type { Handlers, QueueJob } from "./run";
 import { supabaseStore } from "./supabase-store";
+import { processInbound, processUpload } from "./sent-in";
 
 async function streamToBytes(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
@@ -89,6 +90,14 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
       if (rows.length) {
         await db.from("queue_jobs").upsert(rows, { onConflict: "tenant_id,dedupe_key", ignoreDuplicates: true });
       }
+    },
+
+    async process_upload(job: QueueJob) {
+      await processUpload(db, store, job.tenant_id, job.payload as { upload_id: string; paths: string[]; pasted_text?: string; uploader: string });
+    },
+
+    async process_inbound(job: QueueJob) {
+      await processInbound(db, store, job.tenant_id, job.payload as { path: string; inbound_id: string });
     },
 
     async draft_quote(job: QueueJob) {

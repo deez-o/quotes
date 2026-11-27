@@ -50,6 +50,10 @@ insert into public.tenant_settings (tenant_id, margin_mode, default_binder, defa
 values ('00000000-0000-4000-8000-000000000001', 'none', 'C320', 'PRIME', 10, 2500, 'Demo Asphalt Co Sales Team')
 on conflict (tenant_id) do nothing;
 
+insert into public.inbound_addresses (local_part, tenant_id)
+values ('demo-asphalt', '00000000-0000-4000-8000-000000000001')
+on conflict do nothing;
+
 insert into public.customers (tenant_id, name, aliases, email_domains) values
   ('00000000-0000-4000-8000-000000000001', 'Bayside Developments', '{"Bayside Dev"}', '{"baysidedev.example"}'),
   ('00000000-0000-4000-8000-000000000001', 'Northpoint Civil',     '{}',             '{"northpointcivil.example"}'),

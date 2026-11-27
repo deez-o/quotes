@@ -20,7 +20,7 @@ const configured = Boolean(url && anonKey && serviceKey);
 const TENANT_TABLES = [
   "tenant_modules", "connections", "customers", "jobs", "messages", "attachments",
   "catalogue_products", "rates", "rules", "examples", "workbook_templates",
-  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings",
+  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses",
 ] as const;
 
 describe.skipIf(!configured)("tenant isolation", () => {
@@ -83,6 +83,7 @@ describe.skipIf(!configured)("tenant isolation", () => {
       corrections: { tenant_id: tenantB, job_id: jobB!.id, field: "area" },
       usage_events: { tenant_id: tenantB, module: "quoting", kind: "rfq_drafted" },
       tenant_settings: { tenant_id: tenantB, margin_mode: "per_shift", margin_per_shift: 9999 },
+      inbound_addresses: { tenant_id: tenantB, local_part: `iso-b-${run}` },
     };
     for (const [table, row] of Object.entries(seeds)) {
       const { error } = await admin.from(table).insert(row);
@@ -128,6 +129,16 @@ describe.skipIf(!configured)("tenant isolation", () => {
 
     const { data: still } = await admin.from("tenants").select("name").eq("id", tenantB).single();
     expect(still?.name).toBe(`Isolation B ${run}`);
+  });
+
+  it("can upload into its own uploads folder but not the other tenant's", async () => {
+    const own = await asA.storage.from("job-files").upload(`${tenantA}/uploads/${run}/rfq.txt`, new Blob(["rfq"]));
+    expect(own.error).toBeNull();
+    const other = await asA.storage.from("job-files").upload(`${tenantB}/uploads/${run}/planted.txt`, new Blob(["x"]));
+    expect(other.error).not.toBeNull();
+    const outside = await asA.storage.from("job-files").upload(`${tenantA}/some-job/planted.txt`, new Blob(["x"]));
+    expect(outside.error).not.toBeNull();
+    await admin.storage.from("job-files").remove([`${tenantA}/uploads/${run}/rfq.txt`]);
   });
 
   it("cannot read the other tenant's files", async () => {
