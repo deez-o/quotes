@@ -48,12 +48,16 @@ export function periodNow(d = new Date()) {
   return d.toLocaleDateString("en-CA", { timeZone: "Australia/Brisbane" }).slice(0, 7);
 }
 
-/** What each plan includes, as shown on sign-up and the billing page. */
+/** Connecting a Microsoft 365 / Gmail inbox directly isn't switched on yet: say so rather than sell it. */
+export const MAILBOX_READY = false;
+const inbox = (t: string) => (MAILBOX_READY ? t : `${t} (coming soon)`);
+
+/** What each plan includes, as shown on sign-up, the billing page and the website. */
 export const PLAN_FEATURES: Record<"trial" | "site" | "pro" | "business", string[]> = {
-  trial: ["Everything in Business for 14 days, including the connected inbox", "15 AI quotes", "No card needed"],
-  site: ["Quote on site by voice and photos", "Import an RFQ or paste an email", "40 AI quotes a month", "PDF and Xero, with your branding", "Your rates, plants and rules set up for you", "Unlimited users"],
-  pro: ["Everything in Site", "Email auto-quoter: forward RFQs to your own quoteout address", "150 AI quotes a month"],
-  business: ["Everything in Pro", "Connect your Microsoft 365 or Gmail inbox", "500 AI quotes a month"],
+  trial: [MAILBOX_READY ? "Everything in Business for 14 days, including the connected inbox" : "Everything in Business for 14 days", "15 AI quotes", "No card needed"],
+  site: ["Quote on site by voice and photos", "Import an RFQ or paste an email, get a priced draft", "40 AI quotes a month", "PDF and Xero, with your branding", "Your rates, plants and rules set up for you", "Unlimited users"],
+  pro: ["Everything in Site", "Forward RFQ emails to your own quoteout address and they come back as priced drafts", "150 AI quotes a month"],
+  business: ["Everything in Pro", inbox("quoteout watches your inbox and drafts every RFQ, no forwarding"), "500 AI quotes a month"],
 };
 
 /** AI uses that count as a quote against the allowance (changes and price lists don't). */

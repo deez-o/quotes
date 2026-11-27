@@ -34,11 +34,12 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims?.sub);
-  const isPublic = PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
+  const SITE_PAGES = ["/", "/privacy", "/terms"]; // the public website
+  const isPublic = SITE_PAGES.includes(request.nextUrl.pathname) || PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
 
   // Already signed in: no need to sign up or sign in again.
   const path = request.nextUrl.pathname;
-  if (signedIn && (path === "/signup" || path === "/login") && !request.nextUrl.searchParams.has("m")) {
+  if (signedIn && (path === "/signup" || path === "/login" || path === "/") && !request.nextUrl.searchParams.has("m")) {
     const to = request.nextUrl.clone();
     to.pathname = path === "/signup" ? "/billing" : "/quotes";
     to.search = "";
@@ -87,5 +88,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.png$|.*\\.svg$|api/webhooks|api/cron|api/inbound|api/stripe).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.png$|.*\\.svg$|.*\\.jpe?g$|.*\\.webp$|robots.txt|sitemap.xml|api/webhooks|api/cron|api/inbound|api/stripe).*)"],
 };
