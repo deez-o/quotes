@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { Logo } from "../logo";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -48,11 +49,15 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", alignContent: "center", gap: 20, padding: 24, background: "var(--bitumen)" }}>
+      <div style={{ textAlign: "center", color: "var(--line-white)" }}>
+        <Logo size={44} dark />
+        <p style={{ marginTop: 10, color: "#b5b2ab", fontSize: 15 }}>Quote it on site. Send it from the ute.</p>
+      </div>
       <div className="card" style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
-          <h1>quoteout</h1>
-          <p className="sub">Sign in to your account</p>
+          <h1 style={{ fontSize: 24 }}>Sign in</h1>
+          <p className="sub">Use the email your company set up for you.</p>
         </div>
 
         <button type="button" className="btn dark" onClick={microsoft}>

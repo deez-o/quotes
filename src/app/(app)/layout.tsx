@@ -1,3 +1,4 @@
+import { Logo } from "../logo";
 import { requireTenant } from "@/lib/tenant";
 import { signOut } from "@/app/actions";
 import { NavLinks } from "./nav";
@@ -10,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="shell">
       <nav className="nav" aria-label="Main">
-        <div className="brand">quoteout</div>
+        <div className="brand"><Logo size={26} dark /></div>
         <NavLinks />
         <div className="who">
           {ctx.tenant.name}
