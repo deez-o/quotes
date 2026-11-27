@@ -1,4 +1,4 @@
-# QUOTES
+# Quotr
 
 A web app for asphalt and civil contractors. It reads RFQ emails, files the job, drafts the quote in the contractor's own products and workbook, and leaves a draft for a person to check and send. Quoting is the first module; inbox sorting and others plug into the same portal.
 
@@ -37,7 +37,7 @@ A web app for asphalt and civil contractors. It reads RFQ emails, files the job,
 ## Connecting Microsoft (milestone M1)
 
 1. **Register the app** at entra.microsoft.com > App registrations > New registration:
-   - Name: QUOTES. Supported account types: *any organisational directory and personal Microsoft accounts*.
+   - Name: Quotr. Supported account types: *any organisational directory and personal Microsoft accounts*.
    - Redirect URI (Web): `https://<your-site>/api/connect/microsoft/callback`
    - API permissions > Microsoft Graph > Delegated: `offline_access`, `User.Read`, `Mail.ReadWrite`. Nothing else.
    - Certificates & secrets > New client secret. Copy the value (shown once).
@@ -53,7 +53,7 @@ A web app for asphalt and civil contractors. It reads RFQ emails, files the job,
    | `GRAPH_CLIENT_STATE` | Any long random string: `openssl rand -hex 24` |
    | `CRON_SECRET` | Any long random string: `openssl rand -hex 24` |
 
-3. In the app: Setup > **Connect Microsoft 365**, sign in with the test mailbox, approve. Send a test RFQ to that mailbox: within about a minute it is labelled *QUOTES/1. To Be Quoted* and appears as a job.
+3. In the app: Setup > **Connect Microsoft 365**, sign in with the test mailbox, approve. Send a test RFQ to that mailbox: within about a minute it is labelled *Quotr/1. To Be Quoted* and appears as a job.
 
 ## Forwarding address and drag-in (no inbox connection)
 

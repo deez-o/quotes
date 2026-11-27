@@ -66,7 +66,7 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
 
       {sent && (
         <p className="card" style={{ borderColor: "var(--good)", color: "var(--good)", fontWeight: 600 }}>
-          Sent in. QUOTES is filing it now; it appears under In progress within a minute or two.
+          Sent in. Quotr is filing it now; it appears under In progress within a minute or two.
         </p>
       )}
 

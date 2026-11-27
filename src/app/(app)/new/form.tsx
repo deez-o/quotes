@@ -55,7 +55,7 @@ export function NewQuoteForm({ tenantId, canSend }: { tenantId: string; canSend:
         if (upErr) throw new Error(`${f.name}: ${upErr.message}`);
         paths.push(path);
       }
-      setStatus("Sending to QUOTES...");
+      setStatus("Sending to Quotr...");
       const result = await queueUpload({ uploadId, paths, pastedText: text });
       if (!result.ok) throw new Error(result.message);
       router.push("/queue?sent=1");

@@ -9,7 +9,7 @@ export type Place = { name: string; address: string; lat: number; lng: number; s
 export type Route = { km: number; minutes: number; source: "google" | "osm" };
 type LatLng = { lat: number; lng: number };
 
-const UA = "QUOTES estimating app (plant and site locations)";
+const UA = "Quotr estimating app (plant and site locations)";
 
 export async function searchPlaces(query: string, opts: { apiKey?: string | null; fetchImpl?: typeof fetch; near?: LatLng | null } = {}): Promise<Place[]> {
   const q = query.trim();

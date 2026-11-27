@@ -1,6 +1,6 @@
 /**
  * RFQs the estimator sends in themselves: dragged into the portal, or
- * forwarded to the customer's QUOTES address. Both end up in processMessage
+ * forwarded to the customer's Quotr address. Both end up in processMessage
  * exactly like an email from a connected inbox.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";

@@ -7,7 +7,7 @@ const LINKS = [
   { href: "/site", label: "Site quotes" },
   { href: "/new", label: "Send in an RFQ" },
   { href: "/queue", label: "RFQ queue" },
-  { href: "/teach", label: "Teach QUOTES" },
+  { href: "/teach", label: "Teach Quotr" },
   { href: "/costs", label: "Costs" },
   { href: "/settings", label: "Settings" },
   { href: "/setup", label: "Setup" },

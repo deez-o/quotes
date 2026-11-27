@@ -76,7 +76,7 @@ describe("drag-in uploads", () => {
   });
 });
 
-describe("forwarded to the QUOTES address", () => {
+describe("forwarded to the Quotr address", () => {
   it("unwraps the original RFQ and files it as a forwarded job", async () => {
     const raw = [
       "From: Dan <dan@demoasphalt.example>",

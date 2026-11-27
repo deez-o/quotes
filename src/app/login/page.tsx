@@ -51,7 +51,7 @@ export default function LoginPage() {
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
       <div className="card" style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
-          <h1>QUOTES</h1>
+          <h1>Quotr</h1>
           <p className="sub">Sign in to your account</p>
         </div>
 

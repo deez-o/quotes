@@ -13,7 +13,7 @@ export function RuleForm() {
   return (
     <form action={async (fd) => { dictation.stop(); await addRule(fd); setText(""); }} className="card focus" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <label htmlFor="text" style={{ fontSize: 15 }}>
-        {dictation.listening ? <span style={{ color: "var(--accent)" }}>● Listening... say your rule</span> : "Tell QUOTES how you do it"}
+        {dictation.listening ? <span style={{ color: "var(--accent)" }}>● Listening... say your rule</span> : "Tell Quotr how you do it"}
       </label>
       <textarea id="text" name="text" rows={3} required value={shown} onChange={(e) => setText(e.target.value)}
         placeholder="e.g. For any carpark over 2,000 m², always allow 3 establishments, not 2." />

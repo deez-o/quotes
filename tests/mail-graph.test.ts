@@ -47,8 +47,8 @@ describe("Graph mailbox adapter", () => {
   it("adds categories without dropping the user's own", async () => {
     const { impl, calls } = fakeFetch({});
     const box = new GraphMailbox(async () => "t", "me", impl);
-    await box.addCategories("m1", ["Red"], ["QUOTES/1. To Be Quoted", "Red"]);
-    expect(calls[0].body).toEqual({ categories: ["Red", "QUOTES/1. To Be Quoted"] });
+    await box.addCategories("m1", ["Red"], ["Quotr/1. To Be Quoted", "Red"]);
+    expect(calls[0].body).toEqual({ categories: ["Red", "Quotr/1. To Be Quoted"] });
   });
 
   it("maps missing fields safely", () => {

@@ -17,7 +17,7 @@ export default async function NewQuotePage() {
     <div className="page" style={{ maxWidth: 860 }}>
       <div>
         <h1>New quote</h1>
-        <p className="sub">Send QUOTES a request for quote. It files the job, reads everything and drafts the quote for you to check.</p>
+        <p className="sub">Send Quotr a request for quote. It files the job, reads everything and drafts the quote for you to check.</p>
       </div>
 
       <NewQuoteForm tenantId={ctx.tenant.id} canSend={ctx.role !== "viewer"} />
@@ -31,7 +31,7 @@ export default async function NewQuotePage() {
             </p>
             <p className="sub" style={{ marginTop: 0 }}>
               Works from Outlook, Gmail or any email app. Only emails forwarded by people on your team are accepted.
-              Add a note above the forwarded message if there&apos;s anything QUOTES should know.
+              Add a note above the forwarded message if there&apos;s anything Quotr should know.
             </p>
           </>
         ) : (

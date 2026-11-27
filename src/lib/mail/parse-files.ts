@@ -3,7 +3,7 @@
  * IncomingMessage the engine uses:
  *  - a saved email file dragged into the portal (.eml from most apps, .msg from Outlook)
  *  - loose files plus pasted email text
- *  - an email forwarded to the customer's QUOTES address (the original RFQ is
+ *  - an email forwarded to the customer's Quotr address (the original RFQ is
  *    either attached as an email file, or quoted in the body)
  */
 import { createHash } from "node:crypto";
@@ -191,7 +191,7 @@ export function fromLooseFiles(input: { files: LooseFile[]; pastedText: string; 
 }
 
 /**
- * An email forwarded to the customer's QUOTES address. If the original RFQ is
+ * An email forwarded to the customer's Quotr address. If the original RFQ is
  * attached as an email file, that becomes the message (its files included);
  * otherwise the quoted header in the body gives the original sender and subject.
  */

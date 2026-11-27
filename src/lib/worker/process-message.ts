@@ -11,11 +11,11 @@ import { contentHash, decideLink, isSignatureImage, normaliseSubject, sortMessag
 import type { Category, IncomingMessage } from "@/lib/mail/types";
 
 export const LABELS = {
-  toBeQuoted: "QUOTES/1. To Be Quoted",
-  duplicate: "QUOTES/Duplicate",
-  award: "QUOTES/Award",
-  invoice: "QUOTES/Invoice",
-  needsAttention: "QUOTES/Needs Attention",
+  toBeQuoted: "Quotr/1. To Be Quoted",
+  duplicate: "Quotr/Duplicate",
+  award: "Quotr/Award",
+  invoice: "Quotr/Invoice",
+  needsAttention: "Quotr/Needs Attention",
 } as const;
 
 export const LIMITS = { maxTotalBytes: 250 * 1024 * 1024, maxFiles: 60 };
