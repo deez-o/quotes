@@ -110,11 +110,15 @@ export function TalkToQuote({ tenantId, hasAi, hasCosts }: { tenantId: string; h
         </p>
       )}
 
-      <div className="card row" style={{ padding: "10px 14px", gap: 10 }}>
+      <div className="card" style={{ padding: "10px 14px", display: "grid", gridTemplateColumns: "auto 1fr", alignItems: "center", gap: 10 }}>
+        <label htmlFor="cust" style={{ fontWeight: 600, fontSize: 13 }}>Customer</label>
+        <input id="cust" type="text" value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Who is the quote for? (optional)" style={{ minWidth: 0, padding: 8 }} />
         <label htmlFor="addr" style={{ fontWeight: 600, fontSize: 13 }}>Site</label>
-        <input id="addr" type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Site address" style={{ flex: 1, minWidth: 160, padding: 8 }} />
-        <button type="button" className="btn" style={{ padding: "8px 10px", fontSize: 13 }} onClick={locate}>{pos ? "Update GPS" : "Use GPS"}</button>
-        {gpsNote && <span className="sub" style={{ marginTop: 0, fontSize: 12, width: "100%" }}>{gpsNote}</span>}
+        <div className="row" style={{ gap: 10, flexWrap: "nowrap" }}>
+          <input id="addr" type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Site address" style={{ flex: 1, minWidth: 0, padding: 8 }} />
+          <button type="button" className="btn" style={{ padding: "8px 10px", fontSize: 13, flex: "none" }} onClick={locate}>{pos ? "Update GPS" : "Use GPS"}</button>
+        </div>
+        {gpsNote && <span className="sub" style={{ marginTop: 0, fontSize: 12, gridColumn: "2" }}>{gpsNote}</span>}
       </div>
 
       <div className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -149,11 +153,6 @@ export function TalkToQuote({ tenantId, hasAi, hasCosts }: { tenantId: string; h
           )}
         </div>
         <input ref={camera} type="file" accept="image/*" capture="environment" multiple hidden onChange={(e) => { addPhotos(e.target.files); e.target.value = ""; }} />
-      </div>
-
-      <div className="card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label htmlFor="cust" style={{ fontWeight: 600 }}>Customer <span style={{ fontWeight: 400, color: "var(--muted)" }}>(optional)</span></label>
-        <input id="cust" type="text" value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Who is the quote for?" />
       </div>
 
       {error && <p className="error" role="alert">{error}</p>}
