@@ -1,3 +1,4 @@
+import { renderTerms } from "@/lib/site/terms";
 import { notFound } from "next/navigation";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
@@ -68,12 +69,10 @@ export default async function PrintSiteQuote({ params }: { params: Promise<{ id:
         </tfoot>
       </table>
 
-      {settings?.quote_terms && (
-        <section style={{ marginTop: 28, fontSize: 12, color: "#33383f", whiteSpace: "pre-wrap" }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>Terms</div>
-          {settings.quote_terms}
-        </section>
-      )}
+      <section style={{ marginTop: 28, fontSize: 12, color: "#33383f", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>Terms</div>
+        {renderTerms(settings?.quote_terms, q.created_at)}
+      </section>
     </main>
   );
 }

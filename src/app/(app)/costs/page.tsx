@@ -2,6 +2,7 @@ import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { archiveCostItem, saveCostItem, savePricingSettings } from "./actions";
 import { PlantForm } from "./plant-form";
+import { DEFAULT_TERMS } from "@/lib/site/terms";
 import { PriceListUpload } from "./price-list";
 
 type Item = {
@@ -184,7 +185,8 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
           <label style={field}>GST (%)<input type="text" inputMode="decimal" name="gst_percent" defaultValue={s?.gst_percent ?? 10} /></label>
         </fieldset>
         <label style={field}>Terms printed on quotes
-          <textarea name="quote_terms" rows={3} defaultValue={s?.quote_terms ?? ""} disabled={!canEdit} />
+          <textarea name="quote_terms" rows={4} defaultValue={s?.quote_terms ?? DEFAULT_TERMS} disabled={!canEdit} />
+          <span className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 400 }}>{"{bitumen_month}"} is filled in with the month the quote was done.</span>
         </label>
         {canEdit && <div><button type="submit" className="btn primary">Save pricing settings</button></div>}
         <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>Margin is on the selling price: at 15%, a $85 cost sells for $100. Road factor turns straight-line distance into road distance.</p>

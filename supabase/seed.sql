@@ -90,7 +90,7 @@ where p.tenant_id = '00000000-0000-4000-8000-000000000001' and p.name = 'Brendal
 on conflict do nothing;
 
 update public.tenant_settings set margin_percent = coalesce(margin_percent, 15),
-  quote_terms = coalesce(quote_terms, 'Valid for 30 days. Price assumes clear access during normal working hours. Traffic management, line marking and kerbing excluded unless listed.')
+  quote_terms = coalesce(quote_terms, 'Valid for 30 days. Prices are subject to rise and fall in line with the bitumen index, and are based on the bitumen price for {bitumen_month}. Price assumes clear access during normal working hours. Traffic management, line marking and kerbing are excluded unless listed.')
 where tenant_id = '00000000-0000-4000-8000-000000000001';
 
 insert into public.customers (tenant_id, name, aliases, email_domains) values
