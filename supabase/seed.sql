@@ -75,6 +75,10 @@ on conflict do nothing;
 update public.cost_items set ordinary_hours = 8, ot1_hours = 2, ot1_multiplier = 1.5, ot2_multiplier = 2
 where tenant_id = '00000000-0000-4000-8000-000000000001' and category = 'crew' and unit = 'h' and ordinary_hours is null;
 
+-- Demo seal on a sliding scale (made-up figures): small jobs cost more per m².
+update public.cost_items set rate_tiers = '[{"up_to": 500, "rate": 9.5}, {"up_to": 2000, "rate": 7.2}]'::jsonb
+where tenant_id = '00000000-0000-4000-8000-000000000001' and name = 'Two coat seal C170' and rate_tiers is null;
+
 -- Asphalt mixes are priced per plant (made-up demo figures)
 update public.cost_items set supply_plant_id = (select id from public.supply_plants where tenant_id = '00000000-0000-4000-8000-000000000001' and name = 'Narangba plant')
 where tenant_id = '00000000-0000-4000-8000-000000000001' and material_kind = 'asphalt' and supply_plant_id is null

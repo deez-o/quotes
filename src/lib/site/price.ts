@@ -24,6 +24,8 @@ export type CostItem = {
   ot1_hours?: number | null;
   ot1_multiplier?: number | null;
   ot2_multiplier?: number | null;
+  /** Sliding scale by quantity: the whole quantity is priced at its band's rate; above the last break, `rate`. */
+  rate_tiers?: { up_to: number; rate: number }[] | null;
 };
 
 export type SupplyPlant = { id: string; name: string; lat: number | null; lng: number | null };
@@ -190,6 +192,19 @@ export function overtimeDay(ci: CostItem, hours: number): { cost: number; parts:
   return { cost: round2(parts.reduce((s, p) => s + p.hours * p.rate, 0)), parts };
 }
 
+/** The rate for a quantity on a sliding scale, and which band it came from. */
+export function rateFor(ci: CostItem, qty: number): { rate: number; band: string | null } {
+  const tiers = (ci.rate_tiers ?? []).filter((t) => t.up_to > 0 && t.rate >= 0).sort((a, b) => a.up_to - b.up_to);
+  if (!tiers.length) return { rate: ci.rate, band: null };
+  const u = UNIT_LABEL[ci.unit];
+  let from = 0;
+  for (const t of tiers) {
+    if (qty <= t.up_to) return { rate: t.rate, band: `${fmtN(from, 0)}–${fmtN(t.up_to, 0)} ${u} rate` };
+    from = t.up_to;
+  }
+  return { rate: ci.rate, band: `over ${fmtN(from, 0)} ${u} rate` };
+}
+
 /** Tonnes of material for an area at a depth. */
 export function tonnesFor(areaM2: number, depthMm: number, density: number): number {
   return Math.round(areaM2 * (depthMm / 1000) * density * 10) / 10;
@@ -230,6 +245,7 @@ export function priceSiteQuote(input: {
     let qty = 0;
     let working = "";
     let tonnes = 0;
+    let rate = ci.rate;
 
     if ((item.kind === "asphalt" || item.kind === "base") && ci.unit === "t") {
       if (!item.area_m2 || !item.depth_mm) {
@@ -240,25 +256,34 @@ export function priceSiteQuote(input: {
         tonnes = tonnesFor(item.area_m2, item.depth_mm, ci.density_t_per_m3);
         qty = tonnes;
         itemTonnes.set(item.key, tonnes);
-        working = `${fmtN(item.area_m2, 0)} m² × ${item.depth_mm / 1000} m × ${ci.density_t_per_m3} t/m³ = ${fmtN(tonnes)} t × ${money(ci.rate)}/t`;
+        const r = rateFor(ci, tonnes);
+        rate = r.rate;
+        working = `${fmtN(item.area_m2, 0)} m² × ${item.depth_mm / 1000} m × ${ci.density_t_per_m3} t/m³ = ${fmtN(tonnes)} t × ${money(rate)}/t${r.band ? ` (${r.band})` : ""}`;
         if (!ci.includes_delivery) truckTonnes += tonnes;
       }
     } else if (ci.unit === "m3") {
       const m3 = item.quantity ?? (item.area_m2 && item.depth_mm ? round2(item.area_m2 * (item.depth_mm / 1000)) : 0);
       qty = m3;
-      working = item.quantity ? `${fmtN(m3)} m³ × ${money(ci.rate)}/m³` : `${fmtN(item.area_m2 ?? 0, 0)} m² × ${(item.depth_mm ?? 0) / 1000} m = ${fmtN(m3)} m³ × ${money(ci.rate)}/m³`;
+      const r = rateFor(ci, m3);
+      rate = r.rate;
+      const band = r.band ? ` (${r.band})` : "";
+      working = item.quantity ? `${fmtN(m3)} m³ × ${money(rate)}/m³${band}` : `${fmtN(item.area_m2 ?? 0, 0)} m² × ${(item.depth_mm ?? 0) / 1000} m = ${fmtN(m3)} m³ × ${money(rate)}/m³${band}`;
       if (!m3) warnings.push(`"${item.description}" needs a volume, or an area and a depth.`);
     } else if (ci.unit === "m2") {
       qty = item.area_m2 ?? item.quantity ?? 0;
-      working = `${fmtN(qty, 0)} m² × ${money(ci.rate)}/m²`;
+      const r = rateFor(ci, qty);
+      rate = r.rate;
+      working = `${fmtN(qty, 0)} m² × ${money(rate)}/m²${r.band ? ` (${r.band})` : ""}`;
       if (!qty) warnings.push(`"${item.description}" needs an area.`);
     } else {
       qty = item.quantity ?? 0;
-      working = `${fmtN(qty)} ${UNIT_LABEL[ci.unit]} × ${money(ci.rate)}/${UNIT_LABEL[ci.unit]}`;
+      const r = rateFor(ci, qty);
+      rate = r.rate;
+      working = `${fmtN(qty)} ${UNIT_LABEL[ci.unit]} × ${money(rate)}/${UNIT_LABEL[ci.unit]}${r.band ? ` (${r.band})` : ""}`;
       if (!qty) warnings.push(`"${item.description}" needs a quantity.`);
     }
 
-    const cost = round2(qty * ci.rate);
+    const cost = round2(qty * rate);
     direct.set(item.key, cost);
     costLines.push({ key: item.key, group: "material", label: item.description, working, cost });
   }

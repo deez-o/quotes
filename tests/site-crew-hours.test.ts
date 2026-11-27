@@ -68,3 +68,19 @@ describe("float charge", () => {
     expect(priceSiteQuote({ scope: { ...withAsphalt(), items: [] }, library: [crew, float], settings, haul: null, marginPercent: 15 }).costLines.find((l) => l.key === "float")).toBeUndefined();
   });
 });
+
+describe("sliding-scale rates", () => {
+  const seal: CostItem = { id: "seal", category: "material", material_kind: "seal", name: "Two coat seal", unit: "m2", rate: 5.5, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true,
+    rate_tiers: [{ up_to: 2000, rate: 7.2 }, { up_to: 500, rate: 9.5 }] };
+  const job = (m2: number): SiteScope => ({ ...scope(8), crew: [], plant: [], items: [{ key: "s1", kind: "seal", description: "Seal", area_m2: m2, depth_mm: null, cost_item_id: "seal", quantity: null }] });
+  const line = (m2: number) => priceSiteQuote({ scope: job(m2), library: [seal], settings, haul: null, marginPercent: 0 }).costLines[0];
+  it("small jobs get the small-job rate", () => {
+    expect(line(300)).toMatchObject({ cost: 2850, working: "300 m² × $9.50/m² (0–500 m² rate)" });
+  });
+  it("the whole job is priced at its band's rate", () => {
+    expect(line(1800)).toMatchObject({ cost: 12960, working: "1,800 m² × $7.20/m² (500–2,000 m² rate)" });
+  });
+  it("above the last break, the normal rate", () => {
+    expect(line(5000)).toMatchObject({ cost: 27500, working: "5,000 m² × $5.50/m² (over 2,000 m² rate)" });
+  });
+});

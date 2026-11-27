@@ -8,6 +8,7 @@ type Item = {
   id: string; category: string; material_kind: string | null; name: string; unit: string; rate: number;
   density_t_per_m3: number | null; includes_delivery: boolean; truck_capacity_t: number | null; supply_plant_id: string | null;
   ordinary_hours: number | null; ot1_hours: number | null; ot1_multiplier: number | null; ot2_multiplier: number | null;
+  rate_tiers: { up_to: number; rate: number }[] | null;
 };
 type Plant = { id: string; name: string; address: string | null; lat: number | null; lng: number | null; prices_valid_until: string | null; prices_note: string | null };
 
@@ -66,6 +67,25 @@ function ItemForm({ item, category, canEdit, plantId }: { item?: Item; category:
         {category === "truck" && (
           <label style={field}>Capacity (t)<input type="text" inputMode="decimal" name="truck_capacity_t" defaultValue={item?.truck_capacity_t ?? 12} /></label>
         )}
+        {(category === "material" || category === "plant" || category === "other") && (
+          <details style={{ gridColumn: "1 / -1" }}>
+            <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--ink-2)" }}>
+              Sliding scale{item?.rate_tiers?.length ? `: ${item.rate_tiers.length} price break${item.rate_tiers.length === 1 ? "" : "s"}` : " (optional)"}
+            </summary>
+            <p className="sub" style={{ fontSize: 12, margin: "6px 0" }}>The rate depends on job size. The whole job is priced at its band&apos;s rate; above your last break, the rate above applies.</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 160px))", gap: 6 }}>
+              {Array.from({ length: 5 }, (_, i) => {
+                const t = item?.rate_tiers?.[i];
+                return (
+                  <div key={i} style={{ display: "contents" }}>
+                    <input type="text" inputMode="decimal" name={`tier_up_to_${i}`} defaultValue={t?.up_to ?? ""} placeholder="Up to (e.g. 500)" aria-label={`Price break ${i + 1}: up to`} />
+                    <input type="text" inputMode="decimal" name={`tier_rate_${i}`} defaultValue={t?.rate ?? ""} placeholder="Rate (e.g. 9.50)" aria-label={`Price break ${i + 1}: rate`} />
+                  </div>
+                );
+              })}
+            </div>
+          </details>
+        )}
         {canEdit && (
           <div className="row" style={{ gap: 8 }}>
             <button type="submit" className={`btn${item ? "" : " primary"}`} style={{ padding: "9px 14px" }}>{item ? "Save" : "Add"}</button>
@@ -83,7 +103,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
   const canEdit = ctx.role === "admin";
   const supabase = await createClient();
   const [{ data: items }, { data: plants }, { data: s }] = await Promise.all([
-    supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier")
+    supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms")

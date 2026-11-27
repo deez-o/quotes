@@ -44,6 +44,17 @@ export async function saveCostItem(formData: FormData) {
     if (Number.isNaN(ot1h) || (ot1h != null && (ot1h < 0 || ot1h > 24))) back("Time-and-a-half hours must be between 0 and 24.");
     if ([ot1m, ot2m].some((m) => Number.isNaN(m) || (m != null && (m < 1 || m > 5)))) back("Overtime rates are multiples of the hourly rate, e.g. 1.5 or 2.");
   }
+  // Sliding scale: up to 5 price breaks, ascending.
+  const tiers: { up_to: number; rate: number }[] = [];
+  for (let i = 0; i < 5; i++) {
+    const upTo = num(formData.get(`tier_up_to_${i}`));
+    const r = num(formData.get(`tier_rate_${i}`));
+    if (upTo == null && r == null) continue;
+    if (upTo == null || r == null || Number.isNaN(upTo) || Number.isNaN(r) || upTo <= 0 || r < 0) back(`Each price break for ${name} needs an "up to" amount and a rate.`);
+    tiers.push({ up_to: upTo as number, rate: r as number });
+  }
+  tiers.sort((a, b) => a.up_to - b.up_to);
+  if (new Set(tiers.map((t) => t.up_to)).size !== tiers.length) back(`Two price breaks for ${name} have the same "up to" amount.`);
   const plantRaw = String(formData.get("supply_plant_id") ?? "");
   const supply_plant_id = category === "material" && /^[0-9a-f-]{36}$/i.test(plantRaw) ? plantRaw : null;
 
@@ -62,7 +73,7 @@ export async function saveCostItem(formData: FormData) {
   const row = {
     tenant_id: ctx.tenant.id, name, category, unit, rate, material_kind,
     density_t_per_m3: density, includes_delivery: formData.get("includes_delivery") === "on",
-    truck_capacity_t: category === "truck" ? capacity ?? 12 : null, supply_plant_id, active: true,
+    truck_capacity_t: category === "truck" ? capacity ?? 12 : null, supply_plant_id, active: true, rate_tiers: tiers.length ? tiers : null,
     ordinary_hours: hourly ? ordinary : null, ot1_hours: hourly && ordinary ? ot1h ?? 2 : null,
     ot1_multiplier: hourly && ordinary ? ot1m ?? 1.5 : null, ot2_multiplier: hourly && ordinary ? ot2m ?? 2 : null, updated_at: new Date().toISOString(),
   };
