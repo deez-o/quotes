@@ -10,6 +10,8 @@ A web app for asphalt and civil contractors. It reads RFQ emails, files the job,
 | Starter pack (40 rules) and per-customer settings | Live |
 | Job queue, Graph webhook, worker (every minute), inbox sorting, job linking, filing | Built, needs settings below |
 | Connect Microsoft 365 (OAuth, encrypted tokens, subscriptions + renewal) | Built, needs settings below |
+| New quote: drag in a saved email/files or paste text | Built, needs `SUPABASE_SERVICE_ROLE_KEY` + `CRON_SECRET` |
+| Forwarding address per customer | Built, needs a domain + inbound email service |
 | Quote engine: schema v1.0, checks, maths, prompt, xAI provider, retry | Built and tested; plugs into the worker at M3 |
 | Text extraction, workbook fill, overview PDF, drawing measure-up | Not started (M2/M3/M5) |
 
@@ -52,6 +54,18 @@ A web app for asphalt and civil contractors. It reads RFQ emails, files the job,
    | `CRON_SECRET` | Any long random string: `openssl rand -hex 24` |
 
 3. In the app: Setup > **Connect Microsoft 365**, sign in with the test mailbox, approve. Send a test RFQ to that mailbox: within about a minute it is labelled *QUOTES/1. To Be Quoted* and appears as a job.
+
+## Forwarding address and drag-in (no inbox connection)
+
+Customers who don't want to connect their inbox can use **New quote**: drag in the saved email (.msg/.eml) and files, or paste the email text. That works as soon as `SUPABASE_SERVICE_ROLE_KEY` and `CRON_SECRET` are set in Vercel.
+
+To also give each customer a forwarding address (e.g. `demo-asphalt@in.<your-domain>`):
+
+1. Put the domain on Cloudflare, turn on **Email Routing** for the `in.` subdomain, and set the catch-all to an **Email Worker** using `infra/cloudflare-email-worker.js` (its two settings are in the file).
+2. In Vercel add `INBOUND_DOMAIN` (e.g. `in.yourdomain.com.au`) and `INBOUND_SECRET` (`openssl rand -hex 24`, same value as in the worker), then redeploy.
+3. Only people on the customer's team (admins and estimators) can forward in; anything else is dropped. Each customer's address is in the `inbound_addresses` table (Demo Asphalt Co: `demo-asphalt`).
+
+Any inbound email service that can POST the raw message works the same way (SendGrid Inbound Parse with "raw", Mailgun, Postmark).
 
 ## Tests
 
