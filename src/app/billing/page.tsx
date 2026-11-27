@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { loadAccess } from "@/lib/access-load";
-import { PLANS, planFor } from "@/lib/plans";
+import { PLANS, PLAN_FEATURES, planFor } from "@/lib/plans";
 import { PAID_PLANS } from "@/lib/stripe-keys";
 import { signOut } from "@/app/actions";
 import { Logo } from "../logo";
@@ -9,11 +9,6 @@ import { ManageBillingButton, PlanButton } from "./plan-buttons";
 
 export const dynamic = "force-dynamic";
 
-const FEATURES: Record<string, string[]> = {
-  site: ["Quote on site by voice and photos", "Import an RFQ or paste an email", "Your rates, plants and rules set up for you", "PDF and Xero", "Unlimited users"],
-  pro: ["Everything in Site", "Email auto-quoter: forward RFQs to your quoteout address", "150 AI quotes a month"],
-  business: ["Everything in Pro", "Connect your Microsoft 365 or Gmail inbox", "500 AI quotes a month"],
-};
 
 const STATUS: Record<string, string> = {
   active: "Paid up", trialing: "On trial", past_due: "Payment failed, retrying", unpaid: "Unpaid", canceled: "Cancelled",
@@ -71,7 +66,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                   <div><span style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.02em" }}>${p.priceMonthly}</span><span className="sub"> a month + GST</span></div>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{p.aiQuotes} AI quotes a month</div>
                   <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4, fontSize: 14, flex: 1 }}>
-                    {FEATURES[id].map((f) => <li key={f}>{f}</li>)}
+                    {PLAN_FEATURES[id].map((f) => <li key={f}>{f}</li>)}
                   </ul>
                   {isAdmin && !mine && (
                     <PlanButton plan={id} primary={up || id === "pro"}

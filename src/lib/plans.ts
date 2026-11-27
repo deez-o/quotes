@@ -47,3 +47,11 @@ export function limitsFor(t: TenantLimits) {
 export function periodNow(d = new Date()) {
   return d.toLocaleDateString("en-CA", { timeZone: "Australia/Brisbane" }).slice(0, 7);
 }
+
+/** What each plan includes, as shown on sign-up and the billing page. */
+export const PLAN_FEATURES: Record<"trial" | "site" | "pro" | "business", string[]> = {
+  trial: ["Everything in Pro for 14 days", "15 AI quotes", "No card needed"],
+  site: ["Quote on site by voice and photos", "Import an RFQ or paste an email", "40 AI quotes a month", "PDF and Xero, with your branding", "Your rates, plants and rules set up for you", "Unlimited users"],
+  pro: ["Everything in Site", "Email auto-quoter: forward RFQs to your own quoteout address", "150 AI quotes a month"],
+  business: ["Everything in Pro", "Connect your Microsoft 365 or Gmail inbox", "500 AI quotes a month"],
+};

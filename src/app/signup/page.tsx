@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { PLANS } from "@/lib/plans";
+import { PLANS, PLAN_FEATURES } from "@/lib/plans";
 import { Logo } from "../logo";
 import { signUp } from "./actions";
 
@@ -44,16 +44,22 @@ export default function SignUpPage() {
       <form onSubmit={submit} className="card" style={{ width: "100%", maxWidth: 460, display: "flex", flexDirection: "column", gap: 12 }}>
         <h1 style={{ fontSize: 24 }}>Get started</h1>
 
-        <fieldset style={{ border: 0, padding: 0, margin: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <legend style={{ fontWeight: 600, marginBottom: 8 }}>Plan</legend>
+        <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+          <legend style={{ fontWeight: 600, marginBottom: 8 }}>Pick a plan</legend>
           {CHOICES.map((id) => {
             const p = PLANS[id];
             const on = plan === id;
             return (
-              <label key={id} style={{ border: on ? "2px solid var(--brand)" : "1px solid #b6bcc4", borderRadius: 10, padding: on ? "9px 11px" : "10px 12px", cursor: "pointer", fontWeight: 400, background: on ? "#fff7f2" : "#fff" }}>
+              <label key={id} style={{ position: "relative", border: on ? "2px solid var(--brand)" : "1px solid #b6bcc4", borderRadius: 10, padding: on ? "11px 13px" : "12px 14px", cursor: "pointer", fontWeight: 400, background: on ? "#fff7f2" : "#fff", display: "flex", flexDirection: "column", gap: 6 }}>
                 <input type="radio" name="plan" value={id} checked={on} onChange={() => setPlan(id)} style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
-                <div style={{ fontWeight: 700 }}>{id === "trial" ? "Free trial" : p.name}</div>
-                <div style={{ fontSize: 13, color: "var(--muted)" }}>{id === "trial" ? "14 days · 15 AI quotes · no card" : `$${p.priceMonthly}/mo + GST · ${p.aiQuotes} quotes`}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ width: 16, height: 16, borderRadius: "50%", border: on ? "5px solid var(--brand)" : "2px solid #b6bcc4", alignSelf: "center", flex: "none" }} aria-hidden="true" />
+                  <span style={{ fontWeight: 700, fontSize: 16 }}>{id === "trial" ? "Free trial" : p.name}</span>
+                  <span style={{ marginLeft: "auto", fontWeight: 600 }}>{id === "trial" ? "Free" : `$${p.priceMonthly}/mo`}<span style={{ fontWeight: 400, fontSize: 12, color: "var(--muted)" }}>{id === "trial" ? "" : " + GST"}</span></span>
+                </div>
+                <ul style={{ margin: 0, paddingLeft: 42, fontSize: 13, color: "var(--ink-2)", display: "flex", flexDirection: "column", gap: 2 }}>
+                  {PLAN_FEATURES[id].map((f) => <li key={f}>{f}</li>)}
+                </ul>
               </label>
             );
           })}
