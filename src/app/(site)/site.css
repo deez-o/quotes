@@ -19,7 +19,7 @@
 .w-btn.ghost { border-color: #b6bcc4; color: var(--ink); background: #fff; }
 .w-btn.ghost-dark { border-color: #4a4f56; color: #f3f4f6; }
 .w a:focus-visible, .w button:focus-visible, .w summary:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
-@media (max-width: 760px) { .w-top nav { display: none; } .w-top .w-signin { display: none; } }
+@media (max-width: 760px) { .w-top nav { display: none; } .w-top .w-right .w-btn { padding: 9px 12px; font-size: 14px; } .w-top .w-right { gap: 12px; } }
 
 /* Hero: the email on the left becomes the quote on the right */
 .w-hero { background: var(--bitumen); color: #f3f4f6; padding: clamp(48px, 8vw, 96px) 0 0; overflow: hidden; }
@@ -107,7 +107,7 @@
 .w-plan h3 { margin: 0; font-size: 22px; }
 .w-price { font-size: 40px; font-weight: 700; letter-spacing: -0.03em; }
 .w-price span { font-size: 15px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
-.w-plan ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: #3b4048; flex: 1; line-height: 1.45; }
+.w-plan ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; align-content: start; color: #3b4048; flex: 1; line-height: 1.45; }
 .w-note { margin-top: 20px; color: #4a4f56; font-size: 15px; max-width: 70ch; }
 
 /* Questions */
