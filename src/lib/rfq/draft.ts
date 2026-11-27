@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { aiCaller, liveModelReadsPdfs } from "@/lib/ai/call";
+import { aiCaller, compareModels, liveModel, liveModelReadsPdfs } from "@/lib/ai/call";
+import { runTrials } from "./trial";
 import { loadAccess } from "@/lib/access-load";
 import { loadPricingContext, emptyScope, haulFor } from "@/lib/site/load";
 import { loadLayeredRules } from "@/lib/rules-load";
@@ -76,6 +77,10 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   const fallbackTitle = (summary.subject || "RFQ").replace(/^(re|fw|fwd):\s*/gi, "").slice(0, 120);
   let scope: SiteScope = emptyScope(fallbackTitle);
   const call = opts.call === undefined ? await aiCaller(SITE_SCOPE_SCHEMA, tenantId, null, "ai_rfq") : opts.call;
+  const mainModel = await liveModel();
+  // Testing: other models draft the same RFQ alongside, for comparing on the quote page.
+  const others = opts.call === undefined && access.state !== "locked" ? await compareModels() : [];
+  const shadow = others.length ? runTrials(db, tenantId, jobId, others).catch(() => []) : null;
   const readsPdfs = opts.readsPdfs ?? (await liveModelReadsPdfs());
 
   if (access.state === "locked") {
@@ -109,7 +114,7 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     customer_name: scope.customer_name ?? null, customer_email: scope.customer_email ?? null,
     site_address: site.address || null, site_lat: site.lat, site_lng: site.lng, haul_routes: routes,
     transcript: null, photos: [], scope, costing: priced, margin_percent: pc.defaultMargin, total_ex_gst: priced.priceExGst,
-    created_by: null, rfq_summary: summary,
+    created_by: null, rfq_summary: { ...summary, model: opts.call === undefined ? mainModel : null },
   }).select("id").single();
   if (error || !made) throw new Error(`Couldn't save the draft quote: ${error?.message}`);
 
@@ -120,6 +125,15 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     updated_at: new Date().toISOString(),
   }).eq("tenant_id", tenantId).eq("id", jobId);
   await db.from("audit_log").insert({ tenant_id: tenantId, action: "job.drafted", target: job.quote_no, detail: { site_quote_id: made.id, questions: scope.questions.length, files: summaryFiles.length } });
+
+  if (shadow) {
+    const results = await shadow;
+    const batch = crypto.randomUUID();
+    if (results.length) await db.from("ai_trials").insert(results.map((r) => ({
+      batch_id: batch, tenant_id: tenantId, job_id: jobId, model: r.model, scope: r.scope, total_ex_gst: r.total,
+      questions: r.questions, cost_usd: r.costUsd, latency_ms: r.latencyMs, error: r.error, created_by: null,
+    })));
+  }
 
   return { kind: "drafted", siteQuoteId: made.id as string, questions: scope.questions.length };
 }

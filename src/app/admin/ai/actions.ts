@@ -44,3 +44,16 @@ export async function runTrial(_: unknown, form: FormData): Promise<Result> {
   })));
   redirect(`/admin/ai?batch=${batch}`);
 }
+
+/** Testing: other models that also draft every incoming RFQ, shown side by side on the quote page. */
+export async function setCompareModels(_: unknown, form: FormData): Promise<Result> {
+  const { db, userId } = await requireOwner();
+  const models = form.getAll("compare").map(String).filter((m) => modelInfo(m)).slice(0, 3);
+  const missing = models.filter((m) => !keyFor(m));
+  if (missing.length) return { ok: false, message: `No API key yet for: ${missing.map((m) => modelInfo(m)!.label).join(", ")}.` };
+  const { error } = await db.from("platform_settings").upsert({ key: "compare_models", value: models, updated_at: new Date().toISOString(), updated_by: userId });
+  if (error) return { ok: false, message: error.message };
+  await db.from("audit_log").insert({ tenant_id: null, actor: userId, action: "admin.compare_models", target: models.join(",") || "off" });
+  revalidatePath("/admin/ai");
+  return { ok: true, message: models.length ? `Every new RFQ will also be drafted with ${models.map((m) => modelInfo(m)!.label).join(" and ")}.` : "Comparing is off." };
+}

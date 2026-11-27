@@ -46,3 +46,15 @@ export async function aiCaller(schema: Schema, tenantId: string, userId: string 
 export async function liveModelReadsPdfs(model?: string) {
   return providerOf(model ?? (await liveModel())) === "anthropic";
 }
+
+/** Testing: other models that also draft every incoming RFQ, to compare on the quote page (Admin → AI model). */
+export async function compareModels(): Promise<string[]> {
+  try {
+    const live = await liveModel();
+    const { data } = await createAdminClient().from("platform_settings").select("value").eq("key", "compare_models").maybeSingle();
+    const list = Array.isArray(data?.value) ? (data!.value as unknown[]).map(String) : [];
+    return list.filter((m) => m !== live && modelInfo(m) && keyFor(m)).slice(0, 3);
+  } catch {
+    return [];
+  }
+}

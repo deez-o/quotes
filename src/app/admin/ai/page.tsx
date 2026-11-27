@@ -3,7 +3,7 @@ import { requireOwner } from "@/lib/owner";
 import { keyFor, liveModel } from "@/lib/ai/call";
 import { AI_MODELS, modelInfo } from "@/lib/ai/models";
 import type { SiteScope } from "@/lib/site/price";
-import { LiveModelForm, TrialForm } from "./forms";
+import { CompareModelsForm, LiveModelForm, TrialForm } from "./forms";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -16,6 +16,8 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
   const live = await liveModel();
   const models = AI_MODELS.map((m) => ({ ...m, hasKey: Boolean(keyFor(m.id)) }));
 
+  const { data: cmp } = await db.from("platform_settings").select("value").eq("key", "compare_models").maybeSingle();
+  const picked = Array.isArray(cmp?.value) ? (cmp!.value as unknown[]).map(String) : [];
   const [{ data: jobs }, { data: tenants }, { data: recent }, { data: rows }] = await Promise.all([
     db.from("jobs").select("id, tenant_id, quote_no, site, customer_name, created_at").eq("module", "quoting").order("created_at", { ascending: false }).limit(60),
     db.from("tenants").select("id, name"),
@@ -40,6 +42,11 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
       <section>
         <h2>Model in use</h2>
         <LiveModelForm models={models} live={live} />
+      </section>
+
+      <section>
+        <h2>Two drafts of every RFQ</h2>
+        <CompareModelsForm models={models} live={live} picked={picked} />
       </section>
 
       <section>

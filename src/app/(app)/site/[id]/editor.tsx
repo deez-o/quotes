@@ -8,6 +8,8 @@ import { correctSiteScope, locateSite, saveSiteQuote, sendToXero } from "../acti
 import { PlaceSearch } from "../../place-search";
 import { useDictation } from "../dictation";
 
+import { ComparePanel, type CompareView } from "./compare";
+
 export type RfqView = {
   from: string | null; subject: string | null; received: string | null;
   emails: { name: string; from: string | null; date: string | null; subject: string | null; body: string }[];
@@ -29,8 +31,8 @@ const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8
 let keySeq = 0;
 const newKey = (p: string) => `${p}${Date.now().toString(36)}${keySeq++}`;
 
-export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null }: {
-  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null;
+export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null }: {
+  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null; compare?: CompareView | null;
 }) {
   const router = useRouter();
   const [scope, setScope] = useState<SiteScope>(quote.scope);
@@ -200,6 +202,8 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             </div>
           </section>
         )}
+
+        {compare && <ComparePanel quoteId={quote.id} view={compare} />}
 
         {rfq && (
           <details className="card" open>

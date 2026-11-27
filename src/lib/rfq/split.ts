@@ -3,6 +3,8 @@ export type RfqSummary = {
   from: string; subject: string; received: string | null;
   files: { name: string; path: string; read: "text" | "image" | "no"; note: string | null }[];
   followUps: number;
+  /** The AI model that drafted it. */
+  model?: string | null;
 };
 
 /** Splits our saved "From/To/Date/Subject + body" text back into header and body. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { runTrial, setLiveModel } from "./actions";
+import { runTrial, setCompareModels, setLiveModel } from "./actions";
 
 type M = { id: string; label: string; note: string; hasKey: boolean };
 type R = { ok: true; message?: string } | { ok: false; message: string } | null;
@@ -51,6 +51,30 @@ export function TrialForm({ models, jobs }: { models: M[]; jobs: { value: string
       <div className="row" style={{ gap: 12 }}>
         <button className="btn primary" disabled={pending || jobs.length === 0}>{pending ? "Running (up to a couple of minutes)..." : "Run the test"}</button>
         <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>Doesn&apos;t change the company&apos;s quotes or use their allowance.</span>
+        <Msg r={r} />
+      </div>
+    </form>
+  );
+}
+
+export function CompareModelsForm({ models, live, picked }: { models: M[]; live: string; picked: string[] }) {
+  const [r, act, pending] = useActionState(setCompareModels, null);
+  return (
+    <form action={act} className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p className="sub" style={{ margin: 0, fontSize: 13 }}>
+        For testing. Every incoming RFQ is drafted by the model in use as normal, and also by the ones ticked here. Open the quote to see a
+        Compare models panel (only you see it) and swap in another model&apos;s version if it did better. The extra drafts cost you AI credit
+        but don&apos;t count against the customer&apos;s allowance. Untick all to stop.
+      </p>
+      <fieldset style={{ border: 0, padding: 0, margin: 0, display: "flex", flexWrap: "wrap", gap: 14 }}>
+        {models.filter((m) => m.id !== live).map((m) => (
+          <label key={m.id} style={{ display: "flex", gap: 6, alignItems: "center", fontWeight: 400, opacity: m.hasKey ? 1 : 0.5 }}>
+            <input type="checkbox" name="compare" value={m.id} disabled={!m.hasKey} defaultChecked={picked.includes(m.id)} />{m.label}
+          </label>
+        ))}
+      </fieldset>
+      <div className="row" style={{ gap: 12 }}>
+        <button className="btn dark" disabled={pending}>{pending ? "Saving..." : "Save"}</button>
         <Msg r={r} />
       </div>
     </form>

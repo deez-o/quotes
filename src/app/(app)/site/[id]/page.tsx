@@ -7,6 +7,10 @@ import { emptyScope, loadPricingContext } from "@/lib/site/load";
 import { routesToPlants } from "@/lib/site/routes";
 import type { HaulRoutes, SiteScope } from "@/lib/site/price";
 import { SiteQuoteEditor, type QuoteView, type RfqView } from "./editor";
+import type { CompareView } from "./compare";
+import { isOwner } from "@/lib/owner";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { modelInfo } from "@/lib/ai/models";
 import { splitSavedEmail, type RfqSummary } from "@/lib/rfq/split";
 
 export default async function SiteQuotePage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +18,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
   const ctx = await requireTenant();
   const db = await createClient();
   const { data: q } = await db.from("site_quotes")
-    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary")
+    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst")
     .eq("id", id).eq("tenant_id", ctx.tenant.id).maybeSingle();
   if (!q) notFound();
 
@@ -62,6 +66,32 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
     rfq = { from: sum?.from ?? emails[0]?.from ?? null, subject: sum?.subject ?? emails[0]?.subject ?? null, received: sum?.received ?? emails[0]?.date ?? null, emails, files };
   }
 
+  // Testing (quoteout staff only): other models' drafts of this RFQ.
+  let compare: CompareView | null = null;
+  if (q.job_id && (await isOwner(ctx.userId))) {
+    const admin = createAdminClient();
+    const { data: trials } = await admin.from("ai_trials").select("id, batch_id, model, scope, total_ex_gst, questions, cost_usd, latency_ms, error, created_at")
+      .eq("tenant_id", ctx.tenant.id).eq("job_id", q.job_id).order("created_at", { ascending: false }).limit(10);
+    const latest = trials?.[0]?.batch_id;
+    const rows = (trials ?? []).filter((t) => t.batch_id === latest);
+    if (rows.length) {
+      const cur = q.scope as SiteScope;
+      const size = (it: SiteScope["items"][number]) => [it.area_m2 != null ? `${it.area_m2} m²` : "", it.depth_mm != null ? `${it.depth_mm} mm` : "", it.quantity != null ? String(it.quantity) : ""].filter(Boolean).join(" × ");
+      compare = {
+        current: { label: modelInfo((q.rfq_summary as RfqSummary | null)?.model)?.label ?? "Main model", total: q.total_ex_gst == null ? null : Number(q.total_ex_gst), questions: cur.questions?.length ?? 0, items: cur.items?.length ?? 0 },
+        others: rows.map((t) => {
+          const sc = t.scope as SiteScope | null;
+          return {
+            id: t.id, label: modelInfo(t.model)?.label ?? t.model, total: t.total_ex_gst == null ? null : Number(t.total_ex_gst), questions: t.questions ?? 0,
+            items: (sc?.items ?? []).map((it) => ({ description: it.description, size: size(it) })),
+            asks: sc?.questions ?? [], assumes: sc?.assumptions ?? [], seconds: Math.round((t.latency_ms ?? 0) / 1000),
+            costUsd: t.cost_usd == null ? null : Number(t.cost_usd), error: t.error,
+          };
+        }),
+      };
+    }
+  }
+
   const { data: xero } = await db.from("connections").select("id").eq("tenant_id", ctx.tenant.id).eq("provider", "xero").eq("status", "ok").limit(1).maybeSingle();
 
   return (
@@ -71,7 +101,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
         <span className="sub" style={{ marginTop: 0, fontWeight: 600 }}>{q.quote_no} · {q.status}</span>
       </div>
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
-        hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} />
+        hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} />
     </div>
   );
 }
