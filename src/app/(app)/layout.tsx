@@ -27,10 +27,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="brand"><Logo size={26} dark /></div>
         <NavLinks />
         <div className="who">
-          {ctx.tenant.name}
-          <br />
-          {ROLE_LABEL[ctx.role]}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <span className="who-name">
+            {ctx.tenant.name}
+            <br />
+            {ROLE_LABEL[ctx.role]}
+          </span>
+          <div className="who-links" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             {owner && <Link href="/admin" style={{ border: "1px solid var(--brand)", color: "var(--brand)", borderRadius: 6, padding: "6px 10px" }}>Admin</Link>}
             {ctx.role === "admin" && <Link href="/billing" style={{ border: "1px solid #4a4f56", borderRadius: 6, padding: "6px 10px", color: "var(--nav-ink)" }}>Plan</Link>}
             <Link href="/account" style={{ border: "1px solid #4a4f56", borderRadius: 6, padding: "6px 10px", color: "var(--nav-ink)" }}>Password</Link>
