@@ -143,7 +143,7 @@ export function TalkToQuote({ tenantId, hasAi, hasCosts }: { tenantId: string; h
           ))}
           {photos.length < 12 && (
             <button type="button" aria-label="Take or add a photo" onClick={() => camera.current?.click()}
-              style={{ aspectRatio: "1", borderRadius: 10, border: "2px dashed #b5b2ab", background: "transparent", color: "var(--muted)", fontSize: 26, cursor: "pointer" }}>
+              style={{ aspectRatio: "1", borderRadius: 10, border: "2px dashed #b6bcc4", background: "transparent", color: "var(--muted)", fontSize: 26, cursor: "pointer" }}>
               +
             </button>
           )}

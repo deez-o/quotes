@@ -87,7 +87,7 @@ export function NewQuoteForm({ tenantId, canSend, mode = "files" }: { tenantId: 
         onDrop={(e) => { e.preventDefault(); setDragging(false); add(e.dataTransfer.files); }}
         className="card"
         style={{
-          borderStyle: "dashed", borderWidth: 2, borderColor: dragging ? "var(--accent)" : "#b5b2ab",
+          borderStyle: "dashed", borderWidth: 2, borderColor: dragging ? "var(--accent)" : "#b6bcc4",
           background: dragging ? "#fdf4ee" : "var(--card)", textAlign: "center", padding: mode === "paste" ? "18px 20px" : "36px 20px", cursor: "pointer",
         }}
       >

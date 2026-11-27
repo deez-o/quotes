@@ -50,7 +50,7 @@ export function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit:
                 key={o.v}
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 20, cursor: "pointer",
-                  border: mode === o.v ? "2px solid var(--ink)" : "1px solid #b5b2ab",
+                  border: mode === o.v ? "2px solid var(--ink)" : "1px solid #b6bcc4",
                   fontWeight: mode === o.v ? 600 : 400,
                 }}
               >

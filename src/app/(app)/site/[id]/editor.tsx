@@ -19,7 +19,7 @@ const UNIT: Record<string, string> = { shift: "shifts", day: "days", h: "hours",
 const KIND_LABEL: Record<ScopeItem["kind"], string> = { asphalt: "Asphalt", base: "Base", prime: "Prime", seal: "Seal", excavation: "Excavation", other: "Other" };
 const toNum = (s: string) => (s.trim() === "" ? null : Number(s.replace(/[,\s]/g, "")));
 const small: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 600 };
-const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8, border: "1px solid #b5b2ab", background: "#fff", width: "100%" };
+const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff", width: "100%" };
 let keySeq = 0;
 const newKey = (p: string) => `${p}${Date.now().toString(36)}${keySeq++}`;
 
@@ -316,17 +316,17 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
       </fieldset>
 
       <div className="editor-side">
-      <section className="card" style={{ background: "var(--ink)", color: "#f6f5f2", borderColor: "var(--ink)" }}>
+      <section className="card" style={{ background: "var(--ink)", color: "#f3f4f6", borderColor: "var(--ink)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 13, color: "#b5b2ab" }}>Quote price, ex GST</div>
+            <div style={{ fontSize: 13, color: "#b6bcc4" }}>Quote price, ex GST</div>
             <div style={{ fontFamily: "var(--font-head)", fontSize: 34, fontWeight: 600, lineHeight: 1.1 }}>{money(priced.priceExGst)}</div>
-            <div style={{ fontSize: 13, color: "#d9d7d2" }}>inc GST {money(priced.priceIncGst)}</div>
+            <div style={{ fontSize: 13, color: "#d6d9de" }}>inc GST {money(priced.priceIncGst)}</div>
           </div>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 13, color: "#b5b2ab" }}>Profit</div>
+            <div style={{ fontSize: 13, color: "#b6bcc4" }}>Profit</div>
             <div style={{ fontFamily: "var(--font-head)", fontSize: 34, fontWeight: 600, lineHeight: 1.1, color: priced.profit > 0 ? "#86efac" : "#fca5a5" }}>{money(priced.profit)}</div>
-            <div style={{ fontSize: 13, color: "#d9d7d2" }}>
+            <div style={{ fontSize: 13, color: "#d6d9de" }}>
               {priced.profitPerShift != null ? `${money(Math.round(priced.profitPerShift))} a shift` : `cost ${money(priced.cost)}`}
             </div>
           </div>
@@ -339,11 +339,11 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
               ["Profit", `${money(Math.round(priced.perTonne.profit))}/t`],
             ].map(([l, v]) => (
               <div key={l}>
-                <div style={{ fontSize: 12, color: "#b5b2ab" }}>{l}</div>
+                <div style={{ fontSize: 12, color: "#b6bcc4" }}>{l}</div>
                 <div style={{ fontSize: 20, fontWeight: 600 }}>{v}</div>
               </div>
             ))}
-            <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "#b5b2ab" }}>{priced.perTonne.tonnes.toLocaleString("en-AU")} t of asphalt, supply and lay, with its share of trucks, crew and plant · total cost {money(priced.cost)}</div>
+            <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "#b6bcc4" }}>{priced.perTonne.tonnes.toLocaleString("en-AU")} t of asphalt, supply and lay, with its share of trucks, crew and plant · total cost {money(priced.cost)}</div>
           </div>
         )}
         <label htmlFor="margin" style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontWeight: 600 }}><span>Margin</span><span>{margin}%</span></label>

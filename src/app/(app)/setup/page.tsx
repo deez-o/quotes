@@ -151,7 +151,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
                 width: 32, height: 32, borderRadius: 16, flex: "none", display: "grid", placeItems: "center", fontWeight: 600,
                 background: s.done ? "var(--good-bg)" : i === nextIndex ? "var(--accent)" : "transparent",
                 color: s.done ? "var(--good)" : i === nextIndex ? "#fff" : "var(--muted)",
-                border: s.done || i === nextIndex ? "none" : "1px solid #b5b2ab",
+                border: s.done || i === nextIndex ? "none" : "1px solid #b6bcc4",
               }}
             >
               {s.done ? "✓" : i + 1}

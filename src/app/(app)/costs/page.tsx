@@ -33,7 +33,7 @@ const UNITS = [["shift", "shift"], ["day", "day"], ["h", "hour"], ["t", "tonne"]
 
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10, alignItems: "end" };
 const field: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 13 };
-const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8, border: "1px solid #b5b2ab", background: "#fff", width: "100%" };
+const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff", width: "100%" };
 const ACTIONS_COL = "160px";
 
 /** Columns for a section: one heading row, then one line per cost. */

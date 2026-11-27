@@ -9,7 +9,7 @@ import { importPriceList, readPriceListFile, type ImportLine } from "./price-lis
 const MAX_MB = 20;
 const UNITS: [string, string][] = [["t", "tonne"], ["m2", "m²"], ["m3", "m³"], ["each", "each"], ["h", "hour"], ["day", "day"], ["km", "km"]];
 const KINDS: [string, string][] = [["asphalt", "Asphalt"], ["base", "Base"], ["prime", "Prime"], ["seal", "Seal"], ["other", "Other"]];
-const sel: React.CSSProperties = { font: "inherit", padding: 8, borderRadius: 8, border: "1px solid #b5b2ab", background: "#fff" };
+const sel: React.CSSProperties = { font: "inherit", padding: 8, borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff" };
 
 type Row = ImportLine & { use: boolean; notes: string | null };
 
@@ -100,7 +100,7 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
       {error && <p className="error" role="alert" style={{ margin: 0 }}>{error}</p>}
 
       {read && (
-        <div className="card" style={{ background: "var(--paper, #faf9f6)", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className="card" style={{ background: "var(--paper, #f7f8fa)", display: "flex", flexDirection: "column", gap: 8 }}>
           <strong>Check these prices{read.supplier ? ` from ${read.supplier}` : ""}{read.valid_until ? `, valid to ${read.valid_until}` : ""}</strong>
           {read.warnings.map((w, i) => <div key={i} style={{ background: "var(--warn-bg)", padding: "6px 10px", borderRadius: 6, fontSize: 13 }}>{w}</div>)}
           <div style={{ overflowX: "auto" }}>

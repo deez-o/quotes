@@ -63,7 +63,7 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
           <div style={field}>
             <span>Logo</span>
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
-              <div style={{ width: 160, height: 64, border: "1px dashed #b5b2ab", borderRadius: 8, display: "grid", placeItems: "center", background: "#fff", overflow: "hidden" }}>
+              <div style={{ width: 160, height: 64, border: "1px dashed #b6bcc4", borderRadius: 8, display: "grid", placeItems: "center", background: "#fff", overflow: "hidden" }}>
                 {logoUrl ? <img src={logoUrl} alt="Your logo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span className="sub" style={{ marginTop: 0, fontSize: 12 }}>No logo yet</span>}
               </div>
               <input ref={file} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(e) => void upload(e.target.files?.[0])} />
@@ -78,7 +78,7 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
             <div className="row" style={{ gap: 8, alignItems: "center" }}>
               {BRAND_PRESETS.map((c) => (
                 <button key={c} type="button" aria-label={`Use ${c}`} aria-pressed={color.toUpperCase() === c} onClick={() => setColor(c)}
-                  style={{ width: 32, height: 32, borderRadius: 8, background: c, cursor: "pointer", border: color.toUpperCase() === c ? "3px solid var(--brand)" : "1px solid #d4d1cb", outlineOffset: 2 }} />
+                  style={{ width: 32, height: 32, borderRadius: 8, background: c, cursor: "pointer", border: color.toUpperCase() === c ? "3px solid var(--brand)" : "1px solid #d1d5db", outlineOffset: 2 }} />
               ))}
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
                 <input type="color" value={isHex(color) ? color : DEFAULT_BRAND} onChange={(e) => setColor(e.target.value.toUpperCase())} aria-label="Pick any colour" style={{ width: 40, height: 32, padding: 0, border: 0, background: "none" }} />

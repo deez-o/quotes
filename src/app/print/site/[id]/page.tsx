@@ -35,7 +35,7 @@ export default async function PrintSiteQuote({ params }: { params: Promise<{ id:
       <div className="no-print" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}><PrintButton /></div>
 
       <div style={{ height: 8, background: brand, margin: "0 0 20px", WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" }} />
-      <header style={{ display: "flex", justifyContent: "space-between", gap: 24, paddingBottom: 16, borderBottom: "1px solid #e3e1dc" }}>
+      <header style={{ display: "flex", justifyContent: "space-between", gap: 24, paddingBottom: 16, borderBottom: "1px solid #e1e4e8" }}>
         <div>
           {logo ? <img src={logo} alt={bizName ?? ""} style={{ maxHeight: 64, maxWidth: 240, objectFit: "contain", display: "block", marginBottom: 8 }} />
             : <div style={{ fontFamily: "var(--font-head)", fontSize: 26, fontWeight: 600 }}>{bizName}</div>}
@@ -68,7 +68,7 @@ export default async function PrintSiteQuote({ params }: { params: Promise<{ id:
         </thead>
         <tbody>
           {(c.customerLines ?? []).map((l) => (
-            <tr key={l.key} style={{ borderBottom: "1px solid #e3e1dc" }}>
+            <tr key={l.key} style={{ borderBottom: "1px solid #e1e4e8" }}>
               <td style={{ padding: "10px 4px" }}>{l.description}</td>
               <td style={{ padding: "10px 4px", textAlign: "right", whiteSpace: "nowrap" }}>{l.quantity.toLocaleString("en-AU")} {l.unit}</td>
               <td style={{ padding: "10px 4px", textAlign: "right" }}>{money(l.rate)}</td>
