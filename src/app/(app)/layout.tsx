@@ -3,6 +3,7 @@ import { Logo } from "../logo";
 import { requireTenant } from "@/lib/tenant";
 import { signOut } from "@/app/actions";
 import { NavLinks } from "./nav";
+import { SessionGuard } from "../session-guard";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { loadAccess } from "@/lib/access-load";
@@ -39,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </nav>
+      <SessionGuard />
       <main className="main">
         {access.state === "ok" && access.banner && (
           <div className="card row" style={{ background: "var(--warn-bg)", borderColor: "#f0dba5", padding: "10px 16px", gap: 12, marginBottom: 20 }}>

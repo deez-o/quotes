@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [forgot, setForgot] = useState(false);
   const [sent, setSent] = useState(false);
+  const [keep, setKeep] = useState(true);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -37,6 +38,10 @@ export default function LoginPage() {
       setError(error.message === "Invalid login credentials" ? "That email and password don't match." : error.message);
       return;
     }
+    try {
+      if (keep) localStorage.removeItem("qo_short");
+      else { localStorage.setItem("qo_short", "1"); document.cookie = "qo_alive=1; path=/; SameSite=Lax; Secure"; }
+    } catch {}
     const next = new URLSearchParams(window.location.search).get("next");
     window.location.assign(next && next.startsWith("/") && !next.startsWith("//") ? next : "/");
   }
@@ -83,7 +88,11 @@ export default function LoginPage() {
             <input id="email" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
             <label htmlFor="password">Password</label>
             <input id="password" type="password" required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button type="submit" className="btn primary" disabled={busy} style={{ marginTop: 6 }}>{busy ? "Signing in..." : "Sign in"}</button>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, fontWeight: 400, fontSize: 15, cursor: "pointer", padding: "4px 0" }}>
+              <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} style={{ width: 20, height: 20, accentColor: "var(--brand)" }} />
+              Keep me signed in
+            </label>
+            <button type="submit" className="btn primary" disabled={busy}>{busy ? "Signing in..." : "Sign in"}</button>
             <button type="button" onClick={() => { setForgot(true); setError(null); }}
               style={{ background: "none", border: 0, color: "var(--muted)", font: "inherit", fontSize: 14, textDecoration: "underline", cursor: "pointer", padding: 4 }}>
               Forgot your password?
