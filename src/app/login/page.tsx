@@ -52,7 +52,7 @@ export default function LoginPage() {
     <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", alignContent: "center", gap: 20, padding: 24, background: "var(--bitumen)" }}>
       <div style={{ textAlign: "center", color: "var(--line-white)" }}>
         <Logo size={44} dark />
-        <p style={{ marginTop: 10, color: "#b5b2ab", fontSize: 15 }}>Quote it on site. Send it from the ute.</p>
+        <p style={{ marginTop: 10, color: "#b5b2ab", fontSize: 15 }}>Your quotes, out the door.</p>
       </div>
       <div className="card" style={{ width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16 }}>
         <div>
