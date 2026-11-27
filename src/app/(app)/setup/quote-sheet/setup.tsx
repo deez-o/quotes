@@ -55,11 +55,11 @@ export function QuoteSheetSetup({ tenantId, initial, loadError }: { tenantId: st
   return (
     <>
       <div className="card row" style={{ gap: 12 }}>
-        <span className="grow">{p ? <>Your sheet: <strong>{p.filename}</strong>{p.confirmed ? <span className="badge good" style={{ marginLeft: 8 }}>In use</span> : <span className="badge warn" style={{ marginLeft: 8 }}>Check it below. Until then quotes use the quoteout standard sheet</span>}</> : <>Quotes download in the <strong>quoteout standard sheet</strong>, with your logo, colour and details. <a href="/api/quote-sheet/sample?standard=1" style={{ textDecoration: "underline" }}>Download a sample</a></>}</span>
+        <span className="grow">{p ? <>Your sheet: <strong>{p.filename}</strong>{p.confirmed ? <span className="badge good" style={{ marginLeft: 8 }}>In use</span> : <span className="badge warn" style={{ marginLeft: 8 }}>Check it below. Until then quotes use the quoteout standard sheet</span>}</> : <>The Excel button gives the <strong>quoteout workings</strong>: every cost with live formulas, plus the customer quote in your branding. <a href="/api/quote-sheet/sample?standard=1" style={{ textDecoration: "underline" }}>Download a sample</a></>}</span>
         <input ref={input} type="file" accept=".xlsx,.xlsm" hidden onChange={(e) => void upload(e.target.files?.[0])} />
-        <button type="button" className="btn" disabled={!!status} onClick={() => input.current?.click()}>{p ? "Upload a different sheet" : "Use your own sheet instead"}</button>
+        <button type="button" className="btn" disabled={!!status} onClick={() => input.current?.click()}>{p ? "Upload a different sheet" : "Use your own quote sheet instead"}</button>
         {p && (
-          <button type="button" className="btn" disabled={pending} onClick={() => start(async () => { const r = await removeQuoteSheet(); if (r.ok) { setP(null); setDraft(null); } })}>Go back to the standard sheet</button>
+          <button type="button" className="btn" disabled={pending} onClick={() => start(async () => { const r = await removeQuoteSheet(); if (r.ok) { setP(null); setDraft(null); } })}>Go back to the quoteout workings</button>
         )}
       </div>
       {status && <p className="card" role="status" style={{ margin: 0 }}>{status}</p>}

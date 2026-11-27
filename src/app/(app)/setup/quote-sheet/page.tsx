@@ -12,9 +12,10 @@ export default async function QuoteSheetPage() {
         <Link href="/setup" className="sub" style={{ marginTop: 0 }}>← Setup</Link>
         <h1 style={{ marginTop: 6 }}>Your quote spreadsheet</h1>
         <p className="sub">
-          Every quote has an Excel button. It uses quoteout&apos;s standard sheet in your branding, or your own sheet: upload the one you
-          quote on now, quoteout works out where everything goes and shows it filled with a sample quote, and once you say it&apos;s right,
-          quotes download in your sheet. Your formatting, logo, formulas and macros stay as they are.
+          Every quote has an Excel button. By default it downloads the quoteout workings: every cost (tonnes, cartage, crew hours and
+          overtime, plant, margin) as live formulas, so you can check or tweak the numbers, with the customer quote on a second tab.
+          If you&apos;d rather have your own quote sheet, upload it: quoteout works out where everything goes, shows it filled with a sample,
+          and once you say it&apos;s right, quotes download in your sheet with its formatting and macros kept.
         </p>
       </div>
       {ctx.role !== "admin"

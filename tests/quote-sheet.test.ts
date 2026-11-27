@@ -129,7 +129,7 @@ describe("the standard sheet", () => {
   it("lays out the quote with the company's details, lines and totals that add up", async () => {
     const { defaultWorkbook } = await import("@/lib/sheet/default");
     const bytes = await defaultWorkbook({ name: "Demo Asphalt Co", abn: "12 345 678 901", phone: "07 3000 0000", email: "quotes@demo.test", address: "1 Plant Rd", website: null, color: "#FF6A13", logo: null, gstPercent: 10 }, SAMPLE_QUOTE);
-    const ws = (await reread(bytes)).getWorksheet("Quote")!;
+    const ws = (await reread(bytes)).getWorksheet("Customer quote")!;
     const all: string[] = [];
     ws.eachRow((row) => row.eachCell((c) => all.push(typeof c.value === "object" && c.value && "richText" in c.value ? (c.value as { richText: { text: string }[] }).richText.map((t) => t.text).join("") : String((c.value as { formula?: string })?.formula ? `=${(c.value as { formula: string }).formula}` : c.value))));
     expect(all).toContain("Demo Asphalt Co");
@@ -138,5 +138,25 @@ describe("the standard sheet", () => {
     expect(all.some((t) => t.includes("Sample Builders Pty Ltd"))).toBe(true);
     expect(all).toContain("Supply and lay AC10, 40 mm");
     expect(all.some((t) => t.startsWith("=SUM(F"))).toBe(true);
+  });
+});
+
+describe("the workings tab", () => {
+  it("builds every cost with formulas that add up to the app's price", async () => {
+    const { defaultWorkbook } = await import("@/lib/sheet/default");
+    const { sampleWorkings, sampleQuoteFor } = await import("@/lib/sheet/sample");
+    const w = sampleWorkings();
+    const bytes = await defaultWorkbook({ name: "Demo", abn: null, phone: null, email: null, address: null, website: null, color: null, logo: null, gstPercent: 10 }, sampleQuoteFor(w), w);
+    const wb = await reread(bytes);
+    expect(wb.worksheets.map((s) => s.name)).toEqual(["Workings", "Customer quote"]);
+    const ws = wb.getWorksheet("Workings")!;
+    const formulas: { f: string; r: number }[] = [];
+    ws.eachRow((row) => row.eachCell((c) => { const v = c.value as { formula?: string; result?: number }; if (v && typeof v === "object" && v.formula) formulas.push({ f: v.formula, r: Number(v.result) }); }));
+    expect(formulas.some((x) => /^ROUND\(C\d+\*D\d+\/1000\*E\d+,2\)$/.test(x.f))).toBe(true); // tonnes
+    expect(formulas.some((x) => /^ROUNDUP\(/.test(x.f))).toBe(true); // loads
+    expect(formulas.some((x) => /^ROUND\(C\d+\/\(1-C\d+\),0\)$/.test(x.f) && x.r === w.priced.priceExGst)).toBe(true); // price from cost and margin
+    const total = formulas.find((x) => x.f.startsWith("SUM("));
+    expect(total?.r).toBeCloseTo(w.priced.cost, 2);
+    expect(w.priced.costLines.reduce((s, l) => s + l.cost, 0)).toBeCloseTo(w.priced.cost, 2);
   });
 });

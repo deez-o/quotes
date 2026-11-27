@@ -85,12 +85,21 @@ export type PricingSettings = {
 
 export type Haul = { km: number; minutes: number; source: "gps" | "entered" | "road" };
 
+/** The numbers behind a cost line, for the Excel workings (formulas rebuilt from these). */
+export type CostCalc =
+  | { kind: "tonnes"; area_m2: number; depth_mm: number; density: number; tonnes: number; rate: number; unit: string; band: string | null; delivered: boolean }
+  | { kind: "volume"; area_m2: number | null; depth_mm: number | null; qty: number; rate: number; unit: string; band: string | null }
+  | { kind: "qty"; qty: number; rate: number; unit: string; band: string | null }
+  | { kind: "trucks"; tonnes: number; capacity: number; loads: number; minutesEachWay: number; km: number; loadMinutes: number; unloadMinutes: number; cycleMinutes: number; hours: number; trucks: number; basis: "h" | "km" | "truck"; rate: number }
+  | { kind: "time"; days: number; amount: number; unit: string; rate: number; parts: { hours: number; rate: number }[] | null };
+
 export type CostLine = {
   key: string;
   group: "material" | "trucks" | "crew" | "plant" | "other";
   label: string;
   working: string;
   cost: number;
+  calc?: CostCalc;
 };
 
 export type CustomerLine = { key: string; description: string; quantity: number; unit: string; rate: number; total: number };
@@ -249,6 +258,7 @@ export function priceSiteQuote(input: {
     let working = "";
     let tonnes = 0;
     let rate = ci.rate;
+    let calc: CostCalc | undefined;
 
     if ((item.kind === "asphalt" || item.kind === "base") && ci.unit === "t") {
       if (!item.area_m2 || !item.depth_mm) {
@@ -262,6 +272,7 @@ export function priceSiteQuote(input: {
         const r = rateFor(ci, tonnes);
         rate = r.rate;
         working = `${fmtN(item.area_m2, 0)} m² × ${item.depth_mm / 1000} m × ${ci.density_t_per_m3} t/m³ = ${fmtN(tonnes)} t × ${money(rate)}/t${r.band ? ` (${r.band})` : ""}`;
+        calc = { kind: "tonnes", area_m2: item.area_m2, depth_mm: item.depth_mm, density: ci.density_t_per_m3, tonnes, rate, unit: "t", band: r.band, delivered: ci.includes_delivery };
         if (!ci.includes_delivery) truckTonnes += tonnes;
       }
     } else if (ci.unit === "m3") {
@@ -271,24 +282,27 @@ export function priceSiteQuote(input: {
       rate = r.rate;
       const band = r.band ? ` (${r.band})` : "";
       working = item.quantity ? `${fmtN(m3)} m³ × ${money(rate)}/m³${band}` : `${fmtN(item.area_m2 ?? 0, 0)} m² × ${(item.depth_mm ?? 0) / 1000} m = ${fmtN(m3)} m³ × ${money(rate)}/m³${band}`;
+      calc = { kind: "volume", area_m2: item.quantity ? null : item.area_m2, depth_mm: item.quantity ? null : item.depth_mm, qty: m3, rate, unit: "m³", band: r.band };
       if (!m3) warnings.push(`"${item.description}" needs a volume, or an area and a depth.`);
     } else if (ci.unit === "m2") {
       qty = item.area_m2 ?? item.quantity ?? 0;
       const r = rateFor(ci, qty);
       rate = r.rate;
       working = `${fmtN(qty, 0)} m² × ${money(rate)}/m²${r.band ? ` (${r.band})` : ""}`;
+      calc = { kind: "qty", qty, rate, unit: "m²", band: r.band };
       if (!qty) warnings.push(`"${item.description}" needs an area.`);
     } else {
       qty = item.quantity ?? 0;
       const r = rateFor(ci, qty);
       rate = r.rate;
       working = `${fmtN(qty)} ${UNIT_LABEL[ci.unit]} × ${money(rate)}/${UNIT_LABEL[ci.unit]}${r.band ? ` (${r.band})` : ""}`;
+      calc = { kind: "qty", qty, rate, unit: UNIT_LABEL[ci.unit], band: r.band };
       if (!qty) warnings.push(`"${item.description}" needs a quantity.`);
     }
 
     const cost = round2(qty * rate);
     direct.set(item.key, cost);
-    costLines.push({ key: item.key, group: "material", label: item.description, working, cost });
+    costLines.push({ key: item.key, group: "material", label: item.description, working, cost, calc });
   }
 
   // Trucks: haul everything not delivered by the supplier from the supply plant.
@@ -314,6 +328,11 @@ export function priceSiteQuote(input: {
         label: `Cartage from plant (${trucksNeeded} truck${trucksNeeded === 1 ? "" : "s"})`,
         working: `${fmtN(truckTonnes)} t ÷ ${capacity} t = ${loads} loads × ${cycle} min cycle (${haul.minutes} min each way + load/unload) = ${fmtN(hours, 2)} h × ${money(truck.rate)}/h`,
         cost,
+        calc: {
+          kind: "trucks", tonnes: round2(truckTonnes), capacity, loads, minutesEachWay: haul.minutes, km: haul.km,
+          loadMinutes: settings.truck_load_minutes, unloadMinutes: settings.truck_unload_minutes, cycleMinutes: cycle, hours, trucks: trucksNeeded,
+          basis: truck.unit === "km" ? "km" : truck.unit === "each" || truck.unit === "day" ? "truck" : "h", rate: truck.rate,
+        },
       });
     }
   }
@@ -337,11 +356,13 @@ export function priceSiteQuote(input: {
         const parts = day.parts.map((p) => `${fmtN(p.hours)} h × ${money(p.rate)}`).join(" + ");
         costLines.push({
           key: l.key, group, label: ci.name, cost: round2(day.cost * days),
+          calc: { kind: "time", days, amount: l.amount, unit: "h", rate: ci.rate, parts: day.parts },
           working: `${dayPrefix}${days !== 1 || day.parts.length > 1 ? `(${parts})` : parts}${day.parts.length > 1 ? ` (overtime after ${fmtN(ci.ordinary_hours)} h)` : ""}${note}`,
         });
       } else {
         costLines.push({
           key: l.key, group, label: ci.name, cost: round2(l.amount * days * ci.rate),
+          calc: { kind: "time", days, amount: l.amount, unit: UNIT_LABEL[ci.unit], rate: ci.rate, parts: null },
           working: `${dayPrefix}${fmtN(l.amount)} ${UNIT_LABEL[ci.unit]} × ${money(ci.rate)}/${UNIT_LABEL[ci.unit]}${note}`,
         });
       }
@@ -355,6 +376,7 @@ export function priceSiteQuote(input: {
   if (floatItem && moves > 0) {
     costLines.push({
       key: "float", group: "plant", label: floatItem.name, cost: round2(moves * floatItem.rate),
+      calc: { kind: "qty", qty: moves, rate: floatItem.rate, unit: "move", band: null },
       working: `${fmtN(moves)} move${moves === 1 ? "" : "s"} × ${money(floatItem.rate)}${scope.float_moves == null ? " (one per asphalt job)" : ""}`,
     });
   }
