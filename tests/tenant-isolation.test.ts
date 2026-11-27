@@ -20,7 +20,7 @@ const configured = Boolean(url && anonKey && serviceKey);
 const TENANT_TABLES = [
   "tenant_modules", "connections", "customers", "jobs", "messages", "attachments",
   "catalogue_products", "rates", "rules", "examples", "workbook_templates",
-  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses", "cost_items", "supply_plants", "site_quotes", "quote_sends",
+  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses", "cost_items", "supply_plants", "site_quotes", "quote_sends", "support_requests",
 ] as const;
 
 describe.skipIf(!configured)("tenant isolation", () => {
@@ -118,7 +118,7 @@ describe.skipIf(!configured)("tenant isolation", () => {
     expect(data ?? []).toHaveLength(0);
   });
 
-  it.each(["user_devices", "platform_admins", "platform_settings", "ai_trials"])("can never read the owner-only table %s", async (table) => {
+  it.each(["user_devices", "platform_admins", "platform_settings", "ai_trials", "app_errors"])("can never read the owner-only table %s", async (table) => {
     const { data } = await asA.from(table).select("*");
     expect(data ?? []).toHaveLength(0);
   });

@@ -92,7 +92,7 @@ export function SendQuoteDialog({ quoteId, onClose, onSent }: { quoteId: string;
             <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <span aria-hidden>📎</span>
               <a href={`/api/quotes/${quoteId}/pdf`} target="_blank" rel="noreferrer">The quote PDF</a>
-              <span className="sub" style={{ marginTop: 0 }}>is attached. Open it to check.</span>
+              <span className="sub" style={{ marginTop: 0 }}>is attached. Open it to check. A <span className="sub" style={{ marginTop: 0 }}>is attached. Open it to check.</span>quot;View and accept quote<span className="sub" style={{ marginTop: 0 }}>is attached. Open it to check.</span>quot; button goes under your message.</span>
             </div>
             {draft.history.length > 0 && (
               <div className="sub" style={{ marginTop: 0 }}>

@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { CHECK_COOKIE, CHECK_EVERY_S, DEVICE_COOKIE, deviceLabel, whereFrom } from "@/lib/devices";
 import { checkDevice } from "@/lib/device-check";
 
-const PUBLIC_PATHS = ["/login", "/auth", "/signup"]; // /auth/session, /auth/callback, /auth/confirm
+const PUBLIC_PATHS = ["/login", "/auth", "/signup", "/accept"]; // /auth/session, /auth/callback, /auth/confirm
 
 /**
  * Runs before every page: refreshes the Supabase session cookie and sends

@@ -3,16 +3,30 @@
  * Same content as the print page: business details, the lines, totals and terms.
  * Kept free of Next.js and Supabase so it can be tested.
  */
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
+import { PDFDocument, PDFString, StandardFonts, rgb, type PDFFont, type PDFPage, type RGB } from "pdf-lib";
 
 export type QuotePdfData = {
   brand: string;
   business: { name: string; abn: string | null; address: string | null; contact: string | null };
   logo: { bytes: Uint8Array; type: "png" | "jpg" } | null;
   quote: { number: string | null; date: string; title: string; customer: string | null; customerEmail: string | null; site: string | null };
-  lines: { description: string; quantity: number; unit: string; rate: number; total: number }[];
-  totals: { exGst: number; gst: number; incGst: number; gstPercent: number };
+  /** One for a plain quote; two or more when the customer is given options. */
+  options: PdfOption[];
+  gstPercent: number;
+  inclusions: string[];
+  exclusions: string[];
+  /** The satellite picture with the traced areas. */
+  map: { png: Uint8Array; areas: { name: string; m2: number; color: string }[] } | null;
+  /** Where the customer can accept online. */
+  acceptUrl: string | null;
   terms: string;
+};
+
+export type PdfOption = {
+  label: string | null;
+  title: string;
+  lines: { description: string; quantity: number; unit: string; rate: number; total: number }[];
+  totals: { exGst: number; gst: number; incGst: number };
 };
 
 const EXTRA = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
@@ -127,6 +141,20 @@ export async function quotePdf(d: QuotePdfData): Promise<Uint8Array> {
   for (const l of wrap(d.quote.title, bold, 14, W - 2 * M)) { need(20); text(l, M, y, 14, bold); y -= 18; }
   y -= 4;
 
+  const many = d.options.length > 1;
+  if (many) {
+    need(20 + d.options.length * 16);
+    text("We've priced the following options. Choose the one that suits you.", M, y, 10, font, grey); y -= 18;
+    for (const o of d.options) {
+      const label = `Option ${o.label ?? ""}: ${o.title}`;
+      const ls = wrap(label, font, 10, W - 2 * M - 160);
+      ls.forEach((t, i) => text(t, M + 6, y - i * 13, 10, i ? font : bold));
+      right(`${money(o.totals.incGst)} inc GST`, W - M - 6, y, 10, bold, accent);
+      y -= ls.length * 13 + 4;
+    }
+    y -= 10;
+  }
+
   // Lines.
   const cQty = W - M - 205, cRate = W - M - 105, cAmt = W - M - 6;
   const descW = cQty - 70 - (M + 6);
@@ -138,29 +166,88 @@ export async function quotePdf(d: QuotePdfData): Promise<Uint8Array> {
     right("Amount", cAmt, y, 9, bold, onBrand);
     y -= 24;
   };
-  head();
-  for (const l of d.lines) {
-    const ls = wrap(l.description, font, 10, descW);
-    const h = ls.length * 13 + 10;
-    if (y - h < M + 20) { newPage(); head(); }
-    ls.forEach((t, i) => text(t, M + 6, y - i * 13, 10));
-    right(`${l.quantity.toLocaleString("en-AU")} ${l.unit}`, cQty, y, 10);
-    right(money(l.rate), cRate, y, 10);
-    right(money(l.total), cAmt, y, 10);
-    y -= h - 6;
-    page.drawLine({ start: { x: M, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.6, color: rule });
-    y -= 10;
+  for (const o of d.options) {
+    if (many) {
+      need(80);
+      for (const l of wrap(`Option ${o.label ?? ""}: ${o.title}`, bold, 12, W - 2 * M)) { text(l, M, y, 12, bold, accent); y -= 16; }
+      y -= 2;
+    }
+    head();
+    for (const l of o.lines) {
+      const ls = wrap(l.description, font, 10, descW);
+      const h = ls.length * 13 + 10;
+      if (y - h < M + 20) { newPage(); head(); }
+      ls.forEach((t, i) => text(t, M + 6, y - i * 13, 10));
+      right(`${l.quantity.toLocaleString("en-AU")} ${l.unit}`, cQty, y, 10);
+      right(money(l.rate), cRate, y, 10);
+      right(money(l.total), cAmt, y, 10);
+      y -= h - 6;
+      page.drawLine({ start: { x: M, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.6, color: rule });
+      y -= 10;
+    }
+    need(70);
+    y -= 4;
+    right(many ? `Option ${o.label ?? ""} total ex GST` : "Total ex GST", cRate, y, 10, bold); right(money(o.totals.exGst), cAmt, y, 10, bold); y -= 16;
+    right(`GST (${d.gstPercent}%)`, cRate, y, 10); right(money(o.totals.gst), cAmt, y, 10); y -= 10;
+    page.drawLine({ start: { x: cRate + 20, y }, end: { x: W - M, y }, thickness: 1.5, color: brandC });
+    y -= 16;
+    right(many ? `Option ${o.label ?? ""} inc GST` : "Total inc GST", cRate, y, 12, bold, accent); right(money(o.totals.incGst), cAmt, y, 12, bold, accent);
+    y -= 34;
   }
 
-  // Totals.
-  need(70);
-  y -= 4;
-  right("Total ex GST", cRate, y, 10, bold); right(money(d.totals.exGst), cAmt, y, 10, bold); y -= 16;
-  right(`GST (${d.totals.gstPercent}%)`, cRate, y, 10); right(money(d.totals.gst), cAmt, y, 10); y -= 10;
-  page.drawLine({ start: { x: cRate + 20, y }, end: { x: W - M, y }, thickness: 1.5, color: brandC });
-  y -= 16;
-  right("Total inc GST", cRate, y, 12, bold, accent); right(money(d.totals.incGst), cAmt, y, 12, bold, accent);
-  y -= 34;
+  // What's included and what isn't.
+  const list = (name: string, items: string[]) => {
+    if (!items.length) return;
+    need(34);
+    text(name, M, y, 10, bold); y -= 14;
+    for (const it of items) {
+      const ls = wrap(it, font, 9.5, W - 2 * M - 14);
+      need(ls.length * 12 + 2);
+      text("•", M + 2, y, 9.5);
+      ls.forEach((t, i) => text(t, M + 14, y - i * 12, 9.5));
+      y -= ls.length * 12 + 2;
+    }
+    y -= 10;
+  };
+  list("Included", d.inclusions);
+  list("Not included", d.exclusions);
+
+  // The site, with the areas we've measured.
+  if (d.map) {
+    try {
+      const img = await doc.embedPng(d.map.png);
+      const w = W - 2 * M, h = (w * img.height) / img.width;
+      const legend = d.map.areas.length;
+      if (y - (h + 30 + legend * 13) < M + 20) newPage();
+      text("The site", M, y, 10, bold); y -= 10;
+      page.drawImage(img, { x: M, y: y - h, width: w, height: h });
+      y -= h + 14;
+      for (const a of d.map.areas) {
+        page.drawRectangle({ x: M, y: y - 1, width: 9, height: 9, color: hex(/^#[0-9a-f]{6}$/i.test(a.color) ? a.color : "#FF6A13") });
+        text(a.name, M + 14, y, 9.5);
+        right(`${Math.round(a.m2).toLocaleString("en-AU")} m²`, M + 260, y, 9.5);
+        y -= 13;
+      }
+      y -= 12;
+    } catch {
+      // A map that won't embed is left out rather than failing the quote.
+    }
+  }
+
+  if (d.acceptUrl) {
+    need(40);
+    page.drawRectangle({ x: M, y: y - 24, width: W - 2 * M, height: 34, color: hex("#f3f4f6") });
+    text(many ? "To go ahead, choose your option and accept online:" : "To go ahead, accept online:", M + 10, y - 4, 10, bold);
+    const linkText = pdfSafe(d.acceptUrl);
+    text(linkText, M + 10, y - 17, 9, font, accent);
+    const lw = font.widthOfTextAtSize(linkText, 9);
+    const annot = doc.context.register(doc.context.obj({
+      Type: "Annot", Subtype: "Link", Rect: [M + 8, y - 20, M + 12 + lw, y - 8], Border: [0, 0, 0],
+      A: { Type: "Action", S: "URI", URI: PDFString.of(d.acceptUrl) },
+    }));
+    page.node.addAnnot(annot);
+    y -= 44;
+  }
 
   // Terms.
   if (d.terms.trim()) {
