@@ -31,8 +31,8 @@ const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8
 let keySeq = 0;
 const newKey = (p: string) => `${p}${Date.now().toString(36)}${keySeq++}`;
 
-export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null }: {
-  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null; compare?: CompareView | null;
+export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null, hasSheet = false }: {
+  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null; compare?: CompareView | null; hasSheet?: boolean;
 }) {
   const router = useRouter();
   const [scope, setScope] = useState<SiteScope>(quote.scope);
@@ -42,7 +42,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const [address, setAddress] = useState(quote.site_address ?? "");
   const [correction, setCorrection] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState<null | "save" | "fix" | "print" | "xero">(null);
+  const [busy, setBusy] = useState<null | "save" | "fix" | "print" | "xero" | "excel">(null);
   const [dirty, setDirty] = useState(false);
   const [site, setSite] = useState({ lat: quote.site_lat, lng: quote.site_lng });
   const [routes, setRoutes] = useState<HaulRoutes | null>(quote.haul_routes);
@@ -110,7 +110,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
     router.refresh();
   }
 
-  async function save(then?: "print") {
+  async function save(then?: "print" | "excel") {
     setBusy(then ?? "save");
     setMsg(null);
     const r = await saveSiteQuote({ id: quote.id, scope, marginPercent: margin, customer, customerEmail: email, address });
@@ -118,6 +118,13 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
     if (!r.ok) return setMsg({ ok: false, text: r.message });
     setDirty(false);
     if (then === "print") window.open(`/print/site/${quote.id}`, "_blank");
+    else if (then === "excel") {
+      // A file download, not a page: a plain link click.
+      const a = document.createElement("a");
+      a.href = `/api/quotes/${quote.id}/xlsx`;
+      a.download = "";
+      a.click();
+    }
     else setMsg({ ok: true, text: "Saved." });
     router.refresh();
   }
@@ -455,6 +462,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         <div style={{ position: "sticky", bottom: 0, background: "var(--ground)", padding: "10px 0 14px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
           <button type="button" className="btn primary" disabled={busy !== null} onClick={() => save()}>{busy === "save" ? "Saving..." : dirty ? "Save changes" : "Saved"}</button>
           <button type="button" className="btn" disabled={busy !== null} onClick={() => save("print")}>{busy === "print" ? "Opening..." : "PDF / print"}</button>
+          {hasSheet && <button type="button" className="btn" disabled={busy !== null} onClick={() => save("excel")}>{busy === "excel" ? "Making..." : "Excel"}</button>}
           {hasXero ? (
             <button type="button" className="btn" disabled={busy !== null} onClick={() => void toXero()}>
               {busy === "xero" ? "Sending to Xero..." : xeroNo ? `Update Xero ${xeroNo}` : "Send to Xero"}

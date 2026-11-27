@@ -5,6 +5,7 @@ import { loadSettings } from "../settings/data";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { loadAccess } from "@/lib/access-load";
+import { loadSheet } from "@/lib/sheet/store";
 import { planFor } from "@/lib/plans";
 
 type Step = { title: string; detail: string; done: boolean; optional?: boolean; action?: { label: string; href?: string; external?: boolean } };
@@ -48,7 +49,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     .eq("tenant_id", t)
     .maybeSingle();
 
-  const [mailboxes, workbooks, costItems, plants, activeRules, proposedRules, examples, xero] = await Promise.all([
+  const [mailboxes, , costItems, plants, activeRules, proposedRules, examples, xero] = await Promise.all([
     count("connections", (q) => q.eq("purpose", "mailbox").eq("status", "ok")),
     count("workbook_templates"),
     count("cost_items", (q) => q.eq("active", true)),
@@ -60,6 +61,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   ]);
 
   const { data: settings } = await settingsPromise;
+  const quoteSheet = await loadSheet(supabase, t);
   const { data: inbound } = await supabase.from("inbound_addresses").select("local_part").eq("tenant_id", t).limit(1).maybeSingle();
   const inboundAddress = inbound?.local_part ? `${inbound.local_part}@${process.env.INBOUND_DOMAIN ?? "in.quoteout.app"}` : null;
   const settingsDone = Boolean(settings?.default_binder && settings?.spray_markup_percent != null);
@@ -107,10 +109,10 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     },
     {
       optional: true,
-      title: "Upload your pricing workbook (optional)",
-      detail: workbooks ? `${workbooks} workbook uploaded` : "For RFQs: fill in your own .xlsm or .xlsx; macros are kept",
-      done: workbooks > 0,
-      action: workbooks ? undefined : { label: "Coming in milestone M3" },
+      title: "Your quote spreadsheet (optional)",
+      detail: quoteSheet?.confirmed_at ? `Quotes download in ${quoteSheet.filename}` : quoteSheet ? `${quoteSheet.filename}: check where things go` : "Download every quote in your own Excel sheet (.xlsx or .xlsm); your formatting and macros are kept",
+      done: Boolean(quoteSheet?.confirmed_at),
+      action: { label: quoteSheet ? "Check or change" : "Upload your sheet", href: "/setup/quote-sheet" },
     },
     {
       optional: true,

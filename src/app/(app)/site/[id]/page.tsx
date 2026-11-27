@@ -9,6 +9,7 @@ import type { HaulRoutes, SiteScope } from "@/lib/site/price";
 import { SiteQuoteEditor, type QuoteView, type RfqView } from "./editor";
 import type { CompareView } from "./compare";
 import { isOwner } from "@/lib/owner";
+import { loadSheet } from "@/lib/sheet/store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { modelInfo } from "@/lib/ai/models";
 import { splitSavedEmail, type RfqSummary } from "@/lib/rfq/split";
@@ -92,6 +93,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
     }
   }
 
+  const sheet = await loadSheet(db, ctx.tenant.id);
   const { data: xero } = await db.from("connections").select("id").eq("tenant_id", ctx.tenant.id).eq("provider", "xero").eq("status", "ok").limit(1).maybeSingle();
 
   return (
@@ -101,7 +103,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
         <span className="sub" style={{ marginTop: 0, fontWeight: 600 }}>{q.quote_no} · {q.status}</span>
       </div>
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
-        hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} />
+        hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} hasSheet={Boolean(sheet?.confirmed_at)} />
     </div>
   );
 }

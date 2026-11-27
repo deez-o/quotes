@@ -4,7 +4,7 @@ import { costUsd, type ProviderResult } from "@/lib/quote/provider";
 import { periodNow } from "@/lib/plans";
 import { loadAccess } from "@/lib/access-load";
 
-export type AiKind = "ai_quote" | "ai_change" | "ai_price_list" | "ai_rfq";
+export type AiKind = "ai_quote" | "ai_change" | "ai_price_list" | "ai_rfq" | "ai_sheet";
 
 /** Counts one AI call against the company (and the person), with its cost. Never fails the caller. */
 export async function recordAi(tenantId: string, userId: string | null, kind: AiKind, result: Pick<ProviderResult, "model" | "usage">) {
