@@ -73,8 +73,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         </div>
         {canEdit && (
           <div className="row" style={{ gap: 8 }}>
-            <Link href="/new" className="btn">Import RFQ</Link>
-            <Link href="/site/new" className="btn primary">New quote</Link>
+            <Link href="/start" className="btn primary">New Quote</Link>
           </div>
         )}
       </div>
@@ -97,7 +96,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       {rows.length === 0 ? (
         <div className="card">
           <h2>{needle || show !== "all" ? "Nothing matches" : "No quotes yet"}</h2>
-          <p className="sub" style={{ marginTop: 0 }}>Tap New quote and talk through a job, or import an RFQ.</p>
+          <p className="sub" style={{ marginTop: 0 }}>Tap New Quote to talk through a job, import an RFQ or paste an email.</p>
         </div>
       ) : (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>

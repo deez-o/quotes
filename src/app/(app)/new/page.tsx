@@ -17,7 +17,7 @@ export default async function NewQuotePage() {
   return (
     <div className="page" style={{ maxWidth: 900 }}>
       <div>
-        <Link href="/quotes" className="sub" style={{ fontSize: 13 }}>← Quotes</Link>
+        <Link href="/start" className="sub" style={{ fontSize: 13 }}>← New Quote</Link>
         <h1>Import RFQ</h1>
         <p className="sub">Send quoteout a request for quote. It files the job, reads everything and drafts the quote for you to check.</p>
       </div>
