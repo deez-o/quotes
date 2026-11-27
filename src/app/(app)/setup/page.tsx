@@ -5,7 +5,7 @@ import { loadSettings } from "../settings/data";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 
-type Step = { title: string; detail: string; done: boolean; action?: { label: string; href?: string; external?: boolean } };
+type Step = { title: string; detail: string; done: boolean; optional?: boolean; action?: { label: string; href?: string; external?: boolean } };
 
 const STORAGE_LABEL: Record<string, string> = {
   app: "Files kept in quoteout",
@@ -34,11 +34,11 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     .eq("tenant_id", t)
     .maybeSingle();
 
-  const [mailboxes, workbooks, products, rates, activeRules, proposedRules, examples] = await Promise.all([
+  const [mailboxes, workbooks, costItems, plants, activeRules, proposedRules, examples] = await Promise.all([
     count("connections", (q) => q.eq("purpose", "mailbox").eq("status", "ok")),
     count("workbook_templates"),
-    count("catalogue_products"),
-    count("rates"),
+    count("cost_items", (q) => q.eq("active", true)),
+    count("supply_plants", (q) => q.eq("active", true)),
     count("rules", (q) => q.eq("status", "active")),
     count("rules", (q) => q.eq("status", "proposed")),
     count("examples"),
@@ -48,6 +48,25 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const settingsDone = Boolean(settings?.default_binder && settings?.spray_markup_percent != null);
 
   const steps: Step[] = [
+    {
+      title: "Put in your costs",
+      detail: `${costItems} costs · ${plants} supply plant${plants === 1 ? "" : "s"}. Crew, materials, plant hire, trucks, float, and each plant's mix prices.`,
+      done: costItems > 0 && plants > 0,
+      action: { label: costItems ? "Edit costs" : "Add costs", href: "/costs" },
+    },
+    {
+      title: "Set your pricing target and defaults",
+      detail: settingsDone ? "Saved" : "Margin target, default binder and prime, spray mark-up, extra establishments",
+      done: settingsDone,
+      action: { label: settingsDone ? "Edit" : "Set it below", href: "#pricing" },
+    },
+    {
+      optional: true,
+      title: "Your quoting rules",
+      detail: activeRules ? `${activeRules} of your own rules in use${proposedRules ? ` · ${proposedRules} suggested` : ""}` : "Optional. quoteout already knows how to quote; add how you do things differently.",
+      done: activeRules > 0,
+      action: { label: activeRules ? "Edit rules" : "Add a rule", href: "/teach" },
+    },
     {
       title: "Connect your email",
       detail: mailboxes ? "Inbox connected" : "Microsoft 365 first; Gmail and email forwarding to follow",
@@ -60,43 +79,23 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       done: true,
     },
     {
-      title: "Upload your pricing workbook",
-      detail: workbooks ? `${workbooks} workbook uploaded` : "Your own .xlsm or .xlsx; macros are kept",
+      optional: true,
+      title: "Upload your pricing workbook (optional)",
+      detail: workbooks ? `${workbooks} workbook uploaded` : "For RFQs: fill in your own .xlsm or .xlsx; macros are kept",
       done: workbooks > 0,
       action: workbooks ? undefined : { label: "Coming in milestone M3" },
     },
     {
-      title: "Load your products and rates",
-      detail: `${products} products · ${rates} rates`,
-      done: products > 0 && rates > 0,
-    },
-    {
-      title: "Set your pricing defaults",
-      detail: settingsDone ? "Defaults saved" : "Margin target, default binder and prime, spray mark-up, extra establishments",
-      done: settingsDone,
-      action: { label: settingsDone ? "Edit" : "Set it below", href: "#pricing" },
-    },
-    {
-      title: "Tell quoteout how you quote",
-      detail: `${activeRules} rules active${proposedRules ? ` · ${proposedRules} waiting for your OK` : ""}`,
-      done: activeRules > 0 && proposedRules === 0,
-      action: { label: "Review rules", href: "/teach" },
-    },
-    {
-      title: "Add 3 to 5 past quotes",
+      optional: true,
+      title: "Add 3 to 5 past quotes (optional)",
       detail: `${examples} of 3 added. quoteout copies your style from these.`,
       done: examples >= 3,
     },
-    {
-      title: "Test on your last 10 RFQs",
-      detail: "A dry run: you see the drafts, nothing is labelled or sent.",
-      done: false,
-      action: { label: "Coming in milestone M3" },
-    },
   ];
 
-  const doneCount = steps.filter((s) => s.done).length;
-  const nextIndex = steps.findIndex((s) => !s.done);
+  const required = steps.filter((s) => !s.optional);
+  const doneCount = required.filter((s) => s.done).length;
+  const nextIndex = steps.findIndex((s) => !s.done && !s.optional);
 
   return (
     <div className="page">
@@ -105,19 +104,11 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           <h1>Set up quoteout</h1>
           <p className="sub">Nothing is sent or labelled until you press Go live.</p>
         </div>
-        <strong>{doneCount} of {steps.length} done</strong>
+        <strong>{doneCount} of {required.length} done</strong>
       </div>
       <div style={{ height: 8, background: "var(--line)", borderRadius: 4 }}>
-        <div style={{ width: `${(doneCount / steps.length) * 100}%`, height: 8, background: "var(--accent)", borderRadius: 4 }} />
+        <div style={{ width: `${(doneCount / required.length) * 100}%`, height: 8, background: "var(--accent)", borderRadius: 4 }} />
       </div>
-
-      <Link href="/teach" className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <div>
-          <h2 style={{ margin: 0 }}>Your quoting rules</h2>
-          <p className="sub" style={{ marginTop: 4 }}>Tell quoteout how you quote, by typing or talking. Your rules apply to every quote and come first.</p>
-        </div>
-        <span className="btn" style={{ flex: "none" }}>Open</span>
-      </Link>
 
       <SettingsForm initial={pricing} canEdit={ctx.role === "admin"} />
 
@@ -143,7 +134,10 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
               <div className="sub" style={{ marginTop: 0 }}>{s.detail}</div>
             </div>
             {s.done ? (
-              <span className="badge good">Done</span>
+              <span className="row" style={{ gap: 8 }}>
+                <span className="badge good">Done</span>
+                {s.action?.href && !s.action.external && <Link className="btn" href={s.action.href}>{s.action.label}</Link>}
+              </span>
             ) : s.action?.href && s.action.external ? (
               <a className="btn primary" href={s.action.href}>{s.action.label}</a>
             ) : s.action?.href ? (

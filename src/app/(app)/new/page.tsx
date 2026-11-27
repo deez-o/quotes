@@ -14,7 +14,7 @@ export default async function NewQuotePage() {
   const forwardTo = inbound && domain ? `${inbound.local_part}@${domain}` : null;
 
   return (
-    <div className="page" style={{ maxWidth: 860 }}>
+    <div className="page" style={{ maxWidth: 900 }}>
       <div>
         <h1>New quote</h1>
         <p className="sub">Send quoteout a request for quote. It files the job, reads everything and drafts the quote for you to check.</p>

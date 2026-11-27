@@ -13,7 +13,7 @@ export default async function SiteQuotesPage() {
     .eq("tenant_id", ctx.tenant.id).order("created_at", { ascending: false }).limit(100);
 
   return (
-    <div className="page" style={{ maxWidth: 760 }}>
+    <div className="page" style={{ maxWidth: 1000 }}>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
           <h1>Site quotes</h1>

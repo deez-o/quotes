@@ -38,7 +38,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
   };
 
   return (
-    <div className="page" style={{ maxWidth: 720 }}>
+    <div className="page" style={{ maxWidth: 1280 }}>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <Link href="/site" className="sub" style={{ marginTop: 0 }}>← Site quotes</Link>
         <span className="sub" style={{ marginTop: 0, fontWeight: 600 }}>{q.quote_no} · {q.status}</span>

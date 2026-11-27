@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { archiveCostItem, saveCostItem, savePricingSettings } from "./actions";
@@ -116,8 +117,9 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Brisbane" });
 
   return (
-    <div className="page" style={{ maxWidth: 920 }}>
+    <div className="page" style={{ maxWidth: 1100 }}>
       <div>
+        <Link href="/setup" className="sub" style={{ fontSize: 13 }}>← Setup</Link>
         <h1>Your costs</h1>
         <p className="sub">Set these once. Talk-to-quote prices every job from them, so quotes come out your way. All rates ex GST.</p>
       </div>

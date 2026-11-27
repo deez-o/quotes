@@ -125,8 +125,8 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+    <div className="editor-grid">
+      <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         <input type="text" aria-label="Quote title" value={scope.title} onChange={(e) => update({ ...scope, title: e.target.value })}
           style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 600, border: "1px solid transparent", background: "transparent", padding: "4px 0" }} />
 
@@ -298,6 +298,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         </section>
       </fieldset>
 
+      <div className="editor-side">
       <section className="card" style={{ background: "var(--ink)", color: "#f6f5f2", borderColor: "var(--ink)" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
@@ -397,6 +398,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           <button type="button" className="btn" disabled title="Xero connection comes next">Send to Xero (soon)</button>
         </div>
       )}
+      </div>
     </div>
   );
 }
