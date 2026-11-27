@@ -376,7 +376,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
 
       {quote.transcript && (
         <details className="card">
-          <summary style={{ fontWeight: 600, cursor: "pointer" }}>What you said on site</summary>
+          <summary style={{ fontWeight: 600, cursor: "pointer" }}>What you said</summary>
           <p style={{ marginTop: 8, whiteSpace: "pre-wrap" }}>{quote.transcript}</p>
           {quote.photoUrls.length > 0 && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, marginTop: 8 }}>

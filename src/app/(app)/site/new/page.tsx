@@ -11,7 +11,7 @@ export default async function NewSiteQuotePage() {
   return (
     <div className="page" style={{ maxWidth: 640 }}>
       <div>
-        <div className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 600, letterSpacing: 0.4 }}>NEW SITE QUOTE</div>
+        <div className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 600, letterSpacing: 0.4 }}>NEW QUOTE</div>
         <h1 style={{ fontSize: 26 }}>Tell me about the job</h1>
       </div>
       {ctx.role === "viewer" ? (

@@ -52,7 +52,7 @@ export async function buildSiteQuote(input: {
     const db = await createClient();
     const pc = await loadPricingContext(db, ctx.tenant.id);
     const call = aiCaller();
-    const title = input.customer ? `${input.customer}${input.address ? `, ${input.address.split(",")[0]}` : ""}` : input.address || "Site quote";
+    const title = input.customer ? `${input.customer}${input.address ? `, ${input.address.split(",")[0]}` : ""}` : input.address || "Quote";
 
     let scope: SiteScope = emptyScope(title);
     if (call && pc.library.some((c) => c.active)) {

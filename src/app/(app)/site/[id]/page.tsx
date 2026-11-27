@@ -29,7 +29,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
     if (routes) await db.from("site_quotes").update({ haul_routes: routes }).eq("id", q.id).eq("tenant_id", ctx.tenant.id);
   }
   const stored = q.scope as Partial<SiteScope>;
-  const scope: SiteScope = { ...emptyScope(q.title ?? "Site quote"), ...stored };
+  const scope: SiteScope = { ...emptyScope(q.title ?? "Quote"), ...stored };
 
   const view: QuoteView = {
     id: q.id, quote_no: q.quote_no, status: q.status, customer_name: q.customer_name, customer_email: q.customer_email,

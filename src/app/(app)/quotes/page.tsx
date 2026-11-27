@@ -9,7 +9,7 @@ type Row = {
   source: string; status: string; total: number | null; at: string; href: string | null;
 };
 
-const SOURCE = { site: "On site", inbox: "Inbox", forward: "Forwarded", upload: "Uploaded" } as const;
+const SOURCE = { site: "Talked through", inbox: "Inbox", forward: "Forwarded", upload: "Uploaded" } as const;
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft", sent: "Sent", won: "Won", lost: "Lost",
   new: "Waiting", processing: "Working on it", drafted: "Ready to check", needs_attention: "Needs you",
@@ -22,7 +22,7 @@ const STATUS_BADGE: Record<string, string> = {
 const FILTERS = [
   { key: "all", label: "All" },
   { key: "check", label: "To check" },
-  { key: "site", label: "On site" },
+  { key: "site", label: "Talked through" },
   { key: "rfq", label: "RFQs" },
   { key: "open", label: "Not sent yet" },
 ] as const;
@@ -46,7 +46,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
 
   let rows: Row[] = [
     ...(site ?? []).map((s) => ({
-      kind: "site" as const, id: s.id, no: s.quote_no, title: s.title ?? "Site quote", customer: s.customer_name,
+      kind: "site" as const, id: s.id, no: s.quote_no, title: s.title ?? "Quote", customer: s.customer_name,
       source: SOURCE.site, status: s.status, total: s.total_ex_gst == null ? null : Number(s.total_ex_gst), at: s.created_at, href: `/site/${s.id}`,
     })),
     ...(jobs ?? []).map((j) => ({
@@ -67,14 +67,14 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         <div>
           <h1>Quotes</h1>
           <p className="sub">
-            Every quote in one place: from site and from RFQs.{" "}
+            Every quote in one place: the ones you talk through and the RFQs.{" "}
             {mailbox?.status === "ok" ? `Watching ${mailbox.account_email ?? "your inbox"} for new RFQs.` : <Link href="/setup" style={{ textDecoration: "underline" }}>Connect your inbox</Link>}
           </p>
         </div>
         {canEdit && (
           <div className="row" style={{ gap: 8 }}>
             <Link href="/new" className="btn">Send in an RFQ</Link>
-            <Link href="/site/new" className="btn primary">New site quote</Link>
+            <Link href="/site/new" className="btn primary">New quote</Link>
           </div>
         )}
       </div>
@@ -97,7 +97,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       {rows.length === 0 ? (
         <div className="card">
           <h2>{needle || show !== "all" ? "Nothing matches" : "No quotes yet"}</h2>
-          <p className="sub" style={{ marginTop: 0 }}>Start a site quote on your phone at the job, or send in an RFQ.</p>
+          <p className="sub" style={{ marginTop: 0 }}>Tap New quote and talk through a job, or send in an RFQ.</p>
         </div>
       ) : (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>
