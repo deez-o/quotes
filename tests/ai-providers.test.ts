@@ -23,7 +23,7 @@ function fakeFetch(reply: unknown, status = 200) {
 
 describe("Claude", () => {
   it("sends the system prompt, pictures and PDFs, and makes Claude answer through the schema", async () => {
-    const { f, calls } = fakeFetch({ content: [{ type: "tool_use", name: "site_scope", input: { title: "Carpark" } }], usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 0 } });
+    const { f, calls } = fakeFetch({ content: [{ type: "text", text: "{\"title\":\"Carpark\"}" }], stop_reason: "end_turn", usage: { input_tokens: 1000, output_tokens: 200, cache_read_input_tokens: 0 } });
     const r = await anthropicStructured({ apiKey: "k", model: "claude-sonnet-5-5", schema, messages, fetchImpl: f });
     expect(r.json).toEqual({ title: "Carpark" });
     expect(r.provider).toBe("anthropic");
@@ -32,8 +32,8 @@ describe("Claude", () => {
     expect(calls[0].url).toBe("https://api.anthropic.com/v1/messages");
     expect((calls[0].init.headers as Record<string, string>)["x-api-key"]).toBe("k");
     expect(body.system).toBe("You are careful.");
-    expect(body.tool_choice).toEqual({ type: "tool", name: "site_scope" });
-    expect(body.tools[0].input_schema).toEqual(schema.schema);
+    expect(body.output_config).toEqual({ format: { type: "json_schema", schema: schema.schema } });
+    expect(body.tools).toBeUndefined();
     expect(body.messages[0].content).toEqual([
       { type: "text", text: "Quote this." },
       { type: "image", source: { type: "url", url: "https://files.test/site.jpg" } },
@@ -41,9 +41,10 @@ describe("Claude", () => {
     ]);
   });
 
-  it("explains API errors and answers that aren't in the schema", async () => {
+  it("explains API errors, cut-off answers and answers that aren't JSON", async () => {
     await expect(anthropicStructured({ apiKey: "k", model: "claude-sonnet-5-5", schema, messages, fetchImpl: fakeFetch({ error: { message: "bad key" } }, 401).f })).rejects.toThrow(/Claude 401: bad key/);
-    await expect(anthropicStructured({ apiKey: "k", model: "claude-sonnet-5-5", schema, messages, fetchImpl: fakeFetch({ content: [{ type: "text", text: "hi" }], stop_reason: "max_tokens" }).f })).rejects.toThrow(/ran out of room/);
+    await expect(anthropicStructured({ apiKey: "k", model: "claude-sonnet-5-5", schema, messages, fetchImpl: fakeFetch({ content: [{ type: "text", text: "{\"ti" }], stop_reason: "max_tokens" }).f })).rejects.toThrow(/ran out of room/);
+    await expect(anthropicStructured({ apiKey: "k", model: "claude-sonnet-5-5", schema, messages, fetchImpl: fakeFetch({ content: [{ type: "text", text: "hello" }], stop_reason: "end_turn" }).f })).rejects.toThrow(/not JSON/);
   });
 });
 

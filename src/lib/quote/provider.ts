@@ -111,8 +111,8 @@ type AnthropicResponse = {
 };
 
 /**
- * One structured call to Claude (Anthropic Messages API). The schema goes in as the one tool
- * Claude must use, so the answer comes back as that tool's input. Images and PDFs go in by URL.
+ * One structured call to Claude (Anthropic Messages API), using its structured outputs
+ * (output_config.format), so the answer is JSON that fits the schema. Images and PDFs go in by URL.
  */
 export async function anthropicStructured(opts: {
   apiKey: string;
@@ -133,7 +133,6 @@ export async function anthropicStructured(opts: {
       : p.type === "image_url" ? { type: "image", source: { type: "url", url: p.image_url.url } }
       : { type: "document", source: { type: "url", url: p.document_url.url }, title: p.document_url.name }),
   }));
-  const tool = { name: opts.schema.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) || "answer", description: "Give your answer by calling this tool.", input_schema: opts.schema.schema };
   const res = await f(`${opts.baseUrl ?? "https://api.anthropic.com/v1"}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-api-key": opts.apiKey, "anthropic-version": "2023-06-01" },
@@ -142,19 +141,25 @@ export async function anthropicStructured(opts: {
       max_tokens: opts.maxTokens ?? 16000,
       system,
       messages,
-      tools: [tool],
-      tool_choice: { type: "tool", name: tool.name },
+      // Claude's structured output: the answer comes back as JSON that fits the schema.
+      output_config: { format: { type: "json_schema", schema: opts.schema.schema } },
     }),
   });
   const data = (await res.json()) as AnthropicResponse;
   if (!res.ok) throw new Error(`Claude ${res.status}: ${data.error?.message ?? "request failed"}`);
-  const used = data.content?.find((c): c is { type: "tool_use"; name: string; input: unknown } => c.type === "tool_use");
-  if (!used) throw new Error(data.stop_reason === "max_tokens" ? "Claude ran out of room before finishing its answer." : "Claude didn't return an answer in the expected shape.");
+  if (data.stop_reason === "max_tokens") throw new Error("Claude ran out of room before finishing its answer.");
+  const text = (data.content ?? []).filter((c): c is { type: "text"; text: string } => c.type === "text").map((c) => c.text).join("");
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error("Claude returned text that is not JSON.");
+  }
   const cached = data.usage?.cache_read_input_tokens ?? 0;
   return {
     provider: "anthropic",
     model: opts.model,
-    json: used.input,
+    json,
     usage: {
       input_tokens: (data.usage?.input_tokens ?? 0) + cached + (data.usage?.cache_creation_input_tokens ?? 0),
       cached_tokens: cached,
