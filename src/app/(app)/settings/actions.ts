@@ -62,9 +62,6 @@ export async function saveSettings(_prev: SaveState, formData: FormData): Promis
     spray_markup_percent: numbers.spray_markup_percent,
     extra_establishment_rate: numbers.extra_establishment_rate,
     change_tolerance_percent: numbers.change_tolerance_percent ?? 5,
-    reuse_quote_numbers: formData.get("reuse_quote_numbers") === "on",
-    pass_on_rules: text(formData, "pass_on_rules"),
-    info_request_signature: text(formData, "info_request_signature"),
     updated_at: new Date().toISOString(),
   });
 

@@ -33,7 +33,7 @@ export function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit:
   const [mode, setMode] = useState(initial.margin_mode);
 
   return (
-    <form action={formAction} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <form id="pricing" action={formAction} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 20 }}>
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <h2 style={{ margin: 0 }}>Pricing target</h2>
@@ -114,27 +114,6 @@ export function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit:
           </div>
         </section>
 
-        <section className="card" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <h2 style={{ margin: 0 }}>Quote numbers, pass-ons and emails</h2>
-          <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontWeight: 400 }}>
-            <input type="checkbox" name="reuse_quote_numbers" defaultChecked={initial.reuse_quote_numbers} style={{ marginTop: 3 }} />
-            <span>
-              Reuse a quote number when the scope and quantities are exactly the same
-              <br />
-              <span style={hint}>Off: every quote gets a new number (recommended).</span>
-            </span>
-          </label>
-          <div style={field}>
-            <label htmlFor="pass_on_rules">Work you pass to someone else <span style={hint}>flagged, not priced</span></label>
-            <textarea id="pass_on_rules" name="pass_on_rules" rows={2} defaultValue={initial.pass_on_rules ?? ""}
-              placeholder="e.g. Residential driveways go to our driveway partner." />
-          </div>
-          <div style={field}>
-            <label htmlFor="info_request_signature">Signature for information-request emails</label>
-            <textarea id="info_request_signature" name="info_request_signature" rows={2} defaultValue={initial.info_request_signature ?? ""}
-              placeholder="e.g. Sales Team, Demo Asphalt Co" />
-          </div>
-        </section>
       </fieldset>
 
       {canEdit ? (

@@ -8,7 +8,6 @@ const LINKS = [
   { href: "/new", label: "Send in an RFQ" },
   { href: "/queue", label: "RFQ queue" },
   { href: "/costs", label: "Costs" },
-  { href: "/settings", label: "Settings" },
   { href: "/setup", label: "Setup" },
 ];
 

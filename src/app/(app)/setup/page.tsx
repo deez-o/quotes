@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { SettingsForm } from "../settings/form";
+import { PasswordForm } from "../settings/password-form";
+import { loadSettings } from "../settings/data";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,6 +17,7 @@ const STORAGE_LABEL: Record<string, string> = {
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ error?: string; connected?: string }> }) {
   const { error: setupError, connected } = await searchParams;
   const ctx = await requireTenant();
+  const pricing = await loadSettings(ctx.tenant.id);
   const supabase = await createClient();
   const t = ctx.tenant.id;
 
@@ -70,7 +74,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       title: "Set your pricing defaults",
       detail: settingsDone ? "Defaults saved" : "Margin target, default binder and prime, spray mark-up, extra establishments",
       done: settingsDone,
-      action: { label: settingsDone ? "Edit" : "Open settings", href: "/settings" },
+      action: { label: settingsDone ? "Edit" : "Set it below", href: "#pricing" },
     },
     {
       title: "Tell quoteout how you quote",
@@ -115,6 +119,8 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         <span className="btn" style={{ flex: "none" }}>Open</span>
       </Link>
 
+      <SettingsForm initial={pricing} canEdit={ctx.role === "admin"} />
+
       {setupError && <p className="error" role="alert">{setupError}</p>}
       {connected && <p style={{ color: "var(--good)", fontWeight: 600 }}>Connected {connected}. New emails will now be picked up.</p>}
 
@@ -148,6 +154,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           </li>
         ))}
       </ol>
+      <PasswordForm />
     </div>
   );
 }
