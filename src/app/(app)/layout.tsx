@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Logo } from "../logo";
 import { requireTenant } from "@/lib/tenant";
 import { signOut } from "@/app/actions";
@@ -17,9 +18,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {ctx.tenant.name}
           <br />
           {ROLE_LABEL[ctx.role]}
-          <form action={signOut}>
-            <button type="submit">Sign out</button>
-          </form>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <Link href="/account" style={{ border: "1px solid #4a4f56", borderRadius: 6, padding: "6px 10px", color: "var(--nav-ink)" }}>Password</Link>
+            <form action={signOut}>
+              <button type="submit" style={{ marginTop: 0 }}>Sign out</button>
+            </form>
+          </div>
         </div>
       </nav>
       <main className="main">{children}</main>

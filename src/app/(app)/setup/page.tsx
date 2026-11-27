@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { SettingsForm } from "../settings/form";
-import { PasswordForm } from "../settings/password-form";
 import { loadSettings } from "../settings/data";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
@@ -148,7 +147,6 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
           </li>
         ))}
       </ol>
-      <PasswordForm />
     </div>
   );
 }
