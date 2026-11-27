@@ -34,7 +34,7 @@ export default function SessionPage() {
           setMessage("Sign-in failed.");
           window.location.replace(`/login?error=${encodeURIComponent(error.message)}`);
         } else {
-          window.location.replace("/queue");
+          window.location.replace("/quotes");
         }
       });
   }, []);

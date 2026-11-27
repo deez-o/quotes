@@ -101,7 +101,7 @@ export async function buildSiteQuote(input: {
       scope, costing: priced, margin_percent: pc.defaultMargin, total_ex_gst: priced.priceExGst, created_by: ctx.userId,
     }).select("id").single();
     if (error || !data) return { ok: false, message: `Couldn't save: ${error?.message}` };
-    revalidatePath("/site");
+    revalidatePath("/quotes");
     return { ok: true, id: data.id as string };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Something went wrong." };
@@ -153,7 +153,7 @@ export async function saveSiteQuote(input: {
     }).eq("id", input.id).eq("tenant_id", ctx.tenant.id);
     if (error) return { ok: false, message: error.message };
     revalidatePath(`/site/${input.id}`);
-    revalidatePath("/site");
+    revalidatePath("/quotes");
     return { ok: true, id: input.id };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Something went wrong." };
