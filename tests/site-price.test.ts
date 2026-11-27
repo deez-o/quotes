@@ -56,7 +56,14 @@ describe("site-quote pricing", () => {
     // Customer lines add up exactly and hide trucks/crew inside the rates.
     expect(p.customerLines.map((l) => l.description)).toEqual(["Supply and lay AC10, 40 mm", "Base repair, 100 mm crushed rock", "Prime"]);
     expect(p.customerLines.reduce((s, l) => s + l.total, 0)).toBe(p.priceExGst);
-    expect(p.customerLines[0]).toMatchObject({ quantity: 2000, unit: "m²" });
+    expect(p.customerLines[0]).toMatchObject({ quantity: 192, unit: "t" }); // asphalt quoted per tonne
+    expect(p.customerLines[2]).toMatchObject({ quantity: 2000, unit: "m²" });
+    // Per tonne: price matches the asphalt line; profit = price - cost; profit per shift from 1 crew shift.
+    expect(p.perTonne?.tonnes).toBe(192);
+    expect(p.perTonne?.price).toBeCloseTo(p.customerLines[0].total / 192, 2);
+    expect(p.perTonne!.price - p.perTonne!.cost).toBeCloseTo(p.perTonne!.profit, 1);
+    expect(p.shifts).toBe(1);
+    expect(p.profitPerShift).toBe(p.profit);
   });
 
   it("shows its working", () => {

@@ -92,6 +92,11 @@ export type Priced = {
   trucks: { loads: number; trucks: number; cycleMinutes: number; hours: number; tonnes: number } | null;
   haul: Haul | null;
   warnings: string[];
+  /** Asphalt by the tonne: what it costs us and what we sell it for (supply and lay), shared costs included. */
+  perTonne: { tonnes: number; cost: number; price: number; profit: number } | null;
+  /** Crew shifts priced (cost items charged per shift), and profit per shift. */
+  shifts: number;
+  profitPerShift: number | null;
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -186,6 +191,7 @@ export function priceSiteQuote(input: {
   const costLines: CostLine[] = [];
   /** Direct cost per scope item, to spread shared costs onto customer lines. */
   const direct = new Map<string, number>();
+  const itemTonnes = new Map<string, number>();
   let truckTonnes = 0;
 
   for (const item of scope.items) {
@@ -210,6 +216,7 @@ export function priceSiteQuote(input: {
       } else {
         tonnes = tonnesFor(item.area_m2, item.depth_mm, ci.density_t_per_m3);
         qty = tonnes;
+        itemTonnes.set(item.key, tonnes);
         working = `${fmtN(item.area_m2, 0)} m² × ${item.depth_mm / 1000} m × ${ci.density_t_per_m3} t/m³ = ${fmtN(tonnes)} t × ${money(ci.rate)}/t`;
         if (!ci.includes_delivery) truckTonnes += tonnes;
       }
@@ -291,6 +298,9 @@ export function priceSiteQuote(input: {
     const share = directTotal > 0 ? d / directTotal : 1 / priced.length;
     const total = Math.round((d + shared * share) / (1 - marginPercent / 100));
     const ci = byId.get(item.cost_item_id!)!;
+    // Asphalt and base sold by the tonne go on the quote per tonne (supply and lay $/t).
+    const t = itemTonnes.get(item.key);
+    if (t) return { key: item.key, description: item.description, quantity: t, unit: "t", rate: round2(total / t), total };
     const isArea = item.area_m2 && (item.kind !== "other" || ci.unit === "m2");
     const quantity = isArea ? item.area_m2! : item.quantity ?? 1;
     const unit = isArea ? "m²" : UNIT_LABEL[ci.unit];
@@ -305,9 +315,24 @@ export function priceSiteQuote(input: {
     customerLines.push({ key: "works", description: scope.title || "Works as described", quantity: 1, unit: "lot", rate: priceExGst, total: priceExGst });
   }
 
+  // Asphalt per tonne, with its share of trucks, crew and plant.
+  const asphaltKeys = scope.items.filter((i) => i.kind === "asphalt" && itemTonnes.get(i.key)).map((i) => i.key);
+  const asphaltT = asphaltKeys.reduce((s, k) => s + (itemTonnes.get(k) ?? 0), 0);
+  let perTonne: Priced["perTonne"] = null;
+  if (asphaltT > 0) {
+    const costShare = asphaltKeys.reduce((s, k) => {
+      const d = direct.get(k) ?? 0;
+      return s + d + (directTotal > 0 ? shared * (d / directTotal) : 0);
+    }, 0);
+    const sell = customerLines.filter((l) => asphaltKeys.includes(l.key)).reduce((s, l) => s + l.total, 0);
+    perTonne = { tonnes: round2(asphaltT), cost: round2(costShare / asphaltT), price: round2(sell / asphaltT), profit: round2((sell - costShare) / asphaltT) };
+  }
+  const shifts = scope.crew.reduce((s, l) => s + (byId.get(l.cost_item_id)?.unit === "shift" ? l.amount : 0), 0);
+  const profit = round2(priceExGst - cost);
+
   return {
     costLines, customerLines, cost, marginPercent, priceExGst,
-    profit: round2(priceExGst - cost), gst, priceIncGst: round2(priceExGst + gst),
-    trucks, haul, warnings,
+    profit, gst, priceIncGst: round2(priceExGst + gst),
+    trucks, haul, warnings, perTonne, shifts, profitPerShift: shifts > 0 ? round2(profit / shifts) : null,
   };
 }

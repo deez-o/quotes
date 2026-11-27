@@ -133,9 +133,16 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             const needsDepth = i.kind === "asphalt" || i.kind === "base" || ci?.unit === "m3";
             return (
               <div key={i.key} style={{ borderTop: "1px solid var(--line-soft)", padding: "12px 0", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, alignItems: "end" }}>
-                <label style={{ ...small, gridColumn: "1 / -1" }}>Description
-                  <input type="text" value={i.description} onChange={(e) => setItem(i.key, { description: e.target.value })} />
-                </label>
+                <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "end" }}>
+                  <label style={{ ...small, flex: 1, minWidth: 0 }}>{KIND_LABEL[i.kind]}
+                    <input type="text" value={i.description} onChange={(e) => setItem(i.key, { description: e.target.value })} />
+                  </label>
+                  <button type="button" aria-label={`Remove ${i.description || KIND_LABEL[i.kind]}`} title="Remove this item"
+                    onClick={() => update({ ...scope, items: scope.items.filter((x) => x.key !== i.key) })}
+                    style={{ flex: "none", height: 44, padding: "0 14px", borderRadius: 8, border: "1px solid #f0b8a8", background: "#fdf1ed", color: "#9a3412", font: "inherit", fontWeight: 600, cursor: "pointer" }}>
+                    ✕ Remove
+                  </button>
+                </div>
                 <label style={small}>Type
                   <select style={sel} value={i.kind} onChange={(e) => setItem(i.key, { kind: e.target.value as ScopeItem["kind"] })}>
                     {Object.entries(KIND_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -156,7 +163,6 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 {!byArea && (
                   <label style={small}>Quantity ({ci ? UNIT[ci.unit] : "units"})<input type="text" inputMode="decimal" value={i.quantity ?? ""} onChange={(e) => setItem(i.key, { quantity: toNum(e.target.value) })} /></label>
                 )}
-                <button type="button" className="btn" style={{ padding: "9px 12px" }} onClick={() => update({ ...scope, items: scope.items.filter((x) => x.key !== i.key) })}>Remove</button>
               </div>
             );
           })}
@@ -180,7 +186,10 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                   <label style={{ ...small, flex: "1 1 90px" }}>{ci ? UNIT[ci.unit] : "Amount"}
                     <input type="text" inputMode="decimal" value={l.amount} onChange={(e) => setLine(group, l.key, { amount: toNum(e.target.value) ?? 0 })} />
                   </label>
-                  <button type="button" className="btn" style={{ padding: "9px 12px" }} onClick={() => update({ ...scope, [group]: scope[group].filter((x) => x.key !== l.key) })}>Remove</button>
+                  <button type="button" aria-label={`Remove ${ci?.name ?? "line"}`} onClick={() => update({ ...scope, [group]: scope[group].filter((x) => x.key !== l.key) })}
+                    style={{ flex: "none", height: 44, padding: "0 14px", borderRadius: 8, border: "1px solid #f0b8a8", background: "#fdf1ed", color: "#9a3412", font: "inherit", fontWeight: 600, cursor: "pointer" }}>
+                    ✕ Remove
+                  </button>
                 </div>
               );
             })}
@@ -228,9 +237,35 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
       </fieldset>
 
       <section className="card" style={{ background: "var(--ink)", color: "#f6f5f2", borderColor: "var(--ink)" }}>
-        <div style={{ fontSize: 13, color: "#b5b2ab" }}>Quote price, ex GST</div>
-        <div style={{ fontFamily: "var(--font-head)", fontSize: 38, fontWeight: 600 }}>{money(priced.priceExGst)}</div>
-        <div style={{ fontSize: 13, color: "#d9d7d2" }}>Cost {money(priced.cost)} · profit {money(priced.profit)} · inc GST {money(priced.priceIncGst)}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, color: "#b5b2ab" }}>Quote price, ex GST</div>
+            <div style={{ fontFamily: "var(--font-head)", fontSize: 34, fontWeight: 600, lineHeight: 1.1 }}>{money(priced.priceExGst)}</div>
+            <div style={{ fontSize: 13, color: "#d9d7d2" }}>inc GST {money(priced.priceIncGst)}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 13, color: "#b5b2ab" }}>Profit</div>
+            <div style={{ fontFamily: "var(--font-head)", fontSize: 34, fontWeight: 600, lineHeight: 1.1, color: priced.profit > 0 ? "#86efac" : "#fca5a5" }}>{money(priced.profit)}</div>
+            <div style={{ fontSize: 13, color: "#d9d7d2" }}>
+              {priced.profitPerShift != null ? `${money(Math.round(priced.profitPerShift))} a shift` : `cost ${money(priced.cost)}`}
+            </div>
+          </div>
+        </div>
+        {priced.perTonne && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14, paddingTop: 12, borderTop: "1px solid #3a3936" }}>
+            {[
+              ["Asphalt price", `${money(Math.round(priced.perTonne.price))}/t`],
+              ["Cost", `${money(Math.round(priced.perTonne.cost))}/t`],
+              ["Profit", `${money(Math.round(priced.perTonne.profit))}/t`],
+            ].map(([l, v]) => (
+              <div key={l}>
+                <div style={{ fontSize: 12, color: "#b5b2ab" }}>{l}</div>
+                <div style={{ fontSize: 20, fontWeight: 600 }}>{v}</div>
+              </div>
+            ))}
+            <div style={{ gridColumn: "1 / -1", fontSize: 12, color: "#b5b2ab" }}>{priced.perTonne.tonnes.toLocaleString("en-AU")} t of asphalt, supply and lay, with its share of trucks, crew and plant · total cost {money(priced.cost)}</div>
+          </div>
+        )}
         <label htmlFor="margin" style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontWeight: 600 }}><span>Margin</span><span>{margin}%</span></label>
         <input id="margin" type="range" min={0} max={50} step={0.5} value={margin} disabled={!canEdit}
           onChange={(e) => { setMargin(Number(e.target.value)); setDirty(true); }} style={{ width: "100%", accentColor: "#c2410c" }} />
