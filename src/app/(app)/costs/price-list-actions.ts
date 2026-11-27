@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
-import { counted } from "@/lib/usage";
-import { xaiStructured } from "@/lib/quote/provider";
+import { aiCaller } from "@/lib/ai/call";
 import { loadPricingContext } from "@/lib/site/load";
 import { PRICE_LIST_SCHEMA, matchToLibrary, pdfText, readPriceList, type PriceListRead } from "@/lib/site/price-list";
 
@@ -25,8 +24,8 @@ async function adminFor(plantId: string) {
 export async function readPriceListFile(input: { plantId: string; paths: string[] }): Promise<{ ok: true; read: PriceListRead; matches: (string | null)[] } | Fail> {
   try {
     const { ctx, db, plant } = await adminFor(input.plantId);
-    const key = process.env.XAI_API_KEY;
-    if (!key) return { ok: false, message: "Reading price lists needs the AI switched on (no xAI key on the server yet). Type the prices in below instead." };
+    const call = await aiCaller(PRICE_LIST_SCHEMA, ctx.tenant.id, ctx.userId, "ai_price_list");
+    if (!call) return { ok: false, message: "Reading price lists needs the AI switched on (no AI key on the server yet). Type the prices in below instead." };
     const paths = input.paths.filter((p) => typeof p === "string" && p.startsWith(`${ctx.tenant.id}/uploads/pricelist-`) && !p.includes("..")).slice(0, 6);
     if (!paths.length) return { ok: false, message: "Add a PDF, photo or screenshot of the price list." };
 
@@ -47,9 +46,8 @@ export async function readPriceListFile(input: { plantId: string; paths: string[
 
     const pc = await loadPricingContext(db, ctx.tenant.id);
     const existingNames = [...new Set(pc.library.filter((c) => c.active && c.category === "material").map((c) => c.name))];
-    const model = process.env.XAI_MODEL ?? "grok-4.3";
     const read = await readPriceList(
-      counted((messages: Parameters<typeof xaiStructured>[0]["messages"]) => xaiStructured({ apiKey: key, model, schema: PRICE_LIST_SCHEMA, messages }), ctx.tenant.id, ctx.userId, "ai_price_list"),
+      call,
       { plantName: plant.name, text: texts.join("\n\n---\n\n") || null, imageUrls, existingNames },
     );
     if (!read.lines.length) return { ok: false, message: "Couldn't find any prices in that. Try a clearer photo, or type them in below." };

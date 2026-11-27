@@ -128,7 +128,7 @@ export function buildSiteUserMessage(input: {
   return [{ type: "text", text }, ...input.photoUrls.slice(0, 6).map((url) => ({ type: "image_url" as const, image_url: { url } }))];
 }
 
-export type RfqAttachment = { name: string; text: string | null; imageUrl: string | null; note: string | null };
+export type RfqAttachment = { name: string; text: string | null; imageUrl: string | null; pdfUrl?: string | null; note: string | null };
 
 /** The RFQ email and what could be read from its attachments. */
 export function buildRfqUserMessage(input: { from: string; subject: string; received: string | null; body: string; attachments: RfqAttachment[]; extraNotes?: string[] }): ChatPart[] {
@@ -148,12 +148,17 @@ export function buildRfqUserMessage(input: { from: string; subject: string; rece
       budget -= t.length;
       parts.push(``, `--- Attachment: ${a.name} ---`, t || "(too long to include)", a.text.length > t.length ? "(cut short)" : "");
     } else {
-      parts.push(``, `--- Attachment: ${a.name} --- ${a.imageUrl ? "(image attached below)" : `(${a.note ?? "could not be read"})`}`);
+      parts.push(``, `--- Attachment: ${a.name} --- ${a.imageUrl ? "(image attached below)" : a.pdfUrl ? "(scanned PDF attached below as a document)" : `(${a.note ?? "could not be read"})`}`);
     }
   }
   if (input.extraNotes?.length) parts.push(``, ...input.extraNotes);
   const images = input.attachments.filter((a) => a.imageUrl).slice(0, 8);
-  return [{ type: "text", text: parts.filter((x) => x !== undefined).join("\n") }, ...images.map((a) => ({ type: "image_url" as const, image_url: { url: a.imageUrl! } }))];
+  const pdfs = input.attachments.filter((a) => a.pdfUrl).slice(0, 4);
+  return [
+    { type: "text", text: parts.filter((x) => x !== undefined).join("\n") },
+    ...images.map((a) => ({ type: "image_url" as const, image_url: { url: a.imageUrl! } })),
+    ...pdfs.map((a) => ({ type: "document_url" as const, document_url: { url: a.pdfUrl!, name: a.name } })),
+  ];
 }
 
 /** Keep only ids that exist; make keys unique; drop negatives. Returns notes for anything fixed. */

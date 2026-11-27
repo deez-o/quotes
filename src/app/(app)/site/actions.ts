@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { SITE_SCOPE_SCHEMA, cleanScope, scopeFromTalk } from "@/lib/site/scope-ai";
-import { xaiStructured } from "@/lib/quote/provider";
-import { counted, type AiKind } from "@/lib/usage";
+import { aiCaller } from "@/lib/ai/call";
+import type { AiKind } from "@/lib/usage";
 import { emptyScope, haulFor, loadPricingContext } from "@/lib/site/load";
 import { routesToPlants } from "@/lib/site/routes";
 import { loadLayeredRules } from "@/lib/rules-load";
@@ -25,12 +25,8 @@ async function writer() {
   return ctx;
 }
 
-function aiCaller(ctx: { tenant: { id: string }; userId: string }, kind: AiKind) {
-  const key = process.env.XAI_API_KEY;
-  if (!key) return null;
-  const model = process.env.XAI_MODEL ?? "grok-4.3";
-  return counted((messages: Parameters<typeof xaiStructured>[0]["messages"]) =>
-    xaiStructured({ apiKey: key, model, schema: SITE_SCOPE_SCHEMA, messages }), ctx.tenant.id, ctx.userId, kind);
+function siteCaller(ctx: { tenant: { id: string }; userId: string }, kind: AiKind) {
+  return aiCaller(SITE_SCOPE_SCHEMA, ctx.tenant.id, ctx.userId, kind);
 }
 
 async function signedPhotoUrls(db: Awaited<ReturnType<typeof createClient>>, paths: string[]) {
@@ -56,7 +52,7 @@ export async function buildSiteQuote(input: {
 
     const db = await createClient();
     const pc = await loadPricingContext(db, ctx.tenant.id);
-    const call = aiCaller(ctx, "ai_quote");
+    const call = await siteCaller(ctx, "ai_quote");
     const title = input.customer ? `${input.customer}${input.address ? `, ${input.address.split(",")[0]}` : ""}` : input.address || "Quote";
 
     let scope: SiteScope = emptyScope(title);
@@ -117,7 +113,7 @@ export async function buildSiteQuote(input: {
 export async function correctSiteScope(input: { id: string; scope: SiteScope; correction: string }): Promise<{ ok: true; scope: SiteScope } | { ok: false; message: string }> {
   try {
     const ctx = await writer();
-    const call = aiCaller(ctx, "ai_change");
+    const call = await siteCaller(ctx, "ai_change");
     if (!call) return { ok: false, message: "The AI isn't switched on yet (no xAI key on the server). Edit the items directly instead." };
     if (input.correction.trim().length < 3) return { ok: false, message: "Say or type what to change." };
     const db = await createClient();

@@ -16,6 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <nav style={{ display: "flex", gap: 16, fontSize: 14 }}>
           <Link href="/admin">Overview</Link>
           <Link href="/admin/new">Add a company</Link>
+          <Link href="/admin/ai">AI model</Link>
         </nav>
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#b6bcc4" }}>{me.email}</span>
         <Link href="/quotes" style={{ fontSize: 13, border: "1px solid #4a4f56", borderRadius: 6, padding: "6px 10px" }}>Back to the app</Link>

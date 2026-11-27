@@ -1,3 +1,4 @@
+import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
@@ -18,7 +19,7 @@ export default async function NewSiteQuotePage() {
       {ctx.role === "viewer" ? (
         <p className="sub">Viewers can&apos;t create quotes.</p>
       ) : (
-        <TalkToQuote tenantId={ctx.tenant.id} hasAi={Boolean(process.env.XAI_API_KEY)} hasCosts={(count ?? 0) > 0} />
+        <TalkToQuote tenantId={ctx.tenant.id} hasAi={Boolean(keyFor(await liveModel()))} hasCosts={(count ?? 0) > 0} />
       )}
     </div>
   );

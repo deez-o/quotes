@@ -1,3 +1,4 @@
+import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTenant } from "@/lib/tenant";
@@ -70,7 +71,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
         <span className="sub" style={{ marginTop: 0, fontWeight: 600 }}>{q.quote_no} · {q.status}</span>
       </div>
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
-        hasAi={Boolean(process.env.XAI_API_KEY)} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} />
+        hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} />
     </div>
   );
 }

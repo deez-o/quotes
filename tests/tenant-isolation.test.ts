@@ -118,7 +118,7 @@ describe.skipIf(!configured)("tenant isolation", () => {
     expect(data ?? []).toHaveLength(0);
   });
 
-  it.each(["user_devices", "platform_admins"])("can never read the owner-only table %s", async (table) => {
+  it.each(["user_devices", "platform_admins", "platform_settings", "ai_trials"])("can never read the owner-only table %s", async (table) => {
     const { data } = await asA.from(table).select("*");
     expect(data ?? []).toHaveLength(0);
   });

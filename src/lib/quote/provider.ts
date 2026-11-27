@@ -22,8 +22,13 @@ export interface QuoteProvider {
 
 /** Prices per million tokens (USD). From the build brief, checked 25 Nov 2026: re-check before setting customer prices. */
 export const PRICES: Record<string, { input: number; cached: number; output: number }> = {
+  // xAI, docs.x.ai, checked 28 Nov 2026.
   "grok-4.3": { input: 1.25, cached: 0.2, output: 2.5 },
   "grok-4.7": { input: 2.0, cached: 0.5, output: 6.0 },
+  // Anthropic, platform.claude.com pricing, checked 28 Nov 2026 (Haiku: prompts under 100k tokens).
+  "claude-haiku-5-5": { input: 0.1, cached: 0.005, output: 0.5 },
+  "claude-sonnet-5-5": { input: 2.0, cached: 0.1, output: 10.0 },
+  "claude-opus-5-5": { input: 4.0, cached: 0.2, output: 20.0 },
 };
 
 export function costUsd(model: string, usage: Usage): number | null {
@@ -39,7 +44,11 @@ type ChatResponse = {
   error?: { message?: string };
 };
 
-export type ChatPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+export type ChatPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } }
+  /** A whole PDF (e.g. a scanned spec). Claude reads it directly; Grok can't, and is told so. */
+  | { type: "document_url"; document_url: { url: string; name: string } };
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string | ChatPart[] };
 
 /**
@@ -56,12 +65,17 @@ export async function xaiStructured(opts: {
 }): Promise<ProviderResult> {
   const f = opts.fetchImpl ?? fetch;
   const started = Date.now();
+  // Grok takes no PDFs: say one was there instead.
+  const messages = opts.messages.map((m) => typeof m.content === "string" ? m : {
+    ...m,
+    content: m.content.map((p) => p.type === "document_url" ? { type: "text" as const, text: `(${p.document_url.name}: a PDF this model can't open)` } : p),
+  });
   const res = await f(`${opts.baseUrl ?? "https://api.x.ai/v1"}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.apiKey}` },
     body: JSON.stringify({
       model: opts.model,
-      messages: opts.messages,
+      messages,
       response_format: { type: "json_schema", json_schema: opts.schema },
       temperature: 0,
     }),
@@ -83,6 +97,67 @@ export async function xaiStructured(opts: {
       input_tokens: data.usage?.prompt_tokens ?? 0,
       cached_tokens: data.usage?.prompt_tokens_details?.cached_tokens ?? 0,
       output_tokens: data.usage?.completion_tokens ?? 0,
+    },
+    latency_ms: Date.now() - started,
+  };
+}
+
+type AnthropicResponse = {
+  content?: ({ type: "tool_use"; name: string; input: unknown } | { type: "text"; text: string })[];
+  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
+  stop_reason?: string;
+  error?: { message?: string };
+};
+
+/**
+ * One structured call to Claude (Anthropic Messages API). The schema goes in as the one tool
+ * Claude must use, so the answer comes back as that tool's input. Images and PDFs go in by URL.
+ */
+export async function anthropicStructured(opts: {
+  apiKey: string;
+  model: string;
+  schema: { name: string; strict: boolean; schema: object };
+  messages: ChatMessage[];
+  maxTokens?: number;
+  baseUrl?: string;
+  fetchImpl?: typeof fetch;
+}): Promise<ProviderResult> {
+  const f = opts.fetchImpl ?? fetch;
+  const started = Date.now();
+  const system = opts.messages.filter((m) => m.role === "system").map((m) => (typeof m.content === "string" ? m.content : m.content.map((p) => (p.type === "text" ? p.text : "")).join("\n"))).join("\n\n");
+  const messages = opts.messages.filter((m) => m.role !== "system").map((m) => ({
+    role: m.role,
+    content: typeof m.content === "string" ? m.content : m.content.map((p) =>
+      p.type === "text" ? { type: "text", text: p.text }
+      : p.type === "image_url" ? { type: "image", source: { type: "url", url: p.image_url.url } }
+      : { type: "document", source: { type: "url", url: p.document_url.url }, title: p.document_url.name }),
+  }));
+  const tool = { name: opts.schema.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) || "answer", description: "Give your answer by calling this tool.", input_schema: opts.schema.schema };
+  const res = await f(`${opts.baseUrl ?? "https://api.anthropic.com/v1"}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": opts.apiKey, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: opts.model,
+      max_tokens: opts.maxTokens ?? 16000,
+      system,
+      messages,
+      tools: [tool],
+      tool_choice: { type: "tool", name: tool.name },
+    }),
+  });
+  const data = (await res.json()) as AnthropicResponse;
+  if (!res.ok) throw new Error(`Claude ${res.status}: ${data.error?.message ?? "request failed"}`);
+  const used = data.content?.find((c): c is { type: "tool_use"; name: string; input: unknown } => c.type === "tool_use");
+  if (!used) throw new Error(data.stop_reason === "max_tokens" ? "Claude ran out of room before finishing its answer." : "Claude didn't return an answer in the expected shape.");
+  const cached = data.usage?.cache_read_input_tokens ?? 0;
+  return {
+    provider: "anthropic",
+    model: opts.model,
+    json: used.input,
+    usage: {
+      input_tokens: (data.usage?.input_tokens ?? 0) + cached + (data.usage?.cache_creation_input_tokens ?? 0),
+      cached_tokens: cached,
+      output_tokens: data.usage?.output_tokens ?? 0,
     },
     latency_ms: Date.now() - started,
   };

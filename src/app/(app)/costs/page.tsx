@@ -1,3 +1,4 @@
+import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
@@ -172,7 +173,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
       .eq("tenant_id", ctx.tenant.id).maybeSingle(),
   ]);
 
-  const hasAi = Boolean(process.env.XAI_API_KEY);
+  const hasAi = Boolean(keyFor(await liveModel()));
   const hasMaps = Boolean(process.env.GOOGLE_MAPS_API_KEY);
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Brisbane" });
 
