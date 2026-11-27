@@ -2,6 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { aiCaller, compareModels, liveModel, liveModelReadsPdfs } from "@/lib/ai/call";
 import { runTrials } from "./trial";
+import { cleanOverview, OVERVIEW_SCHEMA, overviewMessages, type Overview } from "./overview";
+import { buildRfqUserMessage } from "@/lib/site/scope-ai";
 import { loadAccess } from "@/lib/access-load";
 import { loadPricingContext, emptyScope, haulFor } from "@/lib/site/load";
 import { loadLayeredRules } from "@/lib/rules-load";
@@ -83,6 +85,7 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   const shadow = others.length ? runTrials(db, tenantId, jobId, others).catch(() => []) : null;
   const readsPdfs = opts.readsPdfs ?? (await liveModelReadsPdfs());
 
+  let overviewPromise: Promise<Overview | null> = Promise.resolve(null);
   if (access.state === "locked") {
     scope.questions.push(`${access.message} This RFQ was filed but not read.`);
   } else if (!call) {
@@ -90,11 +93,14 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   } else if (!pc.library.some((c) => c.active)) {
     scope.questions.push("Your costs library is empty. Add your costs in Setup, then add the items from the RFQ.");
   } else {
+    const rfqInput = {
+      from: summary.from, subject: summary.subject, received: summary.received, body: rfq.body, attachments,
+      extraNotes: emails.slice(1).map((e) => `--- Later email from ${e.from ?? "?"} (${e.date ?? "?"}) ---\n${e.body.slice(0, 8000)}`),
+    };
+    // The job overview (specs, dates, conditions) is read alongside the scope.
+    overviewPromise = opts.call === undefined ? makeOverview(tenantId, rfqInput) : Promise.resolve(null);
     try {
-      const out = await scopeFromRfq(call, { tradingName: tenant?.name ?? "the contractor", library: pc.library, plants: pc.plants, rules }, {
-        from: summary.from, subject: summary.subject, received: summary.received, body: rfq.body, attachments,
-        extraNotes: emails.slice(1).map((e) => `--- Later email from ${e.from ?? "?"} (${e.date ?? "?"}) ---\n${e.body.slice(0, 8000)}`),
-      });
+      const out = await scopeFromRfq(call, { tradingName: tenant?.name ?? "the contractor", library: pc.library, plants: pc.plants, rules }, rfqInput);
       scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
     } catch (e) {
       scope.questions.push(`The AI couldn't read this RFQ (${e instanceof Error ? e.message : "error"}). Add the items yourself from the email and files below.`);
@@ -115,6 +121,7 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     site_address: site.address || null, site_lat: site.lat, site_lng: site.lng, haul_routes: routes,
     transcript: null, photos: [], scope, costing: priced, margin_percent: pc.defaultMargin, total_ex_gst: priced.priceExGst,
     created_by: null, rfq_summary: { ...summary, model: opts.call === undefined ? mainModel : null },
+    overview: await overviewPromise,
   }).select("id").single();
   if (error || !made) throw new Error(`Couldn't save the draft quote: ${error?.message}`);
 
@@ -221,4 +228,16 @@ export async function locateAndPrice(pc: Awaited<ReturnType<typeof loadPricingCo
   const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, site, pc.plants, pc.settings, routes), marginPercent: pc.defaultMargin });
 
   return { scope, site, routes, priced };
+}
+
+/** Pull the specs, dates and conditions out of an RFQ. Null if the AI isn't on or it fails: the quote doesn't wait on it. */
+export async function makeOverview(tenantId: string, input: Parameters<typeof buildRfqUserMessage>[0]): Promise<Overview | null> {
+  try {
+    const call = await aiCaller(OVERVIEW_SCHEMA, tenantId, null, "ai_overview");
+    if (!call) return null;
+    const r = await call(overviewMessages(buildRfqUserMessage(input)));
+    return { ...cleanOverview(r.json), made_at: new Date().toISOString() };
+  } catch {
+    return null;
+  }
 }

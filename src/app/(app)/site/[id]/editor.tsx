@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -462,6 +463,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         <div style={{ position: "sticky", bottom: 0, background: "var(--ground)", padding: "10px 0 14px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
           <button type="button" className="btn primary" disabled={busy !== null} onClick={() => save()}>{busy === "save" ? "Saving..." : dirty ? "Save changes" : "Saved"}</button>
           <button type="button" className="btn" disabled={busy !== null} onClick={() => save("print")}>{busy === "print" ? "Opening..." : "PDF / print"}</button>
+          <Link className="btn" href={`/site/${quote.id}/overview`} style={{ textAlign: "center" }}>Job overview</Link>
           {hasSheet && <button type="button" className="btn" disabled={busy !== null} onClick={() => save("excel")}>{busy === "excel" ? "Making..." : "Excel"}</button>}
           {hasXero ? (
             <button type="button" className="btn" disabled={busy !== null} onClick={() => void toXero()}>
