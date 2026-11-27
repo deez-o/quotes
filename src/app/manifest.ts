@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "quoteout",
     short_name: "quoteout",
-    description: "Your quotes, out the door. Talk through a job or send in an RFQ, and get a priced quote from your own costs.",
+    description: "Your quotes, out the door. Talk through a job or import an RFQ, and get a priced quote from your own costs.",
     start_url: "/site/new",
     scope: "/",
     display: "standalone",
