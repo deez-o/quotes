@@ -5,6 +5,7 @@
  */
 import type { ChatMessage, ChatPart, ProviderResult } from "@/lib/quote/provider";
 import { alignToPlant, type CostItem, type SiteScope, type SupplyPlant } from "./price";
+import { rulesBlock, type LayeredRule } from "@/lib/rules";
 
 export const SITE_PROMPT_VERSION = "site-v1";
 
@@ -51,7 +52,7 @@ export const SITE_SCOPE_SCHEMA = {
   },
 } as const;
 
-export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], plants: SupplyPlant[]): string {
+export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], plants: SupplyPlant[], rules?: { house: LayeredRule[]; own: LayeredRule[] }): string {
   const active = library.filter((c) => c.active);
   const plantName = new Map(plants.map((p) => [p.id, p.name]));
   const libLines = active.map((c) =>
@@ -68,13 +69,16 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `3. Asphalt and base items need area_m2 and depth_mm. Prime and seal need area_m2. "other" items use quantity in the cost item's unit.`,
     `4. Crew lines: amount is shifts (or days or hours, per the cost item's unit). Plant lines: amount in the cost item's unit, usually hours.`,
     `5. Prime under new asphalt on a new base is normal practice: add it and say so in assumptions if it wasn't mentioned.`,
-    `6. supply_plant_id: the plant the mix comes from, if said; else the only plant if there is one; else null and ask.`,
-    `6a. Mixes marked "from <plant> only" are that plant's prices: use the mix from the chosen supply plant. If the plant isn't known yet, pick the mix from the plant that is named or nearest the site, and ask.`,
+    `6. supply_plant_id: only if they name a plant (match it to the list). Otherwise null: the app picks the nearest plant to the site.`,
+    `6a. Mixes marked "from <plant> only" are that plant's prices. Pick the right mix by name from any plant; the app swaps it to the chosen plant's price.`,
     `7. truck_cost_item_id: the truck item from the library if any material must be carted (not delivered by the supplier).`,
     `8. Use short, clear descriptions a customer would understand ("Supply and lay AC10, 40 mm").`,
     `9. Every assumption you make goes in assumptions. Anything you need to know goes in questions, briefly.`,
     `10. If a previous scope is given, apply the correction to it and keep everything else unchanged, including keys.`,
     ``,
+    ...(rules && (rules.house.length || rules.own.length)
+      ? [`# How this company quotes (apply what's relevant to this job; rules 1-10 above still hold: you never price)`, rulesBlock(rules.house, rules.own), ``]
+      : []),
     `# Costs library (id | type | name | unit | notes)`,
     libLines.join("\n") || "Empty: ask the user to add their costs first.",
     ``,
@@ -135,10 +139,9 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
 
   const plantOk = raw.supply_plant_id && plants.some((p) => p.id === raw.supply_plant_id) ? raw.supply_plant_id : null;
   const truckOk = raw.truck_cost_item_id && ids.has(raw.truck_cost_item_id) ? raw.truck_cost_item_id : null;
-  // No plant chosen but the mixes all come from one plant: that's the plant.
-  const mixPlants = new Set(items.map((i) => library.find((c) => c.id === i.cost_item_id)?.supply_plant_id).filter((x): x is string => !!x && plants.some((p) => p.id === x)));
-  const plantId = plantOk ?? (mixPlants.size === 1 ? [...mixPlants][0] : null);
-  const aligned = alignToPlant({ ...raw, items }, library, plantId).items;
+  // A named plant: swap the mixes to its prices. No plant: left for choosePlant (nearest to the site).
+  const plantId = plantOk;
+  const aligned = plantId ? alignToPlant({ ...raw, items }, library, plantId).items : items;
 
   return {
     scope: {
@@ -165,11 +168,11 @@ export type ScopeCall = (messages: ChatMessage[]) => Promise<ProviderResult>;
 /** Ask the AI for a scope (or a corrected scope), then clean it against the library. */
 export async function scopeFromTalk(
   call: ScopeCall,
-  ctx: { tradingName: string; library: CostItem[]; plants: SupplyPlant[] },
+  ctx: { tradingName: string; library: CostItem[]; plants: SupplyPlant[]; rules?: { house: LayeredRule[]; own: LayeredRule[] } },
   input: Parameters<typeof buildSiteUserMessage>[0],
 ): Promise<{ scope: SiteScope; run: ProviderResult; fixes: string[] }> {
   const messages: ChatMessage[] = [
-    { role: "system", content: buildSiteSystemPrompt(ctx.tradingName, ctx.library, ctx.plants) },
+    { role: "system", content: buildSiteSystemPrompt(ctx.tradingName, ctx.library, ctx.plants, ctx.rules) },
     { role: "user", content: buildSiteUserMessage(input) },
   ];
   const run = await call(messages);

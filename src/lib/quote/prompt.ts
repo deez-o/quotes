@@ -8,8 +8,9 @@
  * Only this tenant's data goes in. Never another tenant's rules or examples.
  */
 import type { Product } from "./calc";
+import { rulesBlock } from "@/lib/rules";
 
-export const PROMPT_VERSION = "quote-v1";
+export const PROMPT_VERSION = "quote-v2";
 
 export type PromptRule = { code: string; grp: string | null; text: string };
 export type PromptExample = { title: string; rfq_text: string | null; approved_json: unknown };
@@ -24,6 +25,9 @@ export type PromptSettings = {
 
 export type SystemPromptInput = {
   tradingName: string;
+  /** House rules (hidden from the customer). */
+  houseRules?: PromptRule[];
+  /** The customer's own rules; these win over house rules. */
   rules: PromptRule[];
   products: Product[];
   settings: PromptSettings;
@@ -34,16 +38,6 @@ const MAX_EXAMPLE_CHARS = 6000;
 
 export function buildSystemPrompt(input: SystemPromptInput): string {
   const { tradingName, rules, products, settings, examples } = input;
-
-  const ruleLines: string[] = [];
-  let currentGroup: string | null | undefined;
-  for (const r of rules) {
-    if (r.grp !== currentGroup) {
-      currentGroup = r.grp;
-      ruleLines.push(`\n## ${r.grp ?? "Other rules"}`);
-    }
-    ruleLines.push(`${r.code}. ${r.text}`);
-  }
 
   const productLines = products
     .filter((p) => p.active)
@@ -71,8 +65,8 @@ export function buildSystemPrompt(input: SystemPromptInput): string {
     `# Role`,
     `You are the estimator's assistant at ${tradingName}. You read requests for quote and draft the scope for a person to check. You never send anything. You never set or calculate a price, total or contribution: write "calc in Excel". Every guess is a CHECK flag.`,
     ``,
-    `# Hard rules (cite the rule code in a flag's source when you apply one)`,
-    ruleLines.join("\n").trim(),
+    `# Rules`,
+    rulesBlock(input.houseRules ?? [], rules),
     ``,
     `# Settings`,
     settingLines.join("\n"),

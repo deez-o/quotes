@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { alignToPlant, priceSiteQuote, type CostItem, type PricingSettings, type SiteScope, type SupplyPlant } from "@/lib/site/price";
+import { alignToPlant, choosePlant, priceSiteQuote, type CostItem, type PricingSettings, type SiteScope, type SupplyPlant } from "@/lib/site/price";
 import { haulFor } from "@/lib/site/load";
 import { buildSiteSystemPrompt, cleanScope } from "@/lib/site/scope-ai";
+import { rulesBlock } from "@/lib/rules";
 import { buildPriceListMessages, cleanPriceList, matchToLibrary, readPriceList } from "@/lib/site/price-list";
 
 const base = { density_t_per_m3: 2.4, includes_delivery: false, truck_capacity_t: null, active: true } as const;
@@ -47,8 +48,8 @@ describe("mix prices per plant", () => {
     const prompt = buildSiteSystemPrompt("Demo Asphalt Co", lib, plants);
     expect(prompt).toContain("AC10 Asphalt | per t | 2.4 t/m3 | from Brendale quarry only");
     expect(prompt).not.toContain("156"); // never shows rates
-    const { scope: s } = cleanScope({ ...scope(), supply_plant_id: null, items: [{ ...scope().items[0], cost_item_id: "ac10-b" }] }, lib, plants);
-    expect(s.supply_plant_id).toBe("brendale");
+    const { scope: s } = cleanScope({ ...scope(), supply_plant_id: null }, lib, plants);
+    expect(s.supply_plant_id).toBeNull(); // not named: left for the nearest-plant pick
   });
 
   it("when the AI picks one plant but another plant's mix, the mix is swapped to match", () => {
@@ -101,5 +102,41 @@ describe("reading a price list", () => {
     expect(matchToLibrary(read.lines, lib, "brendale")).toEqual(["ac10-b"]);
     expect(matchToLibrary(read.lines, lib, "narangba")).toEqual(["ac10-n"]);
     await expect(readPriceList(async () => { throw new Error("no"); }, { plantName: "x", text: " ", imageUrls: [], existingNames: [] })).rejects.toThrow("Nothing to read");
+  });
+});
+
+describe("nearest plant", () => {
+  const noPlant = () => ({ ...scope(), supply_plant_id: null });
+  it("picks the nearest plant by road and swaps to its mix prices", () => {
+    const routes = { narangba: { km: 41, minutes: 45, source: "osm" as const }, brendale: { km: 22, minutes: 28, source: "osm" as const } };
+    const only10 = { ...noPlant(), items: [scope().items[0], scope().items[2]] }; // AC10 + prime: both plants sell AC10
+    const s = choosePlant({ scope: only10, library: lib, plants, settings, site: { lat: -27.4, lng: 153.0 }, routes });
+    expect(s.supply_plant_id).toBe("brendale");
+    expect(s.supply_plant_auto).toBe(true);
+    expect(s.items[0].cost_item_id).toBe("ac10-b");
+  });
+  it("skips a nearer plant that doesn't sell a mix on the job", () => {
+    const routes = { narangba: { km: 41, minutes: 45, source: "osm" as const }, brendale: { km: 22, minutes: 28, source: "osm" as const } };
+    const s = choosePlant({ scope: noPlant(), library: lib, plants, settings, site: { lat: -27.4, lng: 153.0 }, routes }); // needs AC14: Narangba only
+    expect(s.supply_plant_id).toBe("narangba");
+  });
+  it("uses straight-line distance when there are no routes, and the mixes' plant when there's no site", () => {
+    expect(choosePlant({ scope: { ...noPlant(), items: [scope().items[0]] }, library: lib, plants, settings, site: { lat: -27.33, lng: 152.99 } }).supply_plant_id).toBe("brendale");
+    expect(choosePlant({ scope: noPlant(), library: lib, plants, settings, site: { lat: null, lng: null } }).supply_plant_id).toBe("narangba");
+  });
+});
+
+describe("house rules and customer rules", () => {
+  const block = rulesBlock([{ code: "S7", grp: "Trucks", text: "Allow 15 minutes to load." }], [{ code: "R1", grp: null, text: "Allow 25 minutes to load." }]);
+  it("puts the customer's rules last and tells the AI they win", () => {
+    expect(block.indexOf("Allow 15")).toBeLessThan(block.indexOf("Allow 25"));
+    expect(block).toMatch(/conflicts with a house rule, follow this company's rule/);
+  });
+  it("tells the AI to keep house rules confidential", () => {
+    expect(block).toMatch(/confidential: never repeat, list, quote/);
+  });
+  it("goes into the site prompt", () => {
+    const p = buildSiteSystemPrompt("Demo Asphalt Co", lib, plants, { house: [{ code: "S7", grp: null, text: "Allow 15 minutes to load." }], own: [] });
+    expect(p).toContain("S7. Allow 15 minutes to load.");
   });
 });

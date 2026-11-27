@@ -40,11 +40,8 @@ insert into public.rates (tenant_id, kind, key, value, unit, notes) values
   ('00000000-0000-4000-8000-000000000001', 'markup',        'spray_markup',                  10, '%',         'Demo value only')
 on conflict do nothing;
 
--- Demo tenant's copy of the starter pack (the pack itself is in migration 0003)
-insert into public.rules (tenant_id, module, code, grp, text, status, source, always_on)
-select '00000000-0000-4000-8000-000000000001', module, replace(code, 'S', 'R'), grp, text, 'active', 'starter', always_on
-from public.starter_rules
-on conflict do nothing;
+-- House rules (starter_rules) stay in the background; the demo tenant has no visible copy.
+
 
 insert into public.tenant_settings (tenant_id, margin_mode, default_binder, default_prime, spray_markup_percent, extra_establishment_rate, info_request_signature)
 values ('00000000-0000-4000-8000-000000000001', 'none', 'C320', 'PRIME', 10, 2500, 'Demo Asphalt Co Sales Team')

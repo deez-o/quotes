@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { alignToPlant, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
+import { alignToPlant, choosePlant, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
 import { haulFor } from "@/lib/site/load";
 import { correctSiteScope, locateSite, saveSiteQuote } from "../actions";
 import { PlaceSearch } from "../../place-search";
@@ -54,7 +54,11 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
     setSite({ lat, lng });
     setRoutes(r.routes);
     if (addr) setAddress(addr);
-    update({ ...scope, haul_override: null });
+    // Plant not picked by the user: re-pick the nearest for the new location.
+    const next = scope.supply_plant_auto || !scope.supply_plant_id
+      ? choosePlant({ scope, library, plants, settings, site: { lat, lng }, routes: r.routes })
+      : scope;
+    update({ ...next, haul_override: null });
     setMsg({ ok: true, text: r.routes ? "Site located. Road distances worked out." : "Site located. Couldn't get road distances, so they're estimated." });
   }
   const priced = useMemo(() => priceSiteQuote({ scope, library, settings, haul, marginPercent: margin }), [scope, library, settings, haul, margin]);
@@ -193,8 +197,8 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
 
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <h2 style={{ margin: 0 }}>Cartage</h2>
-          <label style={small}>Mix comes from
-            <select style={sel} value={scope.supply_plant_id ?? ""} onChange={(e) => update({ ...alignToPlant(scope, library, e.target.value || null), haul_override: null })}>
+          <label style={small}>Mix comes from{scope.supply_plant_auto ? " (nearest plant)" : ""}
+            <select style={sel} value={scope.supply_plant_id ?? ""} onChange={(e) => update({ ...alignToPlant(scope, library, e.target.value || null), haul_override: null, supply_plant_auto: false })}>
               <option value="">Choose a plant...</option>
               {plants.map((p) => <option key={p.id} value={p.id}>{p.name}{routes?.[p.id] ? ` (${routes[p.id].km} km)` : ""}</option>)}
             </select>

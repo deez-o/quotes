@@ -7,7 +7,8 @@ import { SITE_SCOPE_SCHEMA, cleanScope, scopeFromTalk } from "@/lib/site/scope-a
 import { xaiStructured } from "@/lib/quote/provider";
 import { emptyScope, haulFor, loadPricingContext } from "@/lib/site/load";
 import { routesToPlants } from "@/lib/site/routes";
-import { priceSiteQuote, type HaulRoutes, type SiteScope } from "@/lib/site/price";
+import { loadLayeredRules } from "@/lib/rules-load";
+import { choosePlant, priceSiteQuote, type HaulRoutes, type SiteScope } from "@/lib/site/price";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type ActionResult = { ok: true; id: string } | { ok: false; message: string };
@@ -55,10 +56,10 @@ export async function buildSiteQuote(input: {
     let scope: SiteScope = emptyScope(title);
     if (call && pc.library.some((c) => c.active)) {
       try {
-        const out = await scopeFromTalk(call, { tradingName: ctx.tenant.name, library: pc.library, plants: pc.plants }, {
+        const out = await scopeFromTalk(call, { tradingName: ctx.tenant.name, library: pc.library, plants: pc.plants, rules: await loadLayeredRules(db, ctx.tenant.id) }, {
           transcript, siteAddress: input.address || null, photoUrls: await signedPhotoUrls(db, photos),
         });
-        scope = { ...out.scope, haul_override: null };
+        scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
       } catch (e) {
         scope.questions.push(`The AI couldn't read this one (${e instanceof Error ? e.message : "error"}). Add the items below, or try "Change something".`);
       }
@@ -73,6 +74,8 @@ export async function buildSiteQuote(input: {
     if (qErr) return { ok: false, message: `Couldn't get a quote number: ${qErr.message}` };
 
     const routes = await routesToPlants(input, pc.plants);
+    // Nobody named a plant: use the nearest one that sells the mixes.
+    if (!scope.supply_plant_id) scope = choosePlant({ scope, library: pc.library, plants: pc.plants, settings: pc.settings, site: input, routes });
     const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, input, pc.plants, pc.settings, routes), marginPercent: pc.defaultMargin });
     const { data, error } = await db.from("site_quotes").insert({
       tenant_id: ctx.tenant.id, quote_no: quoteNo, title: scope.title, customer_name: input.customer || null,
@@ -98,10 +101,11 @@ export async function correctSiteScope(input: { id: string; scope: SiteScope; co
     const { data: q } = await db.from("site_quotes").select("id, transcript, site_address").eq("id", input.id).eq("tenant_id", ctx.tenant.id).maybeSingle();
     if (!q) return { ok: false, message: "Quote not found." };
     const pc = await loadPricingContext(db, ctx.tenant.id);
-    const out = await scopeFromTalk(call, { tradingName: ctx.tenant.name, library: pc.library, plants: pc.plants }, {
+    const out = await scopeFromTalk(call, { tradingName: ctx.tenant.name, library: pc.library, plants: pc.plants, rules: await loadLayeredRules(db, ctx.tenant.id) }, {
       transcript: q.transcript ?? "", siteAddress: q.site_address, photoUrls: [], previous: input.scope, correction: input.correction.slice(0, 4000),
     });
-    return { ok: true, scope: { ...out.scope, haul_override: input.scope.haul_override ?? null } };
+    const keepAuto = input.scope.supply_plant_auto && out.scope.supply_plant_id === input.scope.supply_plant_id;
+    return { ok: true, scope: { ...out.scope, haul_override: input.scope.haul_override ?? null, supply_plant_auto: !!keepAuto } };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Something went wrong." };
   }
@@ -118,6 +122,7 @@ export async function saveSiteQuote(input: {
     if (!q) return { ok: false, message: "Quote not found." };
     const pc = await loadPricingContext(db, ctx.tenant.id);
     const { scope } = cleanScope(input.scope, pc.library, pc.plants);
+    scope.supply_plant_auto = !!input.scope.supply_plant_auto;
     scope.questions = input.scope.questions; // keep the user's view of questions, not re-added fixes
     const ho = input.scope.haul_override;
     scope.haul_override = ho && Number.isFinite(ho.km) && Number.isFinite(ho.minutes) && ho.km >= 0 && ho.minutes >= 0 ? ho : null;

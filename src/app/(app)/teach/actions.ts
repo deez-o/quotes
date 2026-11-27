@@ -21,7 +21,8 @@ export async function addRule(formData: FormData) {
     .from("rules")
     .select("code")
     .eq("tenant_id", ctx.tenant.id)
-    .eq("module", "quoting");
+    .eq("module", "quoting")
+    .neq("source", "starter");
   const highest = (codes ?? [])
     .map((r) => Number(String(r.code).replace(/\D/g, "")))
     .filter((n) => Number.isFinite(n))

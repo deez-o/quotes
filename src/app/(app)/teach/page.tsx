@@ -24,6 +24,7 @@ export default async function TeachPage() {
     .select("id, code, grp, text, status, source, always_on, why")
     .eq("tenant_id", ctx.tenant.id)
     .eq("module", "quoting")
+    .neq("source", "starter")
     .in("status", ["proposed", "active", "off"])
     .order("created_at", { ascending: true });
 

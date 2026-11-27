@@ -51,6 +51,8 @@ export type SiteScope = {
   questions: string[];
   /** Set by the user when the GPS estimate is wrong (one-way). */
   haul_override?: { km: number; minutes: number } | null;
+  /** True when the plant was picked as the nearest one (re-picked if the site moves); false once the user chooses. */
+  supply_plant_auto?: boolean;
 };
 
 /** Road distance and truck time from the site to one plant, worked out when the site was located. */
@@ -128,6 +130,36 @@ export function alignToPlant(scope: SiteScope, library: CostItem[], plantId: str
     return twin ? { ...i, cost_item_id: twin.id } : i;
   });
   return { ...scope, items, supply_plant_id: plantId };
+}
+
+/**
+ * The supply plant for a job when nobody named one: the nearest plant (road distance where known,
+ * else straight line × road factor) that sells every plant-priced mix on the job; if none sells
+ * them all, the nearest plant. Then mixes are swapped to that plant's prices.
+ */
+export function choosePlant(input: {
+  scope: SiteScope; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings;
+  site: { lat: number | null; lng: number | null }; routes?: HaulRoutes | null;
+}): SiteScope {
+  const { scope, library, plants, settings, site, routes } = input;
+  const byId = new Map(library.map((c) => [c.id, c]));
+  const distance = (p: SupplyPlant): number | null => {
+    const r = routes?.[p.id];
+    if (r) return r.km;
+    if (site.lat == null || site.lng == null || p.lat == null || p.lng == null) return null;
+    return haversineKm(site.lat, site.lng, p.lat, p.lng) * settings.road_factor;
+  };
+  const ranked = plants.map((p) => ({ p, km: distance(p) })).filter((x): x is { p: SupplyPlant; km: number } => x.km != null).sort((a, b) => a.km - b.km);
+  const mixNames = [...new Set(scope.items.map((i) => byId.get(i.cost_item_id ?? "")).filter((c) => c?.supply_plant_id).map((c) => c!.name.trim().toLowerCase()))];
+  const sells = (plantId: string) => mixNames.every((n) => library.some((c) => c.active && c.supply_plant_id === plantId && c.name.trim().toLowerCase() === n));
+
+  let pick: string | null = ranked.find((x) => sells(x.p.id))?.p.id ?? ranked[0]?.p.id ?? null;
+  if (!pick) {
+    // No site location: fall back to the plant the mixes come from, or the only plant.
+    const fromMixes = new Set(scope.items.map((i) => byId.get(i.cost_item_id ?? "")?.supply_plant_id).filter((x): x is string => !!x && plants.some((p) => p.id === x)));
+    pick = fromMixes.size === 1 ? [...fromMixes][0] : plants.length === 1 ? plants[0].id : null;
+  }
+  return { ...alignToPlant(scope, library, pick), supply_plant_auto: pick != null };
 }
 
 /** Tonnes of material for an area at a depth. */
