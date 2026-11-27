@@ -107,6 +107,14 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
         <div style={{ width: `${(doneCount / steps.length) * 100}%`, height: 8, background: "var(--accent)", borderRadius: 4 }} />
       </div>
 
+      <Link href="/teach" className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Your quoting rules</h2>
+          <p className="sub" style={{ marginTop: 4 }}>Tell quoteout how you quote, by typing or talking. Your rules apply to every quote and come first.</p>
+        </div>
+        <span className="btn" style={{ flex: "none" }}>Open</span>
+      </Link>
+
       {setupError && <p className="error" role="alert">{setupError}</p>}
       {connected && <p style={{ color: "var(--good)", fontWeight: 600 }}>Connected {connected}. New emails will now be picked up.</p>}
 

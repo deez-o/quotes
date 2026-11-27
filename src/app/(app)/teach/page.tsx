@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { setRuleStatus } from "./actions";
@@ -44,7 +45,8 @@ export default async function TeachPage() {
   return (
     <div className="page">
       <div>
-        <h1>Teach quoteout</h1>
+        <Link href="/setup" className="sub" style={{ fontSize: 13 }}>← Setup</Link>
+        <h1>Your quoting rules</h1>
         <p className="sub">
           Your own way of quoting, in plain English. Your rules apply to every quote from now on and come first. Switch one off any time.
         </p>
