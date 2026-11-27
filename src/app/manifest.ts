@@ -1,10 +1,10 @@
 import type { MetadataRoute } from "next";
 
-/** Lets contractors add Quotr to their phone's home screen and open it like an app. */
+/** Lets contractors add quoteout to their phone's home screen and open it like an app. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Quotr",
-    short_name: "Quotr",
+    name: "quoteout",
+    short_name: "quoteout",
     description: "Talk about a job on site and get a priced quote from your own costs.",
     start_url: "/site/new",
     scope: "/",

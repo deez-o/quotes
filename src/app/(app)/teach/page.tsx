@@ -44,7 +44,7 @@ export default async function TeachPage() {
   return (
     <div className="page">
       <div>
-        <h1>Teach Quotr</h1>
+        <h1>Teach quoteout</h1>
         <p className="sub">
           Your own way of quoting, in plain English. Your rules apply to every quote from now on and come first. Switch one off any time.
         </p>
@@ -55,7 +55,7 @@ export default async function TeachPage() {
       {error && <p className="error">Couldn&apos;t load rules: {error.message}</p>}
 
       {proposed.length > 0 && <section className="card">
-        <h2>Suggested by Quotr · {proposed.length}</h2>
+        <h2>Suggested by quoteout · {proposed.length}</h2>
         {proposed.length === 0 ? (
           <p className="sub" style={{ marginTop: 0 }}>Nothing waiting.</p>
         ) : (
@@ -80,7 +80,7 @@ export default async function TeachPage() {
 
       <section className="card">
         <h2>Your rules · {live.filter((r) => r.status === "active").length} active</h2>
-        {live.length === 0 && <p className="sub" style={{ marginTop: 0 }}>None yet. Quotr uses its standard method until you add your own.</p>}
+        {live.length === 0 && <p className="sub" style={{ marginTop: 0 }}>None yet. quoteout uses its standard method until you add your own.</p>}
         {groups.map(([grp, items]) => (
           <div key={grp} style={{ marginTop: 12 }}>
             <h3 style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)", margin: "8px 0 0", textTransform: "uppercase", letterSpacing: 0.4 }}>{grp}</h3>

@@ -40,7 +40,7 @@ export async function handleInbound(raw: Uint8Array, envelopeTo: string | null, 
   const headerTo = [...(email.to ?? []), ...(email.cc ?? [])].map((t) => ("address" in t ? t.address ?? "" : ""));
   const delivered = email.deliveredTo ? [email.deliveredTo] : [];
   const local = recipientLocalPart(deps.domain, envelopeTo, [...delivered, ...headerTo]);
-  if (!local) return { status: "ignored", reason: "not addressed to a Quotr address" };
+  if (!local) return { status: "ignored", reason: "not addressed to a quoteout address" };
 
   const tenantId = await deps.tenantForLocalPart(local);
   if (!tenantId) return { status: "ignored", reason: "unknown address" };

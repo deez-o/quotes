@@ -108,7 +108,7 @@ export class GraphMailbox {
     return res.body;
   }
 
-  /** Apply Quotr categories (Outlook's labels), keeping any the user already set. */
+  /** Apply quoteout categories (Outlook's labels), keeping any the user already set. */
   async addCategories(messageId: string, existing: string[], add: string[]) {
     const categories = Array.from(new Set([...existing, ...add]));
     await this.call(`/${this.mailbox}/messages/${encodeURIComponent(messageId)}`, {

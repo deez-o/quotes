@@ -35,7 +35,7 @@ export default async function SettingsPage() {
       <div>
         <h1>Settings</h1>
         <p className="sub">
-          Your company&apos;s figures and defaults. The rules on the Teach screen use these, so Quotr drafts the way you price.
+          Your company&apos;s figures and defaults. The rules on the Teach screen use these, so quoteout drafts the way you price.
         </p>
       </div>
       <SettingsForm initial={initial} canEdit={ctx.role === "admin"} />

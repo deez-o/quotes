@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Quotr",
+  title: "quoteout",
   description: "RFQ triage and quote drafting for asphalt and civil contractors",
-  appleWebApp: { capable: true, title: "Quotr", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "quoteout", statusBarStyle: "black-translucent" },
   icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
 };
 

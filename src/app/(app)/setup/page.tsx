@@ -5,10 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 type Step = { title: string; detail: string; done: boolean; action?: { label: string; href?: string; external?: boolean } };
 
 const STORAGE_LABEL: Record<string, string> = {
-  app: "Files kept in Quotr",
-  onedrive: "Files kept in Quotr, copied to OneDrive",
-  sharepoint: "Files kept in Quotr, copied to SharePoint",
-  google_drive: "Files kept in Quotr, copied to Google Drive",
+  app: "Files kept in quoteout",
+  onedrive: "Files kept in quoteout, copied to OneDrive",
+  sharepoint: "Files kept in quoteout, copied to SharePoint",
+  google_drive: "Files kept in quoteout, copied to Google Drive",
 };
 
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ error?: string; connected?: string }> }) {
@@ -52,7 +52,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     },
     {
       title: "Choose where files live",
-      detail: STORAGE_LABEL[ctx.tenant.file_storage] ?? "Files kept in Quotr",
+      detail: STORAGE_LABEL[ctx.tenant.file_storage] ?? "Files kept in quoteout",
       done: true,
     },
     {
@@ -73,14 +73,14 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       action: { label: settingsDone ? "Edit" : "Open settings", href: "/settings" },
     },
     {
-      title: "Tell Quotr how you quote",
+      title: "Tell quoteout how you quote",
       detail: `${activeRules} rules active${proposedRules ? ` · ${proposedRules} waiting for your OK` : ""}`,
       done: activeRules > 0 && proposedRules === 0,
       action: { label: "Review rules", href: "/teach" },
     },
     {
       title: "Add 3 to 5 past quotes",
-      detail: `${examples} of 3 added. Quotr copies your style from these.`,
+      detail: `${examples} of 3 added. quoteout copies your style from these.`,
       done: examples >= 3,
     },
     {
@@ -98,7 +98,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     <div className="page">
       <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-end" }}>
         <div>
-          <h1>Set up Quotr</h1>
+          <h1>Set up quoteout</h1>
           <p className="sub">Nothing is sent or labelled until you press Go live.</p>
         </div>
         <strong>{doneCount} of {steps.length} done</strong>

@@ -10,7 +10,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="shell">
       <nav className="nav" aria-label="Main">
-        <div className="brand">Quotr</div>
+        <div className="brand">quoteout</div>
         <NavLinks />
         <div className="who">
           {ctx.tenant.name}
