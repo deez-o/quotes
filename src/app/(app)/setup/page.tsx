@@ -4,6 +4,8 @@ import { BrandingForm, type Branding } from "./branding-form";
 import { loadSettings } from "../settings/data";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
+import { loadAccess } from "@/lib/access-load";
+import { planFor } from "@/lib/plans";
 
 type Step = { title: string; detail: string; done: boolean; optional?: boolean; action?: { label: string; href?: string; external?: boolean } };
 
@@ -17,6 +19,8 @@ const STORAGE_LABEL: Record<string, string> = {
 export default async function SetupPage({ searchParams }: { searchParams: Promise<{ error?: string; connected?: string }> }) {
   const { error: setupError, connected } = await searchParams;
   const ctx = await requireTenant();
+  const { tenant: billing } = await loadAccess(ctx.tenant.id);
+  const plan = planFor(billing.plan);
   const pricing = await loadSettings(ctx.tenant.id);
   const supa = await createClient();
   const { data: b } = await supa.from("tenant_settings")
@@ -56,6 +60,8 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   ]);
 
   const { data: settings } = await settingsPromise;
+  const { data: inbound } = await supabase.from("inbound_addresses").select("local_part").eq("tenant_id", t).limit(1).maybeSingle();
+  const inboundAddress = inbound?.local_part ? `${inbound.local_part}@${process.env.INBOUND_DOMAIN ?? "in.quoteout.app"}` : null;
   const settingsDone = Boolean(settings?.default_binder && settings?.spray_markup_percent != null);
 
   const steps: Step[] = [
@@ -86,10 +92,13 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       action: { label: xero ? "Reconnect" : "Connect Xero", href: "/api/connect/xero", external: true },
     },
     {
-      title: "Connect your email",
-      detail: mailboxes ? "Inbox connected" : "Microsoft 365 first; Gmail and email forwarding to follow",
-      done: mailboxes > 0,
-      action: mailboxes ? undefined : { label: "Connect Microsoft 365", href: "/api/connect/microsoft", external: true },
+      title: "Forward RFQs by email",
+      detail: plan.emailAutoQuote
+        ? (inboundAddress ? `Forward RFQs to ${inboundAddress} from your team's email. They show up in Quotes, ready to check.` : "Your forwarding address is being set up.")
+        : "Forward RFQs from your inbox and quoteout drafts the quote. Included in Pro and Business.",
+      done: plan.emailAutoQuote && mailboxes > 0,
+      optional: true,
+      action: plan.emailAutoQuote ? undefined : { label: "See plans", href: "/billing" },
     },
     {
       title: "Choose where files live",

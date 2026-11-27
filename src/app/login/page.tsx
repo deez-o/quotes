@@ -93,6 +93,7 @@ export default function LoginPage() {
 
         {error && <p className="error" role="alert" style={{ margin: 0 }}>{error}</p>}
       </div>
+      <p style={{ color: "#b6bcc4", margin: 0, fontSize: 15 }}>New to quoteout? <a href="/signup" style={{ color: "var(--brand)", fontWeight: 600, textDecoration: "underline" }}>Start a free trial</a></p>
     </main>
   );
 }

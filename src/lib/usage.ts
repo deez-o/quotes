@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { costUsd, type ProviderResult } from "@/lib/quote/provider";
 import { periodNow } from "@/lib/plans";
+import { loadAccess } from "@/lib/access-load";
 
 export type AiKind = "ai_quote" | "ai_change" | "ai_price_list" | "ai_rfq";
 
@@ -17,9 +18,11 @@ export async function recordAi(tenantId: string, userId: string | null, kind: Ai
   }
 }
 
-/** Wraps an AI call so every use is logged. */
+/** Wraps an AI call so every use is logged, and refused when the company's trial or plan has lapsed. */
 export function counted<A extends unknown[]>(fn: (...a: A) => Promise<ProviderResult>, tenantId: string, userId: string | null, kind: AiKind) {
   return async (...a: A) => {
+    const { access } = await loadAccess(tenantId);
+    if (access.state === "locked") throw new Error(access.message);
     const r = await fn(...a);
     await recordAi(tenantId, userId, kind, r);
     return r;

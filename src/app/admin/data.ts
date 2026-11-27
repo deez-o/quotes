@@ -6,6 +6,7 @@ import { shareFlags, type DeviceRow } from "@/lib/devices";
 export type Company = {
   id: string; name: string; slug: string; plan: string | null; status: string; created_at: string;
   ai_quota_month: number | null; max_devices: number | null; admin_note: string | null; trial_ends_at: string | null;
+  billing_status: string | null; stripe_subscription_id: string | null; stripe_customer_id: string | null; past_due_since: string | null;
 };
 
 export type Person = { userId: string; email: string; tenantId: string; role: string; disabledAt: string | null; joined: string; lastSignIn: string | null };
@@ -17,7 +18,7 @@ export async function loadAdmin(db: SupabaseClient) {
   const since30 = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
 
   const [tenants, memberships, devices, usage, quotes, jobs, queue, badConnections, users] = await Promise.all([
-    db.from("tenants").select("id, name, slug, plan, status, created_at, ai_quota_month, max_devices, admin_note, trial_ends_at").order("created_at"),
+    db.from("tenants").select("id, name, slug, plan, status, created_at, ai_quota_month, max_devices, admin_note, trial_ends_at, billing_status, stripe_subscription_id, stripe_customer_id, past_due_since").order("created_at"),
     db.from("memberships").select("tenant_id, user_id, role, created_at, disabled_at"),
     db.from("user_devices").select("id, user_id, tenant_id, device_id, label, session_id, city, region, country, last_seen, first_seen, revoked_at, revoked_reason, ip").gte("last_seen", since30).order("last_seen", { ascending: false }),
     db.from("usage_events").select("tenant_id, user_id, kind, qty, cost_usd").eq("period", period),
@@ -56,7 +57,7 @@ export async function loadAdmin(db: SupabaseClient) {
     };
   });
 
-  const live = companies.filter((c) => c.status !== "paused");
+  const live = companies.filter((c) => c.status !== "paused" && (c.billing_status === "active" || c.billing_status === "past_due" || c.billing_status === "trialing"));
   return {
     period,
     companies,

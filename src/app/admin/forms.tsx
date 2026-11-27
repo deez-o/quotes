@@ -15,7 +15,7 @@ const small = { display: "flex", flexDirection: "column" as const, gap: 4, fontS
 const sel = { font: "inherit", border: "1px solid #b6bcc4", borderRadius: 8, padding: 11, background: "#fff" };
 
 export function CompanyForm({ c }: {
-  c: { id: string; name: string; plan: string | null; status: string; ai_quota_month: number | null; max_devices: number | null; trial_ends_at: string | null; admin_note: string | null };
+  c: { id: string; name: string; plan: string | null; status: string; billing_status: string | null; stripe_subscription_id: string | null; ai_quota_month: number | null; max_devices: number | null; trial_ends_at: string | null; admin_note: string | null };
 }) {
   const [r, act, pending] = useActionState(saveCompany, null);
   const [plan, setPlan] = useState(c.plan && PLANS[c.plan as keyof typeof PLANS] ? c.plan : "trial");
@@ -37,6 +37,15 @@ export function CompanyForm({ c }: {
           <option value="paused">Paused (everyone signed out)</option>
         </select>
       </label>
+      <label style={small}>Payment status
+        <select name="billing_status" style={sel} defaultValue={["none", "pending", "active", "past_due", "canceled"].includes(c.billing_status ?? "") ? c.billing_status ?? "none" : "active"}>
+          <option value="active">Paid up</option>
+          <option value="past_due">Payment failed (7 days&apos; grace)</option>
+          <option value="canceled">Cancelled (locked)</option>
+          <option value="pending">Waiting for first payment (locked)</option>
+          <option value="none">Not paid (locked on paid plans)</option>
+        </select>
+      </label>
       <label style={small}>AI quotes a month
         <input type="text" inputMode="numeric" name="ai_quota_month" defaultValue={c.ai_quota_month ?? ""} placeholder={p.aiQuotes == null ? "No limit (plan)" : `${p.aiQuotes} (plan)`} />
       </label>
@@ -47,7 +56,7 @@ export function CompanyForm({ c }: {
       <label style={{ ...small, gridColumn: "1 / -1" }}>Notes (only you see these)<textarea name="admin_note" rows={2} defaultValue={c.admin_note ?? ""} /></label>
       <div className="row" style={{ gridColumn: "1 / -1", gap: 12 }}>
         <button className="btn dark" disabled={pending}>{pending ? "Saving..." : "Save"}</button>
-        <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>{p.blurb} Leave a limit blank to use the plan&apos;s.</span>
+        <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>{p.blurb} Leave a limit blank to use the plan&apos;s. {c.stripe_subscription_id ? "Pays through Stripe: Stripe updates the plan and payment status itself." : "Not on Stripe: set Paid up to give them a paid plan you invoice yourself."}</span>
         <Msg r={r} />
       </div>
     </form>

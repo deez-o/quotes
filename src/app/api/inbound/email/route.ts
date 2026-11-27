@@ -1,4 +1,6 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
+import { loadAccess } from "@/lib/access-load";
+import { planFor } from "@/lib/plans";
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleInbound, MAX_INBOUND_BYTES } from "@/lib/mail/inbound";
@@ -57,7 +59,12 @@ export async function POST(request: NextRequest) {
     newId: () => stored?.id ?? randomUUID(),
     tenantForLocalPart: async (local) => {
       const { data } = await db.from("inbound_addresses").select("tenant_id").eq("local_part", local).maybeSingle();
-      return (data?.tenant_id as string | undefined) ?? null;
+      const tenantId = (data?.tenant_id as string | undefined) ?? null;
+      if (!tenantId) return null;
+      // Forwarded RFQs are a Pro feature, and only while the company's trial or plan is current.
+      const { tenant, access } = await loadAccess(tenantId);
+      if (access.state === "locked" || !planFor(tenant.plan).emailAutoQuote) return null;
+      return tenantId;
     },
     isTeamMember: async (tenantId, email) => {
       const { data } = await db.rpc("is_sender_member", { t: tenantId, sender: email });

@@ -7,6 +7,7 @@ import { requireOwner } from "@/lib/owner";
 import { endAllDevices, endDevice } from "@/lib/device-check";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { TENANT_COOKIE } from "@/lib/tenant";
+import { createTenant } from "@/lib/companies";
 
 type Result = { ok: true; message?: string } | { ok: false; message: string };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,12 +45,16 @@ export async function saveCompany(_: unknown, form: FormData): Promise<Result> {
     const name = String(form.get("name") ?? "").trim().slice(0, 120);
     if (!name) return { ok: false, message: "The company needs a name." };
     const trial = String(form.get("trial_ends_at") ?? "").trim();
+    const billing = String(form.get("billing_status") ?? "none");
+    if (!["none", "pending", "active", "past_due", "canceled"].includes(billing)) return { ok: false, message: "Pick a payment status." };
     const update = {
       name, plan, status,
       ai_quota_month: intOrNull(form.get("ai_quota_month"), 0, 100000),
       max_devices: intOrNull(form.get("max_devices"), 1, 20),
       trial_ends_at: trial ? new Date(`${trial}T23:59:59+10:00`).toISOString() : null,
       admin_note: String(form.get("admin_note") ?? "").slice(0, 2000) || null,
+      billing_status: billing,
+      past_due_since: billing === "past_due" ? new Date().toISOString() : null,
     };
     const { error } = await db.from("tenants").update(update).eq("id", id);
     if (error) return { ok: false, message: error.message };
@@ -74,26 +79,9 @@ export async function createCompany(_: unknown, form: FormData): Promise<Result>
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, message: "Enter the email of the person who'll run it." };
     if (!PLANS[plan]) return { ok: false, message: "Pick a plan." };
 
-    // Their forwarding address: <slug>@in.quoteout.app. Must be unique.
-    const base = name.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "company";
-    let slug = base;
-    for (let i = 2; i < 50; i++) {
-      const [{ data: t }, { data: a }] = await Promise.all([
-        db.from("tenants").select("id").eq("slug", slug).maybeSingle(),
-        db.from("inbound_addresses").select("local_part").eq("local_part", slug).maybeSingle(),
-      ]);
-      if (!t && !a) break;
-      slug = `${base}-${i}`;
-    }
-
-    const trialEnds = plan === "trial" ? new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString() : null;
-    const { data: tenant, error } = await db.from("tenants").insert({ name, slug, plan, status: "setup", file_storage: "app", trial_ends_at: trialEnds }).select("id").single();
-    if (error || !tenant) return { ok: false, message: error?.message ?? "Couldn't create the company." };
-    newId = tenant.id as string;
-
-    await db.from("tenant_modules").insert({ tenant_id: newId, module: "quoting", enabled: true });
-    await db.from("tenant_settings").insert({ tenant_id: newId });
-    await db.from("inbound_addresses").insert({ local_part: slug, tenant_id: newId });
+    const made = await createTenant(db, name, plan);
+    if (!made.ok) return made;
+    newId = made.id;
 
     const invited = await inviteMember(db, newId, email, "admin", String(form.get("password") ?? "") || undefined);
     if (!invited.ok) return invited;

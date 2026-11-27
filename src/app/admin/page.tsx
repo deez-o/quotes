@@ -11,6 +11,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   paused: { label: "Paused", cls: "bad" },
 };
 
+const PAY: Record<string, string> = { active: "paid", trialing: "paid", past_due: "payment failed", canceled: "cancelled", pending: "not paid yet", none: "not paid", unpaid: "unpaid", incomplete: "not paid yet" };
+
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="card" style={{ padding: "16px 18px" }}>
@@ -38,7 +40,7 @@ export default async function AdminHome() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12 }}>
         <Stat label="Companies" value={String(a.totals.companies)} note={`${a.totals.paying} on a paid plan`} />
-        <Stat label="Monthly revenue" value={`$${a.totals.monthlyRevenue.toLocaleString("en-AU")}`} note="Plan prices, ex GST" />
+        <Stat label="Monthly revenue" value={`$${a.totals.monthlyRevenue.toLocaleString("en-AU")}`} note="Paid-up plans, ex GST" />
         <Stat label="People" value={String(a.totals.people)} note={`${a.totals.activeToday} active today`} />
         <Stat label="AI calls" value={String(a.totals.aiCalls)} note="Quotes, changes, price lists" />
         <Stat label="AI cost" value={aud(a.totals.aiCostUsd)} note={`about AUD (US$${a.totals.aiCostUsd.toFixed(2)})`} />
@@ -72,7 +74,7 @@ export default async function AdminHome() {
               return (
                 <tr key={c.id}>
                   <td><Link href={`/admin/companies/${c.id}`} style={{ fontWeight: 600, textDecoration: "underline" }}>{c.name}</Link><div className="sub" style={{ marginTop: 2, fontSize: 12 }}>{c.slug}@in.quoteout.app</div></td>
-                  <td>{c.limits.plan.name}{c.limits.plan.priceMonthly ? <div className="sub" style={{ marginTop: 2, fontSize: 12 }}>${c.limits.plan.priceMonthly}/mo</div> : null}</td>
+                  <td>{c.limits.plan.name}{c.limits.plan.priceMonthly ? <div className="sub" style={{ marginTop: 2, fontSize: 12 }}>${c.limits.plan.priceMonthly}/mo · {PAY[c.billing_status ?? "none"] ?? c.billing_status}</div> : c.limits.plan.id === "trial" && c.trial_ends_at ? <div className="sub" style={{ marginTop: 2, fontSize: 12 }}>ends {new Date(c.trial_ends_at).toLocaleDateString("en-AU")}</div> : null}</td>
                   <td><span className={`badge ${s.cls}`}>{s.label}</span></td>
                   <td>{c.people}</td>
                   <td><span style={over ? { color: "var(--accent-ink)", fontWeight: 600 } : undefined}>{c.aiUsed}{cap != null ? ` / ${cap}` : ""}</span></td>
