@@ -110,9 +110,9 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     {
       optional: true,
       title: "Your quote spreadsheet (optional)",
-      detail: quoteSheet?.confirmed_at ? `Quotes download in ${quoteSheet.filename}` : quoteSheet ? `${quoteSheet.filename}: check where things go` : "Download every quote in your own Excel sheet (.xlsx or .xlsm); your formatting and macros are kept",
+      detail: quoteSheet?.confirmed_at ? `Quotes download in ${quoteSheet.filename}` : quoteSheet ? `${quoteSheet.filename}: check where things go` : "Quotes download in quoteout's standard Excel sheet, in your branding. Upload your own sheet to use that instead; formatting and macros are kept.",
       done: Boolean(quoteSheet?.confirmed_at),
-      action: { label: quoteSheet ? "Check or change" : "Upload your sheet", href: "/setup/quote-sheet" },
+      action: { label: quoteSheet ? "Check or change" : "Use your own sheet", href: "/setup/quote-sheet" },
     },
     {
       optional: true,

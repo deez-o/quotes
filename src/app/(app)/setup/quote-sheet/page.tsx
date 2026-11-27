@@ -12,8 +12,9 @@ export default async function QuoteSheetPage() {
         <Link href="/setup" className="sub" style={{ marginTop: 0 }}>← Setup</Link>
         <h1 style={{ marginTop: 6 }}>Your quote spreadsheet</h1>
         <p className="sub">
-          Upload the Excel sheet you quote on now. quoteout works out where everything goes, shows you it filled with a sample quote,
-          and once you say it&apos;s right, every quote can be downloaded in your sheet. Your formatting, logo, formulas and macros stay as they are.
+          Every quote has an Excel button. It uses quoteout&apos;s standard sheet in your branding, or your own sheet: upload the one you
+          quote on now, quoteout works out where everything goes and shows it filled with a sample quote, and once you say it&apos;s right,
+          quotes download in your sheet. Your formatting, logo, formulas and macros stay as they are.
         </p>
       </div>
       {ctx.role !== "admin"

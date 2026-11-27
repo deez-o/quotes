@@ -48,3 +48,25 @@ export async function fillSheet(bytes: Uint8Array, mapping: SheetMapping, quote:
   const { bytes: out, keptFormulas } = await fillWorkbook(bytes, mapping.sheet, writes);
   return { bytes: out, combined, keptFormulas, written: writes.filter((w) => w.value !== null && w.value !== "").map((w) => w.cell) };
 }
+
+/** The company's branding for the standard sheet: same details and logo as the PDF. */
+export async function loadBrand(db: SupabaseClient, tenantId: string): Promise<import("./default").SheetBrand> {
+  const [{ data: s }, { data: t }] = await Promise.all([
+    db.from("tenant_settings").select("logo_path, brand_color, business_name, business_abn, business_phone, business_email, business_address, business_website, gst_percent").eq("tenant_id", tenantId).maybeSingle(),
+    db.from("tenants").select("name, abn").eq("id", tenantId).maybeSingle(),
+  ]);
+  let logo: import("./default").SheetBrand["logo"] = null;
+  const lp = s?.logo_path as string | null;
+  const ext = lp?.match(/\.(png|jpe?g)$/i)?.[1]?.toLowerCase();
+  if (lp && lp.startsWith(`${tenantId}/`) && ext) {
+    const { data } = await db.storage.from(SHEET_BUCKET).download(lp);
+    if (data) logo = { bytes: new Uint8Array(await data.arrayBuffer()), ext: ext === "png" ? "png" : "jpeg" };
+  }
+  return {
+    name: (s?.business_name as string) || (t?.name as string) || "Quote",
+    abn: (s?.business_abn as string) || (t?.abn as string) || null,
+    phone: (s?.business_phone as string) || null, email: (s?.business_email as string) || null,
+    address: (s?.business_address as string) || null, website: (s?.business_website as string) || null,
+    color: (s?.brand_color as string) || null, logo, gstPercent: Number(s?.gst_percent ?? 10),
+  };
+}

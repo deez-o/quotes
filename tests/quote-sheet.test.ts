@@ -124,3 +124,19 @@ describe("reading the sheet for mapping and preview", () => {
     expect(m!.lines).toMatchObject({ first_row: 10, last_row: 10, description_col: "B", total_col: "" });
   });
 });
+
+describe("the standard sheet", () => {
+  it("lays out the quote with the company's details, lines and totals that add up", async () => {
+    const { defaultWorkbook } = await import("@/lib/sheet/default");
+    const bytes = await defaultWorkbook({ name: "Demo Asphalt Co", abn: "12 345 678 901", phone: "07 3000 0000", email: "quotes@demo.test", address: "1 Plant Rd", website: null, color: "#FF6A13", logo: null, gstPercent: 10 }, SAMPLE_QUOTE);
+    const ws = (await reread(bytes)).getWorksheet("Quote")!;
+    const all: string[] = [];
+    ws.eachRow((row) => row.eachCell((c) => all.push(typeof c.value === "object" && c.value && "richText" in c.value ? (c.value as { richText: { text: string }[] }).richText.map((t) => t.text).join("") : String((c.value as { formula?: string })?.formula ? `=${(c.value as { formula: string }).formula}` : c.value))));
+    expect(all).toContain("Demo Asphalt Co");
+    expect(all).toContain("ABN 12 345 678 901");
+    expect(all).toContain("QUOTATION");
+    expect(all.some((t) => t.includes("Sample Builders Pty Ltd"))).toBe(true);
+    expect(all).toContain("Supply and lay AC10, 40 mm");
+    expect(all.some((t) => t.startsWith("=SUM(F"))).toBe(true);
+  });
+});
