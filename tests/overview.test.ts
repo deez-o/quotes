@@ -34,3 +34,21 @@ describe("job overview", () => {
     expect(o.key_dates).toEqual([]);
   });
 });
+
+import { areasKml, overviewText, packName } from "@/lib/rfq/pack";
+
+describe("job pack", () => {
+  it("writes areas as KML with lng,lat order and closed rings", () => {
+    const k = areasKml("Car park <A>", [{ id: "a", name: "Bay & ramp", path: rect, m2: 1000, color: "#FF6A13" }]);
+    expect(k).toContain("Car park &lt;A&gt;");
+    expect(k).toContain("Bay &amp; ramp (1000 m²)");
+    expect(k).toContain(`${lng0},${lat0},0`);
+    const coords = k.match(/<coordinates>([^<]+)</)![1].split(" ");
+    expect(coords[0]).toBe(coords[coords.length - 1]);
+    expect(k).toContain("<color>4d136aff</color>");
+  });
+  it("makes safe names and readable text", () => {
+    expect(packName('Q-1/2: "x"')).toBe("Q-1_2_ _x_");
+    expect(overviewText({ title: "T", quoteNo: "Q-1", customer: null, address: null }, null)).toContain("haven't been read");
+  });
+});

@@ -1,39 +1,17 @@
 import { NextResponse } from "next/server";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
-import { priceSiteQuote, type HaulRoutes, type Priced, type SiteScope } from "@/lib/site/price";
-import { emptyScope, haulFor, loadPricingContext } from "@/lib/site/load";
-import { fillSheet, loadBrand, loadSheet, sheetQuoteFrom, templateBytes } from "@/lib/sheet/store";
-import { defaultWorkbook } from "@/lib/sheet/default";
+import { quoteWorkbook } from "@/lib/sheet/export";
 import { xlsxResponse } from "@/lib/sheet/response";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** One quote, filled into the company's own quote spreadsheet. */
+/** One quote as Excel: their own quote sheet, or the workings sheet. */
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!UUID.test(id)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const ctx = await requireTenant();
-  const db = await createClient();
-  const [{ data: q }, sheet, { data: s }] = await Promise.all([
-    db.from("site_quotes").select("quote_no, title, customer_name, customer_email, site_address, created_at, costing, scope, margin_percent, site_lat, site_lng, haul_routes").eq("tenant_id", ctx.tenant.id).eq("id", id).maybeSingle(),
-    loadSheet(db, ctx.tenant.id),
-    db.from("tenant_settings").select("quote_terms").eq("tenant_id", ctx.tenant.id).maybeSingle(),
-  ]);
-  if (!q) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  const data = sheetQuoteFrom({ ...q, costing: q.costing as Priced | null }, s?.quote_terms ?? null, ctx.email);
-  const base = [q.quote_no, q.title].filter(Boolean).join(" ") || "Quote";
-  // Their own sheet once they've confirmed it; quoteout's standard sheet until then.
-  if (sheet?.mapping && sheet.confirmed_at) {
-    const out = await fillSheet(await templateBytes(db, sheet), sheet.mapping, data);
-    return xlsxResponse(out.bytes, `${base}${sheet.filename.match(/\.xls[xm]$/i)?.[0] ?? ".xlsx"}`);
-  }
-  // Price it again from the scope so every line carries its numbers for the formulas.
-  const pc = await loadPricingContext(db, ctx.tenant.id);
-  const scope = { ...emptyScope(q.title ?? "Quote"), ...(q.scope as Partial<SiteScope>) };
-  const site = { lat: q.site_lat, lng: q.site_lng };
-  const haul = haulFor(scope, site, pc.plants, pc.settings, q.haul_routes as HaulRoutes | null);
-  const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul, marginPercent: Number(q.margin_percent) });
-  const plant = pc.plants.find((p) => p.id === scope.supply_plant_id)?.name ?? null;
-  return xlsxResponse(await defaultWorkbook(await loadBrand(db, ctx.tenant.id), data, { priced, marginPercent: Number(q.margin_percent), plant, haul: haul ? { km: haul.km, minutes: haul.minutes } : null }), `${base} workings.xlsx`);
+  const out = await quoteWorkbook(await createClient(), ctx.tenant.id, id, ctx.email);
+  if (!out) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return xlsxResponse(out.bytes, out.filename);
 }

@@ -48,7 +48,10 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
           <div className="sub">{[q.quote_no, q.title, q.customer_name].filter(Boolean).join(" — ")}</div>
           {q.site_address && <div className="sub">{q.site_address}</div>}
         </div>
-        <a className="btn" href={`/print/overview/${q.id}`} target="_blank" rel="noreferrer">PDF / print</a>
+        <div className="row" style={{ gap: 8 }}>
+          <a className="btn" href={`/print/overview/${q.id}`} target="_blank" rel="noreferrer">PDF / print</a>
+          <a className="btn" href={`/api/quotes/${q.id}/pack`} download>Download job folder</a>
+        </div>
       </div>
 
       <section className="card">
