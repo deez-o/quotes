@@ -3,7 +3,8 @@ import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { NewQuoteForm } from "./form";
 
-export default async function NewQuotePage() {
+export default async function NewQuotePage({ searchParams }: { searchParams: Promise<{ mode?: string }> }) {
+  const mode = (await searchParams).mode === "paste" ? "paste" : "files";
   const ctx = await requireTenant();
   const supabase = await createClient();
   const { data: inbound } = await supabase
@@ -18,11 +19,13 @@ export default async function NewQuotePage() {
     <div className="page" style={{ maxWidth: 900 }}>
       <div>
         <Link href="/start" className="sub" style={{ fontSize: 13 }}>← New Quote</Link>
-        <h1>Import RFQ</h1>
-        <p className="sub">Send quoteout a request for quote. It files the job, reads everything and drafts the quote for you to check.</p>
+        <h1>{mode === "paste" ? "Paste the email" : "Import an RFQ"}</h1>
+        <p className="sub">{mode === "paste"
+          ? "Paste the RFQ email text. quoteout reads it, files the job and drafts the quote for you to check."
+          : "Drop in the RFQ email and its files. quoteout reads everything, files the job and drafts the quote for you to check."}</p>
       </div>
 
-      <NewQuoteForm tenantId={ctx.tenant.id} canSend={ctx.role !== "viewer"} />
+      <NewQuoteForm key={mode} tenantId={ctx.tenant.id} canSend={ctx.role !== "viewer"} mode={mode} />
 
       <section className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <h2 style={{ margin: 0 }}>Or forward it from your email</h2>

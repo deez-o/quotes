@@ -2,9 +2,9 @@ import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 
 const OPTIONS = [
-  { href: "/site/new", title: "Talk or type it", detail: "Describe the job by voice or keyboard, add photos. Priced from your costs straight away.", cta: "Start" },
-  { href: "/new", title: "Import an RFQ", detail: "Drop in the RFQ email, PDFs and drawings. quoteout reads the pack and drafts the quote.", cta: "Import files" },
-  { href: "/new#pasted", title: "Paste the email", detail: "Copy the RFQ email text and paste it in. Add any attachments too.", cta: "Paste text" },
+  { href: "/site/new", title: "Quick quote", detail: "Describe the job by voice or keyboard and add photos. Priced from your costs straight away.", cta: "Start quote" },
+  { href: "/new?mode=files", title: "Import an RFQ", detail: "Upload the RFQ email, PDFs and drawings. quoteout reads the pack and drafts the quote.", cta: "Upload files" },
+  { href: "/new?mode=paste", title: "Paste an email", detail: "Paste the RFQ email text, and add any attachments. quoteout drafts the quote from it.", cta: "Paste email" },
 ] as const;
 
 /** New Quote: pick how the job comes in. */

@@ -9,10 +9,10 @@ type Row = {
   source: string; status: string; total: number | null; at: string; href: string | null;
 };
 
-const SOURCE = { site: "Talked through", inbox: "Inbox", forward: "Forwarded", upload: "Uploaded" } as const;
+const SOURCE = { site: "Quick quote", inbox: "Inbox", forward: "Forwarded", upload: "Imported" } as const;
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft", sent: "Sent", won: "Won", lost: "Lost",
-  new: "Waiting", processing: "Working on it", drafted: "Ready to check", needs_attention: "Needs you",
+  new: "Queued", processing: "Processing", drafted: "Ready for review", needs_attention: "Action required",
   approved: "Approved", filed: "Filed",
 };
 const STATUS_BADGE: Record<string, string> = {
@@ -20,11 +20,11 @@ const STATUS_BADGE: Record<string, string> = {
   drafted: "good", needs_attention: "bad", approved: "good", filed: "quiet",
 };
 const FILTERS = [
-  { key: "all", label: "All" },
-  { key: "check", label: "To check" },
-  { key: "site", label: "Talked through" },
+  { key: "all", label: "All quotes" },
+  { key: "check", label: "Awaiting review" },
+  { key: "site", label: "Quick quotes" },
   { key: "rfq", label: "RFQs" },
-  { key: "open", label: "Not sent yet" },
+  { key: "open", label: "Not yet sent" },
 ] as const;
 
 export default async function QuotesPage({ searchParams }: { searchParams: Promise<{ show?: string; q?: string; sent?: string }> }) {
@@ -67,7 +67,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         <div>
           <h1>Quotes</h1>
           <p className="sub">
-            Every quote in one place: the ones you talk through and the RFQs.{" "}
+            All your quotes in one place: quick quotes and RFQs.{" "}
             {mailbox?.status === "ok" ? `Watching ${mailbox.account_email ?? "your inbox"} for new RFQs.` : <Link href="/setup" style={{ textDecoration: "underline" }}>Connect your inbox</Link>}
           </p>
         </div>
@@ -78,7 +78,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         )}
       </div>
 
-      {sent && <p className="card" style={{ background: "var(--good-bg)", borderColor: "transparent", color: "var(--good)", fontWeight: 600 }}>Got it. quoteout is reading the RFQ now; it appears below as &quot;Working on it&quot;, then &quot;Ready to check&quot;.</p>}
+      {sent && <p className="card" style={{ background: "var(--good-bg)", borderColor: "transparent", color: "var(--good)", fontWeight: 600 }}>RFQ received. It&apos;s being processed now and will show as &quot;Ready for review&quot; when the draft is done.</p>}
 
       <form className="row" style={{ gap: 8, justifyContent: "space-between" }}>
         <div className="row" style={{ gap: 6 }} role="tablist" aria-label="Show">
@@ -96,7 +96,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       {rows.length === 0 ? (
         <div className="card">
           <h2>{needle || show !== "all" ? "Nothing matches" : "No quotes yet"}</h2>
-          <p className="sub" style={{ marginTop: 0 }}>Tap New Quote to talk through a job, import an RFQ or paste an email.</p>
+          <p className="sub" style={{ marginTop: 0 }}>Use New Quote to start a quick quote, import an RFQ or paste an email.</p>
         </div>
       ) : (
         <div className="card" style={{ padding: 0, overflowX: "auto" }}>
