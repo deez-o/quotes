@@ -20,7 +20,7 @@ const configured = Boolean(url && anonKey && serviceKey);
 const TENANT_TABLES = [
   "tenant_modules", "connections", "customers", "jobs", "messages", "attachments",
   "catalogue_products", "rates", "rules", "examples", "workbook_templates",
-  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses", "cost_items", "supply_plants", "site_quotes",
+  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses", "cost_items", "supply_plants", "site_quotes", "quote_sends",
 ] as const;
 
 describe.skipIf(!configured)("tenant isolation", () => {

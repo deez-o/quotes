@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { AreaMap } from "./overview/area-map";
+import { SendQuoteDialog } from "./send";
 import type { DrawnArea } from "@/lib/rfq/overview";
 
 import { useMemo, useRef, useState } from "react";
@@ -55,6 +56,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const talkingTo = useRef<string>("fix");
   const [talkTarget, setTalkTarget] = useState("fix");
   const [mapOpen, setMapOpen] = useState(false);
+  const [sending, setSending] = useState(false);
   const talkTo = (t: string) => { talkingTo.current = t; setTalkTarget(t); };
   const dictation = useDictation((t) => {
     if (talkingTo.current.startsWith("q") && activeQ.current != null) {
@@ -112,6 +114,18 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
     setXeroNo(r.number);
     setMsg({ ok: true, text: `In Xero as draft quote ${r.number}. Open it in Xero to check and send.` });
     router.refresh();
+  }
+
+  async function openSend() {
+    setMsg(null);
+    if (dirty) {
+      setBusy("save");
+      const s = await saveSiteQuote({ id: quote.id, scope, marginPercent: margin, customer, customerEmail: email, address });
+      setBusy(null);
+      if (!s.ok) return setMsg({ ok: false, text: s.message });
+      setDirty(false);
+    }
+    setSending(true);
   }
 
   async function save(then?: "print" | "excel") {
@@ -481,6 +495,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
       {canEdit && (
         <div style={{ position: "sticky", bottom: 0, background: "var(--ground)", padding: "10px 0 14px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
           <button type="button" className="btn primary" disabled={busy !== null} onClick={() => save()}>{busy === "save" ? "Saving..." : dirty ? "Save changes" : "Saved"}</button>
+          <button type="button" className="btn dark" disabled={busy !== null} onClick={() => void openSend()}>Send to customer</button>
           <button type="button" className="btn" disabled={busy !== null} onClick={() => save("print")}>{busy === "print" ? "Opening..." : "PDF / print"}</button>
           <Link className="btn" href={`/site/${quote.id}/overview`} style={{ textAlign: "center" }}>Job overview</Link>
           {hasSheet && <button type="button" className="btn" disabled={busy !== null} onClick={() => save("excel")}>{busy === "excel" ? "Making..." : "Excel"}</button>}
@@ -494,6 +509,10 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         </div>
       )}
       </div>
+      {sending && (
+        <SendQuoteDialog quoteId={quote.id} onClose={() => setSending(false)}
+          onSent={(to) => { setSending(false); setMsg({ ok: true, text: `Quote sent to ${to.join(", ")}.` }); router.refresh(); }} />
+      )}
     </div>
   );
 }
