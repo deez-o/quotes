@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { limitsFor, periodNow } from "@/lib/plans";
+import { limitsFor, periodNow, QUOTE_KINDS } from "@/lib/plans";
 import { shareFlags, type DeviceRow } from "@/lib/devices";
 
 export type Company = {
@@ -42,7 +42,7 @@ export async function loadAdmin(db: SupabaseClient) {
 
   const companies = ((tenants.data ?? []) as Company[]).map((t) => {
     const lim = limitsFor(t);
-    const aiUsed = (usage.data ?? []).filter((u) => u.tenant_id === t.id && u.kind === "ai_quote").reduce((n, u) => n + Number(u.qty), 0);
+    const aiUsed = (usage.data ?? []).filter((u) => u.tenant_id === t.id && QUOTE_KINDS.includes(u.kind)).reduce((n, u) => n + Number(u.qty), 0);
     const aiCalls = (usage.data ?? []).filter((u) => u.tenant_id === t.id).reduce((n, u) => n + Number(u.qty), 0);
     const aiCost = (usage.data ?? []).filter((u) => u.tenant_id === t.id).reduce((n, u) => n + Number(u.cost_usd ?? 0), 0);
     const members = people.filter((p) => p.tenantId === t.id);

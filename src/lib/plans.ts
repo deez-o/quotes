@@ -55,3 +55,6 @@ export const PLAN_FEATURES: Record<"trial" | "site" | "pro" | "business", string
   pro: ["Everything in Site", "Email auto-quoter: forward RFQs to your own quoteout address", "150 AI quotes a month"],
   business: ["Everything in Pro", "Connect your Microsoft 365 or Gmail inbox", "500 AI quotes a month"],
 };
+
+/** AI uses that count as a quote against the allowance (changes and price lists don't). */
+export const QUOTE_KINDS = ["ai_quote", "ai_rfq"];

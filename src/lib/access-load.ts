@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { accessFor, type Access } from "@/lib/access";
-import { planFor } from "@/lib/plans";
+import { planFor, QUOTE_KINDS } from "@/lib/plans";
 
 export type BillingTenant = {
   id: string; name: string; plan: string | null; status: string; billing_status: string | null; trial_ends_at: string | null;
@@ -18,7 +18,7 @@ export const loadAccess = cache(async function loadAccess(tenantId: string): Pro
   const tenant = t as BillingTenant;
   let used = 0;
   if (planFor(tenant.plan).id === "trial") {
-    const { count } = await db.from("usage_events").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("kind", "ai_quote");
+    const { count } = await db.from("usage_events").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).in("kind", QUOTE_KINDS);
     used = count ?? 0;
   }
   return { tenant, access: accessFor(tenant, used), trialQuotesUsed: used };
