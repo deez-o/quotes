@@ -118,6 +118,11 @@ describe.skipIf(!configured)("tenant isolation", () => {
     expect(data ?? []).toHaveLength(0);
   });
 
+  it.each(["user_devices", "platform_admins"])("can never read the owner-only table %s", async (table) => {
+    const { data } = await asA.from(table).select("*");
+    expect(data ?? []).toHaveLength(0);
+  });
+
   it("can never read stored tokens, even its own tenant's", async () => {
     const { data } = await asA.from("connection_secrets").select("*");
     expect(data ?? []).toHaveLength(0);

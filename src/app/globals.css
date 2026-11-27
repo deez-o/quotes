@@ -80,7 +80,7 @@ table.list th { text-align: left; color: var(--muted); font-size: 12px; font-wei
 table.list td { padding: 14px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
 .scroll { overflow-x: auto; }
 
-input[type="email"], input[type="text"], textarea { font: inherit; border: 1px solid #b6bcc4; border-radius: 8px; padding: 12px; width: 100%; background: #fff; color: var(--ink); }
+input[type="email"], input[type="text"], input[type="password"], textarea { font: inherit; border: 1px solid #b6bcc4; border-radius: 8px; padding: 12px; width: 100%; background: #fff; color: var(--ink); }
 label { font-weight: 600; }
 .error { color: var(--accent-ink); font-weight: 600; }
 

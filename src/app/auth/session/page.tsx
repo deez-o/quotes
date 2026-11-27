@@ -16,6 +16,9 @@ export default function SessionPage() {
     const accessToken = params.get("access_token");
     const refreshToken = params.get("refresh_token");
     const errorText = params.get("error_description");
+    // Password resets and invites go straight to setting a password.
+    const kind = params.get("type");
+    const next = kind === "recovery" || kind === "invite" ? "/account?set=1" : "/quotes";
 
     // Remove tokens from the address bar straight away.
     window.history.replaceState(null, "", window.location.pathname);
@@ -34,7 +37,7 @@ export default function SessionPage() {
           setMessage("Sign-in failed.");
           window.location.replace(`/login?error=${encodeURIComponent(error.message)}`);
         } else {
-          window.location.replace("/quotes");
+          window.location.replace(next);
         }
       });
   }, []);

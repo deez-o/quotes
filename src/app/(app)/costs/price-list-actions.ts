@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
+import { counted } from "@/lib/usage";
 import { xaiStructured } from "@/lib/quote/provider";
 import { loadPricingContext } from "@/lib/site/load";
 import { PRICE_LIST_SCHEMA, matchToLibrary, pdfText, readPriceList, type PriceListRead } from "@/lib/site/price-list";
@@ -48,7 +49,7 @@ export async function readPriceListFile(input: { plantId: string; paths: string[
     const existingNames = [...new Set(pc.library.filter((c) => c.active && c.category === "material").map((c) => c.name))];
     const model = process.env.XAI_MODEL ?? "grok-4.3";
     const read = await readPriceList(
-      (messages) => xaiStructured({ apiKey: key, model, schema: PRICE_LIST_SCHEMA, messages }),
+      counted((messages: Parameters<typeof xaiStructured>[0]["messages"]) => xaiStructured({ apiKey: key, model, schema: PRICE_LIST_SCHEMA, messages }), ctx.tenant.id, ctx.userId, "ai_price_list"),
       { plantName: plant.name, text: texts.join("\n\n---\n\n") || null, imageUrls, existingNames },
     );
     if (!read.lines.length) return { ok: false, message: "Couldn't find any prices in that. Try a clearer photo, or type them in below." };
