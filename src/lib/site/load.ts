@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { estimateHaul, type CostItem, type Haul, type PricingSettings, type SiteScope, type SupplyPlant } from "./price";
+import { estimateHaul, type CostItem, type Haul, type HaulRoutes, type PricingSettings, type SiteScope, type SupplyPlant } from "./price";
 
 export const DEFAULT_PRICING: PricingSettings = {
   truck_load_minutes: 15, truck_unload_minutes: 10, shift_minutes: 480, road_factor: 1.3, average_speed_kmh: 60, gst_percent: 10,
@@ -8,7 +8,7 @@ export const DEFAULT_PRICING: PricingSettings = {
 /** Everything a site quote is priced from, for one tenant (RLS applies). */
 export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
   const [{ data: items }, { data: plants }, { data: s }] = await Promise.all([
-    db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active")
+    db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active, supply_plant_id")
       .eq("tenant_id", tenantId).order("name"),
     db.from("supply_plants").select("id, name, lat, lng").eq("tenant_id", tenantId).eq("active", true).order("name"),
     db.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms")
@@ -32,9 +32,11 @@ export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
   };
 }
 
-/** Haul for a scope: the user's override if set, else GPS site to the chosen plant. */
-export function haulFor(scope: SiteScope, site: { lat: number | null; lng: number | null }, plants: SupplyPlant[], settings: PricingSettings): Haul | null {
+/** Haul for a scope: the user's override if set, else the road route to the chosen plant, else a straight-line estimate. */
+export function haulFor(scope: SiteScope, site: { lat: number | null; lng: number | null }, plants: SupplyPlant[], settings: PricingSettings, routes?: HaulRoutes | null): Haul | null {
   if (scope.haul_override) return { ...scope.haul_override, source: "entered" };
+  const route = scope.supply_plant_id ? routes?.[scope.supply_plant_id] : undefined;
+  if (route) return { km: route.km, minutes: route.minutes, source: "road" };
   const plant = plants.find((p) => p.id === scope.supply_plant_id);
   if (!plant || site.lat == null || site.lng == null) return null;
   return estimateHaul({ lat: site.lat, lng: site.lng }, plant, settings);

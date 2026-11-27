@@ -2,15 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { money, priceSiteQuote, type CostItem, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
+import { alignToPlant, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
 import { haulFor } from "@/lib/site/load";
-import { correctSiteScope, saveSiteQuote } from "../actions";
+import { correctSiteScope, locateSite, saveSiteQuote } from "../actions";
+import { PlaceSearch } from "../../place-search";
 import { useDictation } from "../dictation";
 
 export type QuoteView = {
   id: string; quote_no: string | null; status: "draft" | "sent" | "won" | "lost";
   customer_name: string | null; customer_email: string | null; site_address: string | null;
-  site_lat: number | null; site_lng: number | null; transcript: string | null; photoUrls: string[];
+  site_lat: number | null; site_lng: number | null; haul_routes: HaulRoutes | null; transcript: string | null; photoUrls: string[];
   scope: SiteScope; margin_percent: number;
 };
 
@@ -35,17 +36,36 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<null | "save" | "fix" | "print">(null);
   const [dirty, setDirty] = useState(false);
+  const [site, setSite] = useState({ lat: quote.site_lat, lng: quote.site_lng });
+  const [routes, setRoutes] = useState<HaulRoutes | null>(quote.haul_routes);
+  const [locating, setLocating] = useState(false);
   const dictation = useDictation((t) => setCorrection((c) => (c ? `${c} ${t}` : t)));
 
   const active = library.filter((c) => c.active);
-  const haul = useMemo(() => haulFor(scope, { lat: quote.site_lat, lng: quote.site_lng }, plants, settings), [scope, quote.site_lat, quote.site_lng, plants, settings]);
+  const haul = useMemo(() => haulFor(scope, site, plants, settings, routes), [scope, site, plants, settings, routes]);
+  const plantName = (id: string | null | undefined) => plants.find((p) => p.id === id)?.name;
+
+  async function placeSite(lat: number, lng: number, addr: string | null) {
+    setLocating(true);
+    setMsg(null);
+    const r = await locateSite({ id: quote.id, lat, lng, address: addr });
+    setLocating(false);
+    if (!r.ok) return setMsg({ ok: false, text: r.message });
+    setSite({ lat, lng });
+    setRoutes(r.routes);
+    if (addr) setAddress(addr);
+    update({ ...scope, haul_override: null });
+    setMsg({ ok: true, text: r.routes ? "Site located. Road distances worked out." : "Site located. Couldn't get road distances, so they're estimated." });
+  }
   const priced = useMemo(() => priceSiteQuote({ scope, library, settings, haul, marginPercent: margin }), [scope, library, settings, haul, margin]);
 
   const update = (s: SiteScope) => { setScope(s); setDirty(true); };
   const setItem = (key: string, patch: Partial<ScopeItem>) => update({ ...scope, items: scope.items.map((i) => (i.key === key ? { ...i, ...patch } : i)) });
   const setLine = (group: "crew" | "plant", key: string, patch: Partial<LabourLine>) => update({ ...scope, [group]: scope[group].map((l) => (l.key === key ? { ...l, ...patch } : l)) });
+  // Mixes from the chosen plant (and general costs) first, then other plants' mixes.
+  const plantOrder = (c: CostItem) => (!c.supply_plant_id || c.supply_plant_id === scope.supply_plant_id ? 0 : 1);
   const optionsFor = (kind: ScopeItem["kind"]) =>
-    active.filter((c) => (["asphalt", "base", "prime", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck"));
+    active.toSorted((a, b) => plantOrder(a) - plantOrder(b)).filter((c) => (["asphalt", "base", "prime", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck"));
 
   async function save(then?: "print") {
     setBusy(then ?? "save");
@@ -120,7 +140,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 <label style={{ ...small, gridColumn: "span 2" }}>From your costs
                   <select style={sel} value={i.cost_item_id ?? ""} onChange={(e) => setItem(i.key, { cost_item_id: e.target.value || null })}>
                     <option value="">Choose...</option>
-                    {optionsFor(i.kind).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {optionsFor(i.kind).map((c) => <option key={c.id} value={c.id}>{c.name}{c.supply_plant_id ? ` · ${plantName(c.supply_plant_id) ?? "other plant"}` : ""}</option>)}
                   </select>
                 </label>
                 {byArea && (
@@ -174,9 +194,9 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <h2 style={{ margin: 0 }}>Cartage</h2>
           <label style={small}>Mix comes from
-            <select style={sel} value={scope.supply_plant_id ?? ""} onChange={(e) => update({ ...scope, supply_plant_id: e.target.value || null, haul_override: null })}>
+            <select style={sel} value={scope.supply_plant_id ?? ""} onChange={(e) => update({ ...alignToPlant(scope, library, e.target.value || null), haul_override: null })}>
               <option value="">Choose a plant...</option>
-              {plants.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {plants.map((p) => <option key={p.id} value={p.id}>{p.name}{routes?.[p.id] ? ` (${routes[p.id].km} km)` : ""}</option>)}
             </select>
           </label>
           <div className="row" style={{ gap: 8, alignItems: "end" }}>
@@ -187,8 +207,18 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
               <input type="text" inputMode="decimal" value={haul?.minutes ?? ""} onChange={(e) => update({ ...scope, haul_override: { km: haul?.km ?? 0, minutes: toNum(e.target.value) ?? 0 } })} />
             </label>
             <span className="sub" style={{ marginTop: 0, fontSize: 12, flex: "2 1 160px" }}>
-              {haul ? (haul.source === "gps" ? "Estimated from your GPS location. Change it if you know better." : "Entered by you.") : "Pick a plant (and use GPS on site) or enter the distance."}
+              {haul
+                ? haul.source === "road" ? `Road distance from the site to ${plantName(scope.supply_plant_id) ?? "the plant"}; time allows for a loaded truck.`
+                : haul.source === "gps" ? "Straight-line estimate. Find the site below for the real road distance, or type your own."
+                : "Entered by you."
+                : "Pick a plant and find the site, or enter the distance."}
             </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={small}>{site.lat == null ? "Where is the job? (no GPS was taken)" : "Job location"}</span>
+            {site.lat != null && <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>{address || `${site.lat.toFixed(4)}, ${site.lng?.toFixed(4)}`}{locating ? " · working out distances..." : ""}</span>}
+            <PlaceSearch label="Find the job site" placeholder="Street and suburb, or a business name" near={site.lat != null && site.lng != null ? { lat: site.lat, lng: site.lng } : null}
+              onPick={(p) => void placeSite(p.lat, p.lng, p.address || p.name)} />
           </div>
         </section>
       </fieldset>

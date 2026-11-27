@@ -73,6 +73,16 @@ insert into public.supply_plants (tenant_id, name, address, lat, lng) values
   ('00000000-0000-4000-8000-000000000001', 'Brendale quarry', 'Brendale QLD (demo)', -27.3240, 152.9830)
 on conflict do nothing;
 
+-- Asphalt mixes are priced per plant (made-up demo figures)
+update public.cost_items set supply_plant_id = (select id from public.supply_plants where tenant_id = '00000000-0000-4000-8000-000000000001' and name = 'Narangba plant')
+where tenant_id = '00000000-0000-4000-8000-000000000001' and material_kind = 'asphalt' and supply_plant_id is null
+  and not exists (select 1 from public.cost_items x where x.tenant_id = '00000000-0000-4000-8000-000000000001' and x.supply_plant_id is not null);
+insert into public.cost_items (tenant_id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, supply_plant_id)
+select '00000000-0000-4000-8000-000000000001', 'material', 'asphalt', m.name, 't', m.rate, 2.4, false, p.id
+from public.supply_plants p, (values ('AC10 asphalt', 156), ('AC14 asphalt', 145)) as m(name, rate)
+where p.tenant_id = '00000000-0000-4000-8000-000000000001' and p.name = 'Brendale quarry'
+on conflict do nothing;
+
 update public.tenant_settings set margin_percent = coalesce(margin_percent, 15),
   quote_terms = coalesce(quote_terms, 'Valid for 30 days. Price assumes clear access during normal working hours. Traffic management, line marking and kerbing excluded unless listed.')
 where tenant_id = '00000000-0000-4000-8000-000000000001';

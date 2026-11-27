@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
+import { searchPlaces } from "@/lib/maps";
 
 const CATEGORIES = ["crew", "material", "plant", "truck", "other"] as const;
 const KINDS = ["asphalt", "base", "prime", "seal", "other"] as const;
@@ -33,6 +34,8 @@ export async function saveCostItem(formData: FormData) {
   const rate = num(formData.get("rate"));
   const density = num(formData.get("density_t_per_m3"));
   const capacity = num(formData.get("truck_capacity_t"));
+  const plantRaw = String(formData.get("supply_plant_id") ?? "");
+  const supply_plant_id = category === "material" && /^[0-9a-f-]{36}$/i.test(plantRaw) ? plantRaw : null;
 
   if (!name) back("Give the cost a name.");
   if (!CATEGORIES.includes(category as (typeof CATEGORIES)[number])) back("Pick a type.");
@@ -49,12 +52,12 @@ export async function saveCostItem(formData: FormData) {
   const row = {
     tenant_id: ctx.tenant.id, name, category, unit, rate, material_kind,
     density_t_per_m3: density, includes_delivery: formData.get("includes_delivery") === "on",
-    truck_capacity_t: category === "truck" ? capacity ?? 12 : null, active: true, updated_at: new Date().toISOString(),
+    truck_capacity_t: category === "truck" ? capacity ?? 12 : null, supply_plant_id, active: true, updated_at: new Date().toISOString(),
   };
   const { error } = id
     ? await supabase.from("cost_items").update(row).eq("id", id).eq("tenant_id", ctx.tenant.id)
     : await supabase.from("cost_items").insert(row);
-  if (error) back(error.message.includes("duplicate") ? `You already have a cost called ${name}.` : error.message);
+  if (error) back(error.message.includes("duplicate") ? `You already have a cost called ${name}${supply_plant_id ? " at this plant" : ""}.` : error.message);
   revalidatePath("/costs");
   back(`Saved ${name}.`, true);
 }
@@ -68,14 +71,11 @@ export async function archiveCostItem(formData: FormData) {
   back("Removed. Old quotes keep their prices.", true);
 }
 
-/** Address -> coordinates via OpenStreetMap (light use, on save only). */
-async function geocode(address: string): Promise<{ lat: number; lng: number } | null> {
+/** Address -> coordinates (Google if the maps key is set, else OpenStreetMap). */
+async function geocode(address: string): Promise<{ lat: number; lng: number; source: "google" | "osm" } | null> {
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=au&q=${encodeURIComponent(address)}`;
-    const res = await fetch(url, { headers: { "User-Agent": "QUOTES estimating app (plant locations)" }, cache: "no-store" });
-    if (!res.ok) return null;
-    const hits = (await res.json()) as { lat: string; lon: string }[];
-    return hits[0] ? { lat: Number(hits[0].lat), lng: Number(hits[0].lon) } : null;
+    const [hit] = await searchPlaces(address, { apiKey: process.env.GOOGLE_MAPS_API_KEY || null });
+    return hit ? { lat: hit.lat, lng: hit.lng, source: hit.source } : null;
   } catch {
     return null;
   }
@@ -90,12 +90,14 @@ export async function savePlant(formData: FormData) {
   let lng = num(formData.get("lng"));
   if (!name) back("Give the plant a name.");
   if (Number.isNaN(lat) || Number.isNaN(lng)) back("Latitude and longitude must be numbers.");
+  const src = String(formData.get("place_source") ?? "");
+  let place_source: string | null = ["google", "osm", "entered"].includes(src) ? src : lat != null && lng != null ? "entered" : null;
   if ((lat == null || lng == null) && address) {
     const hit = await geocode(address);
-    if (hit) ({ lat, lng } = hit);
+    if (hit) ({ lat, lng, source: place_source } = hit);
   }
   const supabase = await createClient();
-  const row = { tenant_id: ctx.tenant.id, name, address, lat, lng, active: true };
+  const row = { tenant_id: ctx.tenant.id, name, address, lat, lng, place_source, active: true };
   const { error } = id
     ? await supabase.from("supply_plants").update(row).eq("id", id).eq("tenant_id", ctx.tenant.id)
     : await supabase.from("supply_plants").insert(row);

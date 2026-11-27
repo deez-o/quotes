@@ -4,7 +4,7 @@
  * library by id. It never prices anything: price.ts does the maths.
  */
 import type { ChatMessage, ChatPart, ProviderResult } from "@/lib/quote/provider";
-import type { CostItem, SiteScope, SupplyPlant } from "./price";
+import { alignToPlant, type CostItem, type SiteScope, type SupplyPlant } from "./price";
 
 export const SITE_PROMPT_VERSION = "site-v1";
 
@@ -53,8 +53,9 @@ export const SITE_SCOPE_SCHEMA = {
 
 export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], plants: SupplyPlant[]): string {
   const active = library.filter((c) => c.active);
+  const plantName = new Map(plants.map((p) => [p.id, p.name]));
   const libLines = active.map((c) =>
-    `${c.id} | ${c.category}${c.material_kind ? `/${c.material_kind}` : ""} | ${c.name} | per ${c.unit}${c.density_t_per_m3 ? ` | ${c.density_t_per_m3} t/m3` : ""}${c.includes_delivery ? " | delivered by supplier" : ""}`,
+    `${c.id} | ${c.category}${c.material_kind ? `/${c.material_kind}` : ""} | ${c.name} | per ${c.unit}${c.density_t_per_m3 ? ` | ${c.density_t_per_m3} t/m3` : ""}${c.includes_delivery ? " | delivered by supplier" : ""}${c.supply_plant_id ? ` | from ${plantName.get(c.supply_plant_id) ?? "a plant"} only` : ""}`,
   );
   const plantLines = plants.map((p) => `${p.id} | ${p.name}`);
   return [
@@ -68,6 +69,7 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `4. Crew lines: amount is shifts (or days or hours, per the cost item's unit). Plant lines: amount in the cost item's unit, usually hours.`,
     `5. Prime under new asphalt on a new base is normal practice: add it and say so in assumptions if it wasn't mentioned.`,
     `6. supply_plant_id: the plant the mix comes from, if said; else the only plant if there is one; else null and ask.`,
+    `6a. Mixes marked "from <plant> only" are that plant's prices: use the mix from the chosen supply plant. If the plant isn't known yet, pick the mix from the plant that is named or nearest the site, and ask.`,
     `7. truck_cost_item_id: the truck item from the library if any material must be carted (not delivered by the supplier).`,
     `8. Use short, clear descriptions a customer would understand ("Supply and lay AC10, 40 mm").`,
     `9. Every assumption you make goes in assumptions. Anything you need to know goes in questions, briefly.`,
@@ -133,14 +135,18 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
 
   const plantOk = raw.supply_plant_id && plants.some((p) => p.id === raw.supply_plant_id) ? raw.supply_plant_id : null;
   const truckOk = raw.truck_cost_item_id && ids.has(raw.truck_cost_item_id) ? raw.truck_cost_item_id : null;
+  // No plant chosen but the mixes all come from one plant: that's the plant.
+  const mixPlants = new Set(items.map((i) => library.find((c) => c.id === i.cost_item_id)?.supply_plant_id).filter((x): x is string => !!x && plants.some((p) => p.id === x)));
+  const plantId = plantOk ?? (mixPlants.size === 1 ? [...mixPlants][0] : null);
+  const aligned = alignToPlant({ ...raw, items }, library, plantId).items;
 
   return {
     scope: {
       ...raw,
-      items,
+      items: aligned,
       crew: lines(raw.crew, "c"),
       plant: lines(raw.plant, "p"),
-      supply_plant_id: plantOk,
+      supply_plant_id: plantId,
       truck_cost_item_id: truckOk,
       questions: [...raw.questions, ...fixes.map((f) => `${f} Pick the right one.`)],
     },

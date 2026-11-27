@@ -67,6 +67,23 @@ To also give each customer a forwarding address (e.g. `demo-asphalt@in.<your-dom
 
 Any inbound email service that can POST the raw message works the same way (SendGrid Inbound Parse with "raw", Mailgun, Postmark).
 
+## Maps: plant search and road distance
+
+Plants are found by name ("Downer Brendale") and the road distance from each plant to the job is worked
+out when a site quote is made or the site is found on the map. Drive times are scaled by 1.15 for loaded trucks.
+
+- With `GOOGLE_MAPS_API_KEY` set (server only): Google Places API (New) "Text Search" and the Routes API.
+  In Google Cloud, enable both APIs, create an API key, restrict it to those two APIs, and set a billing budget alert.
+- Without it: OpenStreetMap (Nominatim search, OSRM routing). Fine for a pilot; business names are hit and miss.
+- If routing fails, the straight-line estimate (× road factor) is used, and the user can always type their own km and minutes.
+
+## Plant price lists
+
+Each plant has its own mix prices (Costs screen). Upload the plant's price list as a PDF, photo or phone
+screenshot: the AI copies the printed prices into a table, the admin ticks and corrects the rows, then imports.
+Nothing is saved before that. Scanned PDFs with no text need a photo or screenshot instead. Prices can always
+be typed in by hand.
+
 ## Tests
 
 The tenant isolation test proves one customer can never see or change another's data. It needs a **separate test Supabase project** with the same migration applied:

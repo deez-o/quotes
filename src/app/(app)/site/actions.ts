@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { SITE_SCOPE_SCHEMA, cleanScope, scopeFromTalk } from "@/lib/site/scope-ai";
 import { xaiStructured } from "@/lib/quote/provider";
 import { emptyScope, haulFor, loadPricingContext } from "@/lib/site/load";
-import { priceSiteQuote, type SiteScope } from "@/lib/site/price";
+import { routesToPlants } from "@/lib/site/routes";
+import { priceSiteQuote, type HaulRoutes, type SiteScope } from "@/lib/site/price";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type ActionResult = { ok: true; id: string } | { ok: false; message: string };
@@ -71,10 +72,11 @@ export async function buildSiteQuote(input: {
     const { data: quoteNo, error: qErr } = await db.rpc("take_quote_number", { t: ctx.tenant.id });
     if (qErr) return { ok: false, message: `Couldn't get a quote number: ${qErr.message}` };
 
-    const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, input, pc.plants, pc.settings), marginPercent: pc.defaultMargin });
+    const routes = await routesToPlants(input, pc.plants);
+    const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, input, pc.plants, pc.settings, routes), marginPercent: pc.defaultMargin });
     const { data, error } = await db.from("site_quotes").insert({
       tenant_id: ctx.tenant.id, quote_no: quoteNo, title: scope.title, customer_name: input.customer || null,
-      site_address: input.address || null, site_lat: input.lat, site_lng: input.lng, transcript, photos,
+      site_address: input.address || null, site_lat: input.lat, site_lng: input.lng, haul_routes: routes, transcript, photos,
       scope, costing: priced, margin_percent: pc.defaultMargin, total_ex_gst: priced.priceExGst, created_by: ctx.userId,
     }).select("id").single();
     if (error || !data) return { ok: false, message: `Couldn't save: ${error?.message}` };
@@ -112,7 +114,7 @@ export async function saveSiteQuote(input: {
   try {
     const ctx = await writer();
     const db = await createClient();
-    const { data: q } = await db.from("site_quotes").select("id, site_lat, site_lng").eq("id", input.id).eq("tenant_id", ctx.tenant.id).maybeSingle();
+    const { data: q } = await db.from("site_quotes").select("id, site_lat, site_lng, haul_routes").eq("id", input.id).eq("tenant_id", ctx.tenant.id).maybeSingle();
     if (!q) return { ok: false, message: "Quote not found." };
     const pc = await loadPricingContext(db, ctx.tenant.id);
     const { scope } = cleanScope(input.scope, pc.library, pc.plants);
@@ -120,7 +122,7 @@ export async function saveSiteQuote(input: {
     const ho = input.scope.haul_override;
     scope.haul_override = ho && Number.isFinite(ho.km) && Number.isFinite(ho.minutes) && ho.km >= 0 && ho.minutes >= 0 ? ho : null;
     const margin = Math.min(90, Math.max(0, Number(input.marginPercent) || 0));
-    const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, { lat: q.site_lat, lng: q.site_lng }, pc.plants, pc.settings), marginPercent: margin });
+    const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, { lat: q.site_lat, lng: q.site_lng }, pc.plants, pc.settings, q.haul_routes as HaulRoutes | null), marginPercent: margin });
     const { error } = await db.from("site_quotes").update({
       scope, costing: priced, margin_percent: margin, total_ex_gst: priced.priceExGst, title: scope.title,
       customer_name: input.customer.slice(0, 200) || null, customer_email: input.customerEmail.slice(0, 200) || null,
@@ -130,6 +132,31 @@ export async function saveSiteQuote(input: {
     revalidatePath(`/site/${input.id}`);
     revalidatePath("/site");
     return { ok: true, id: input.id };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Something went wrong." };
+  }
+}
+
+/**
+ * Set (or change) where the job is, from a map search or the phone's GPS, and work out the
+ * road distance to every plant. Returns the routes so the editor can re-price straight away.
+ */
+export async function locateSite(input: { id: string; lat: number; lng: number; address?: string | null }): Promise<{ ok: true; routes: HaulRoutes | null } | { ok: false; message: string }> {
+  try {
+    const ctx = await writer();
+    if (!UUID.test(input.id)) return { ok: false, message: "Quote not found." };
+    const lat = Number(input.lat), lng = Number(input.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return { ok: false, message: "That location isn't valid." };
+    const db = await createClient();
+    const pc = await loadPricingContext(db, ctx.tenant.id);
+    const routes = await routesToPlants({ lat, lng }, pc.plants);
+    const { error } = await db.from("site_quotes").update({
+      site_lat: lat, site_lng: lng, haul_routes: routes,
+      ...(input.address ? { site_address: String(input.address).slice(0, 300) } : {}), updated_at: new Date().toISOString(),
+    }).eq("id", input.id).eq("tenant_id", ctx.tenant.id);
+    if (error) return { ok: false, message: error.message };
+    revalidatePath(`/site/${input.id}`);
+    return { ok: true, routes };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Something went wrong." };
   }

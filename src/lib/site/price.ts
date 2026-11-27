@@ -17,6 +17,8 @@ export type CostItem = {
   includes_delivery: boolean;
   truck_capacity_t: number | null;
   active: boolean;
+  /** Set for a mix priced at one supply plant; null for general costs. */
+  supply_plant_id?: string | null;
 };
 
 export type SupplyPlant = { id: string; name: string; lat: number | null; lng: number | null };
@@ -51,6 +53,10 @@ export type SiteScope = {
   haul_override?: { km: number; minutes: number } | null;
 };
 
+/** Road distance and truck time from the site to one plant, worked out when the site was located. */
+export type RouteHaul = { km: number; minutes: number; source: "google" | "osm" };
+export type HaulRoutes = Record<string, RouteHaul>;
+
 export type PricingSettings = {
   truck_load_minutes: number;
   truck_unload_minutes: number;
@@ -60,7 +66,7 @@ export type PricingSettings = {
   gst_percent: number;
 };
 
-export type Haul = { km: number; minutes: number; source: "gps" | "entered" };
+export type Haul = { km: number; minutes: number; source: "gps" | "entered" | "road" };
 
 export type CostLine = {
   key: string;
@@ -107,6 +113,23 @@ export function estimateHaul(site: { lat: number; lng: number }, plant: SupplyPl
   return { km: Math.round(km * 10) / 10, minutes: Math.round((km / s.average_speed_kmh) * 60), source: "gps" };
 }
 
+/**
+ * When the supply plant changes, swap each mix for the same-named mix at the new plant
+ * (each plant has its own prices). Items with no match stay put and get flagged when priced.
+ */
+export function alignToPlant(scope: SiteScope, library: CostItem[], plantId: string | null): SiteScope {
+  if (!plantId) return { ...scope, supply_plant_id: null };
+  const byId = new Map(library.map((c) => [c.id, c]));
+  const atPlant = library.filter((c) => c.active && c.supply_plant_id === plantId);
+  const items = scope.items.map((i) => {
+    const ci = i.cost_item_id ? byId.get(i.cost_item_id) : undefined;
+    if (!ci?.supply_plant_id || ci.supply_plant_id === plantId) return i;
+    const twin = atPlant.find((c) => c.name.trim().toLowerCase() === ci.name.trim().toLowerCase());
+    return twin ? { ...i, cost_item_id: twin.id } : i;
+  });
+  return { ...scope, items, supply_plant_id: plantId };
+}
+
 /** Tonnes of material for an area at a depth. */
 export function tonnesFor(areaM2: number, depthMm: number, density: number): number {
   return Math.round(areaM2 * (depthMm / 1000) * density * 10) / 10;
@@ -139,6 +162,9 @@ export function priceSiteQuote(input: {
       warnings.push(`"${item.description}" has no matching cost in your library, so it isn't priced.`);
       direct.set(item.key, 0);
       continue;
+    }
+    if (ci.supply_plant_id && scope.supply_plant_id && ci.supply_plant_id !== scope.supply_plant_id) {
+      warnings.push(`${ci.name} is priced at a different plant from the one chosen for this job.`);
     }
     let qty = 0;
     let working = "";
