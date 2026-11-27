@@ -4,14 +4,14 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { alignToPlant, choosePlant, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
 import { haulFor } from "@/lib/site/load";
-import { correctSiteScope, locateSite, saveSiteQuote } from "../actions";
+import { correctSiteScope, locateSite, saveSiteQuote, sendToXero } from "../actions";
 import { PlaceSearch } from "../../place-search";
 import { useDictation } from "../dictation";
 
 export type QuoteView = {
   id: string; quote_no: string | null; status: "draft" | "sent" | "won" | "lost";
   customer_name: string | null; customer_email: string | null; site_address: string | null;
-  site_lat: number | null; site_lng: number | null; haul_routes: HaulRoutes | null; transcript: string | null; photoUrls: string[];
+  site_lat: number | null; site_lng: number | null; haul_routes: HaulRoutes | null; xero_quote_number: string | null; transcript: string | null; photoUrls: string[];
   scope: SiteScope; margin_percent: number;
 };
 
@@ -23,8 +23,8 @@ const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8
 let keySeq = 0;
 const newKey = (p: string) => `${p}${Date.now().toString(36)}${keySeq++}`;
 
-export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit }: {
-  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean;
+export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero }: {
+  quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean;
 }) {
   const router = useRouter();
   const [scope, setScope] = useState<SiteScope>(quote.scope);
@@ -34,7 +34,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const [address, setAddress] = useState(quote.site_address ?? "");
   const [correction, setCorrection] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState<null | "save" | "fix" | "print">(null);
+  const [busy, setBusy] = useState<null | "save" | "fix" | "print" | "xero">(null);
   const [dirty, setDirty] = useState(false);
   const [site, setSite] = useState({ lat: quote.site_lat, lng: quote.site_lng });
   const [routes, setRoutes] = useState<HaulRoutes | null>(quote.haul_routes);
@@ -84,6 +84,23 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const plantOrder = (c: CostItem) => (!c.supply_plant_id || c.supply_plant_id === scope.supply_plant_id ? 0 : 1);
   const optionsFor = (kind: ScopeItem["kind"]) =>
     active.toSorted((a, b) => plantOrder(a) - plantOrder(b)).filter((c) => (["asphalt", "base", "prime", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck" && c.category !== "float"));
+
+  const [xeroNo, setXeroNo] = useState<string | null>(quote.xero_quote_number);
+  async function toXero() {
+    setBusy("xero");
+    setMsg(null);
+    if (dirty) {
+      const s = await saveSiteQuote({ id: quote.id, scope, marginPercent: margin, customer, customerEmail: email, address });
+      if (!s.ok) { setBusy(null); return setMsg({ ok: false, text: s.message }); }
+      setDirty(false);
+    }
+    const r = await sendToXero({ id: quote.id, origin: window.location.origin });
+    setBusy(null);
+    if (!r.ok) return setMsg({ ok: false, text: r.message });
+    setXeroNo(r.number);
+    setMsg({ ok: true, text: `In Xero as draft quote ${r.number}. Open it in Xero to check and send.` });
+    router.refresh();
+  }
 
   async function save(then?: "print") {
     setBusy(then ?? "save");
@@ -395,7 +412,13 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         <div style={{ position: "sticky", bottom: 0, background: "var(--ground)", padding: "10px 0 14px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
           <button type="button" className="btn primary" disabled={busy !== null} onClick={() => save()}>{busy === "save" ? "Saving..." : dirty ? "Save changes" : "Saved"}</button>
           <button type="button" className="btn" disabled={busy !== null} onClick={() => save("print")}>{busy === "print" ? "Opening..." : "PDF / print"}</button>
-          <button type="button" className="btn" disabled title="Xero connection comes next">Send to Xero (soon)</button>
+          {hasXero ? (
+            <button type="button" className="btn" disabled={busy !== null} onClick={() => void toXero()}>
+              {busy === "xero" ? "Sending to Xero..." : xeroNo ? `Update Xero ${xeroNo}` : "Send to Xero"}
+            </button>
+          ) : (
+            <a className="btn" href="/setup#xero" style={{ textAlign: "center" }}>Connect Xero</a>
+          )}
         </div>
       )}
       </div>

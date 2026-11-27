@@ -12,7 +12,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
   const ctx = await requireTenant();
   const db = await createClient();
   const { data: q } = await db.from("site_quotes")
-    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title")
+    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number")
     .eq("id", id).eq("tenant_id", ctx.tenant.id).maybeSingle();
   if (!q) notFound();
 
@@ -34,8 +34,10 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
   const view: QuoteView = {
     id: q.id, quote_no: q.quote_no, status: q.status, customer_name: q.customer_name, customer_email: q.customer_email,
     site_address: q.site_address, site_lat: q.site_lat, site_lng: q.site_lng, haul_routes: routes, transcript: q.transcript, photoUrls,
-    scope, margin_percent: Number(q.margin_percent),
+    scope, margin_percent: Number(q.margin_percent), xero_quote_number: q.xero_quote_number ?? null,
   };
+
+  const { data: xero } = await db.from("connections").select("id").eq("tenant_id", ctx.tenant.id).eq("provider", "xero").eq("status", "ok").limit(1).maybeSingle();
 
   return (
     <div className="page" style={{ maxWidth: 1280 }}>
@@ -44,7 +46,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
         <span className="sub" style={{ marginTop: 0, fontWeight: 600 }}>{q.quote_no} · {q.status}</span>
       </div>
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
-        hasAi={Boolean(process.env.XAI_API_KEY)} canEdit={ctx.role !== "viewer"} />
+        hasAi={Boolean(process.env.XAI_API_KEY)} canEdit={ctx.role !== "viewer"} hasXero={!!xero} />
     </div>
   );
 }

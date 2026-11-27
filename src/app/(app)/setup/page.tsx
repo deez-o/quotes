@@ -33,7 +33,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     .eq("tenant_id", t)
     .maybeSingle();
 
-  const [mailboxes, workbooks, costItems, plants, activeRules, proposedRules, examples] = await Promise.all([
+  const [mailboxes, workbooks, costItems, plants, activeRules, proposedRules, examples, xero] = await Promise.all([
     count("connections", (q) => q.eq("purpose", "mailbox").eq("status", "ok")),
     count("workbook_templates"),
     count("cost_items", (q) => q.eq("active", true)),
@@ -41,6 +41,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
     count("rules", (q) => q.eq("status", "active")),
     count("rules", (q) => q.eq("status", "proposed")),
     count("examples"),
+    count("connections", (q) => q.eq("provider", "xero").eq("status", "ok")),
   ]);
 
   const { data: settings } = await settingsPromise;
@@ -65,6 +66,13 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       detail: activeRules ? `${activeRules} of your own rules in use${proposedRules ? ` · ${proposedRules} suggested` : ""}` : "Optional. quoteout already knows how to quote; add how you do things differently.",
       done: activeRules > 0,
       action: { label: activeRules ? "Edit rules" : "Add a rule", href: "/teach" },
+    },
+    {
+      title: "Connect Xero",
+      detail: xero ? "Connected. Quotes go to Xero as drafts with Send to Xero." : "Send quotes to Xero as drafts, ready to check and send from there. Or use PDF.",
+      done: xero > 0,
+      optional: true,
+      action: { label: xero ? "Reconnect" : "Connect Xero", href: "/api/connect/xero", external: true },
     },
     {
       title: "Connect your email",
@@ -116,7 +124,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
 
       <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 12 }}>
         {steps.map((s, i) => (
-          <li key={s.title} className={`card row${i === nextIndex ? " focus" : ""}`} style={{ padding: "16px 20px" }}>
+          <li key={s.title} id={s.title === "Connect Xero" ? "xero" : undefined} className={`card row${i === nextIndex ? " focus" : ""}`} style={{ padding: "16px 20px" }}>
             <span
               aria-hidden="true"
               style={{
@@ -135,7 +143,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
             {s.done ? (
               <span className="row" style={{ gap: 8 }}>
                 <span className="badge good">Done</span>
-                {s.action?.href && !s.action.external && <Link className="btn" href={s.action.href}>{s.action.label}</Link>}
+                {s.action?.href && (s.action.external ? <a className="btn" href={s.action.href}>{s.action.label}</a> : <Link className="btn" href={s.action.href}>{s.action.label}</Link>)}
               </span>
             ) : s.action?.href && s.action.external ? (
               <a className="btn primary" href={s.action.href}>{s.action.label}</a>
