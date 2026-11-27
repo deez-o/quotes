@@ -47,6 +47,8 @@ export type SiteScope = {
   truck_cost_item_id: string | null;
   assumptions: string[];
   questions: string[];
+  /** Set by the user when the GPS estimate is wrong (one-way). */
+  haul_override?: { km: number; minutes: number } | null;
 };
 
 export type PricingSettings = {
