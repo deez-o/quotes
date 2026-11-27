@@ -36,6 +36,17 @@ export async function proxy(request: NextRequest) {
   const signedIn = Boolean(data?.claims?.sub);
   const isPublic = PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
 
+  // Already signed in: no need to sign up or sign in again.
+  const path = request.nextUrl.pathname;
+  if (signedIn && (path === "/signup" || path === "/login") && !request.nextUrl.searchParams.has("m")) {
+    const to = request.nextUrl.clone();
+    to.pathname = path === "/signup" ? "/billing" : "/quotes";
+    to.search = "";
+    const out = NextResponse.redirect(to);
+    response.cookies.getAll().forEach((c) => out.cookies.set(c));
+    return out;
+  }
+
   if (!signedIn && !isPublic) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
