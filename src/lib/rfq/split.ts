@@ -1,7 +1,9 @@
 /** Shared by the worker and the quote page. */
 export type RfqSummary = {
   from: string; subject: string; received: string | null;
-  files: { name: string; path: string; read: "text" | "image" | "no"; note: string | null }[];
+  files: { name: string; path: string; read: "text" | "image" | "no"; note: string | null;
+    /** Drawing pages drawn as pictures when the RFQ was read (storage paths), by page number. */
+    pages?: { page: number; path: string }[] }[];
   followUps: number;
   /** Set when the RFQ was forwarded: who forwarded it (summary.from is the original sender). */
   forwardedBy?: string | null;

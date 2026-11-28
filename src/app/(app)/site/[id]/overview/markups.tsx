@@ -82,6 +82,16 @@ async function drawPage(url: string, page: number, px: number): Promise<Rendered
   return { src, w: W, h: H, find, pages: doc.numPages };
 }
 
+/** A ready-made page picture, with no words to pin to (notes use their boxes). */
+function loadImage(src: string): Promise<Rendered> {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve({ src, w: im.naturalWidth, h: im.naturalHeight, find: () => null });
+    im.onerror = () => reject(new Error("image"));
+    im.src = src;
+  });
+}
+
 /** Puts each note's label near what it points at, without labels covering each other. */
 function layout(notes: Note[], W: number, H: number, fs: number): Callout[] {
   const placed: Box[] = [];
@@ -142,7 +152,7 @@ function MarkupSvg({ img, callouts, name, page }: { img: Rendered; callouts: Cal
  * One drawing page with our notes pinned on it: our areas outlined, the words they refer to
  * highlighted, and a red label beside each. Click it to see it full screen and zoom in.
  */
-function MarkedPage({ url, name, page, notes }: { url: string; name: string; page: number; notes: OverviewMarkup[] }) {
+function MarkedPage({ url, image, name, page, notes }: { url: string; image: string | null; name: string; page: number; notes: OverviewMarkup[] }) {
   const [img, setImg] = useState<Rendered | null>(null);
   const [callouts, setCallouts] = useState<Callout[]>([]);
   const [missed, setMissed] = useState<string[]>([]);
@@ -166,7 +176,8 @@ function MarkedPage({ url, name, page, notes }: { url: string; name: string; pag
     done.current = true;
     (async () => {
       try {
-        const r = await renderPage(url, page);
+        // The page picture made when the RFQ was read: no PDF to open. Notes go on by their boxes.
+        const r: Rendered = image ? await loadImage(image) : await renderPage(url, page);
         const ns: Note[] = notes.map((n) => {
           const words = n.anchor ? r.find(n.anchor) : null;
           const area = n.box ? { x: n.box.x * r.w, y: n.box.y * r.h, w: n.box.w * r.w, h: n.box.h * r.h } : null;
@@ -179,7 +190,7 @@ function MarkedPage({ url, name, page, notes }: { url: string; name: string; pag
         setErr("Couldn't open this drawing here.");
       }
     })();
-  }, [seen, url, page, notes]);
+  }, [seen, url, image, page, notes]);
 
   if (err) return <p className="sub">{err}</p>;
   if (!img) return <figure ref={box} style={{ margin: 0, minHeight: 240, display: "grid", placeItems: "center", border: "1px dashed var(--line)", borderRadius: 8 }}><span className="sub">{name}, page {page}: {seen ? "drawing..." : "waiting"}</span></figure>;
@@ -202,8 +213,9 @@ function MarkedPage({ url, name, page, notes }: { url: string; name: string; pag
 }
 
 /** The drawings with our notes on them, one marked-up page after another. */
-export function DrawingMarkups({ markups, files }: { markups: OverviewMarkup[]; files: { name: string; url: string | null }[] }) {
+export function DrawingMarkups({ markups, files }: { markups: OverviewMarkup[]; files: { name: string; url: string | null; pages?: Record<number, string> }[] }) {
   const urlOf = new Map(files.map((f) => [f.name.toLowerCase(), f.url]));
+  const picOf = (file: string, page: number) => files.find((f) => f.name.toLowerCase() === file.toLowerCase())?.pages?.[page] ?? null;
   const pages = new Map<string, OverviewMarkup[]>();
   for (const m of markups) {
     const k = `${m.file.toLowerCase()}|${m.page}`;
@@ -214,44 +226,38 @@ export function DrawingMarkups({ markups, files }: { markups: OverviewMarkup[]; 
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {sorted.map(([k, notes]) => (
-        <MarkedPage key={k} url={urlOf.get(notes[0].file.toLowerCase())!} name={notes[0].file} page={notes[0].page} notes={notes} />
+        <MarkedPage key={k} url={urlOf.get(notes[0].file.toLowerCase())!} image={picOf(notes[0].file, notes[0].page)} name={notes[0].file} page={notes[0].page} notes={notes} />
       ))}
     </div>
   );
 }
 
-/** A document opened full screen: every page of a PDF (or the picture), zoomable. */
+/** A document opened full screen: the browser's own PDF viewer (fast, zoomable, every page), or the picture. */
 export function DocumentViewer({ name, url, onClose }: { name: string; url: string; onClose: () => void }) {
-  const [pages, setPages] = useState<string[]>([]);
-  const [count, setCount] = useState<number | null>(null);
   const pdf = /\.pdf$/i.test(name);
   useEffect(() => {
-    if (!pdf) return;
-    let stop = false;
-    (async () => {
-      try {
-        const first = await renderPage(url, 1, 1800);
-        if (stop) return;
-        setCount(first.pages);
-        setPages([first.src]);
-        for (let n = 2; n <= Math.min(first.pages, 40) && !stop; n++) {
-          const r = await renderPage(url, n, 1800);
-          if (!stop) setPages((p) => [...p, r.src]);
-        }
-      } catch { setCount(0); }
-    })();
-    return () => { stop = true; };
-  }, [url, pdf]);
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [onClose]);
+  if (!pdf) {
+    return (
+      <Lightbox title={name} onClose={onClose}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- signed storage URL */}
+        <img src={url} alt={name} style={{ width: "100%", background: "#fff" }} />
+      </Lightbox>
+    );
+  }
   return (
-    <Lightbox title={name} onClose={onClose}>
-      <div style={{ display: "grid", gap: 12, maxWidth: 1400, margin: "0 auto" }}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- rendered page or signed storage URL */}
-        {pdf ? pages.map((src, i) => <img key={i} src={src} alt={`${name}, page ${i + 1}`} style={{ width: "100%", background: "#fff" }} />)
-          // eslint-disable-next-line @next/next/no-img-element -- signed storage URL
-          : <img src={url} alt={name} style={{ width: "100%", background: "#fff" }} />}
-        {pdf && count !== null && pages.length < Math.min(count, 40) && <p style={{ color: "#fff" }}>Loading page {pages.length + 1} of {count}...</p>}
-        {pdf && count === 0 && <p style={{ color: "#fff" }}>Couldn&apos;t open this file here. <a href={url} target="_blank" rel="noreferrer" style={{ color: "#fff" }}>Open it in a new tab</a></p>}
+    <div role="dialog" aria-modal="true" aria-label={name} className="lightbox">
+      <div className="lightbox-bar">
+        <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</strong>
+        <div className="row" style={{ gap: 6 }}>
+          <a className="btn" href={url} target="_blank" rel="noreferrer">Open in a new tab</a>
+          <button type="button" className="btn dark" onClick={onClose}>Close</button>
+        </div>
       </div>
-    </Lightbox>
+      <iframe src={`${url}#view=FitH`} title={name} style={{ flex: 1, border: 0, background: "#fff", width: "100%" }} />
+    </div>
   );
 }

@@ -32,11 +32,18 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
     .map((i) => ({ key: i.key, label: i.description || i.kind, area: i.area_m2 }));
 
   const sum = (q.rfq_summary ?? null) as RfqSummary | null;
-  const files: { name: string; url: string | null }[] = [];
+  const files: { name: string; url: string | null; pages: Record<number, string> }[] = [];
   for (const f of sum?.files ?? []) {
     if (!f.path.startsWith(`${ctx.tenant.id}/`)) continue;
     const { data } = await db.storage.from("job-files").createSignedUrl(f.path, 3600);
-    files.push({ name: f.name, url: data?.signedUrl ?? null });
+    // The drawing pages already drawn as pictures when the RFQ was read: quick to show.
+    const pages: Record<number, string> = {};
+    const ps = (f.pages ?? []).filter((p) => p.path.startsWith(`${ctx.tenant.id}/`));
+    if (ps.length) {
+      const { data: signed } = await db.storage.from("job-files").createSignedUrls(ps.map((p) => p.path), 3600);
+      (signed ?? []).forEach((x, i) => { if (x.signedUrl) pages[ps[i].page] = x.signedUrl; });
+    }
+    files.push({ name: f.name, url: data?.signedUrl ?? null, pages });
   }
   const photos: string[] = [];
   for (const p of (q.photos as string[] | null) ?? []) {

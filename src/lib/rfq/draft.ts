@@ -316,6 +316,7 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
     }
     // Drawing sheets (and scans) go in as pictures of each page, so the AI sees the plans, not just their words.
     const pages: { page: number; url: string }[] = [];
+    const pagePaths: { page: number; path: string }[] = [];
     if (read.kind === "pdf" && pagesLeft > 0) {
       const drawn = await drawingPages(bytes, { max: Math.min(12, pagesLeft) });
       for (const d of drawn) {
@@ -323,7 +324,7 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
         const up = await db.storage.from(BUCKET).upload(pagePath, d.jpg, { contentType: "image/jpeg", upsert: true });
         if (up.error) continue;
         const { data } = await db.storage.from(BUCKET).createSignedUrl(pagePath, 3600);
-        if (data?.signedUrl) pages.push({ page: d.page, url: data.signedUrl });
+        if (data?.signedUrl) { pages.push({ page: d.page, url: data.signedUrl }); pagePaths.push({ page: d.page, path: pagePath }); }
       }
       pagesLeft -= pages.length;
     }
@@ -333,7 +334,7 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
       else pdfUrl = data?.signedUrl ?? null;
     }
     attachments.push({ name: f.filename, text: read.text, imageUrl, pdfUrl, pages, note: read.note });
-    summaryFiles.push({ name: f.filename, path, read: read.text ? "text" : imageUrl || pages.length ? "image" : "no", note: read.note });
+    summaryFiles.push({ name: f.filename, path, read: read.text ? "text" : imageUrl || pages.length ? "image" : "no", note: read.note, ...(pagePaths.length ? { pages: pagePaths } : {}) });
     await db.from("attachments").update({ read_ok: Boolean(read.text || imageUrl || pages.length) }).eq("tenant_id", tenantId).eq("id", f.id);
   }
 
