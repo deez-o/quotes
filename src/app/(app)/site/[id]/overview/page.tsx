@@ -8,6 +8,8 @@ import type { SiteScope } from "@/lib/site/price";
 import { AreaMap } from "./area-map";
 import { tidyItems } from "@/lib/site/tidy";
 import { fillAddedMixes } from "@/lib/site/fill-mixes";
+import { yardRoute } from "@/lib/site/yard-route";
+import { cleanCrewOutput } from "@/lib/site/crew-days";
 import type { CostItem } from "@/lib/site/price";
 import { BuildOverviewButton, StreetViews } from "./parts";
 
@@ -54,6 +56,11 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
   const n0 = (v: number) => v.toLocaleString("en-AU", { maximumFractionDigits: 0 });
   const about = new Map((ov?.documents ?? []).map((d) => [d.name.toLowerCase(), d.about]));
   const located = q.site_lat != null && q.site_lng != null;
+  // Their yard to the job: distance and travel time (crew output drops on long hauls).
+  const { data: ts } = await db.from("tenant_settings").select("base_lat, base_lng, crew_output").eq("tenant_id", ctx.tenant.id).maybeSingle();
+  const hasYard = ts?.base_lat != null && ts?.base_lng != null;
+  const yard = hasYard && located ? await yardRoute({ lat: Number(ts!.base_lat), lng: Number(ts!.base_lng) }, { lat: q.site_lat!, lng: q.site_lng! }) : null;
+  const farMinutes = cleanCrewOutput(ts?.crew_output ?? null).farMinutes;
 
   return (
     <div style={{ maxWidth: 1040, margin: "0 auto", display: "grid", gap: 14 }}>
@@ -102,6 +109,26 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
           </details>
         )}
       </section>
+
+      {located && (
+        <section className="card">
+          <strong>From your yard</strong>
+          {yard ? (
+            <p style={{ margin: "6px 0 10px", fontSize: 18 }}>
+              <strong>{yard.km.toLocaleString("en-AU")} km</strong>, about <strong>{yard.truckMinutes} min</strong> one way for a loaded truck
+              <span className="sub" style={{ marginTop: 0, fontSize: 13 }}> ({yard.carMinutes} min by car){yard.truckMinutes > farMinutes ? ` · long haul (over ${farMinutes} min): less laid a shift` : ""}</span>
+            </p>
+          ) : (
+            <p className="sub" style={{ margin: "6px 0 10px" }}>{hasYard ? "Couldn't work out the road route right now." : <>Add your yard or depot address in <Link href="/setup">Setup</Link> to see the distance and travel time to each job.</>}</p>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 10 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- served by our own route (keeps the maps key private) */}
+            {hasYard && <img src={`/api/quotes/${q.id}/route-map?view=route`} alt="Route from your yard to the job" style={{ width: "100%", borderRadius: 8, border: "1px solid var(--line)" }} />}
+            {/* eslint-disable-next-line @next/next/no-img-element -- as above */}
+            <img src={`/api/quotes/${q.id}/route-map?view=site`} alt="The job site, close up" style={{ width: "100%", borderRadius: 8, border: "1px solid var(--line)" }} />
+          </div>
+        </section>
+      )}
 
       {located ? (
         <AreaMap quoteId={q.id} center={{ lat: q.site_lat!, lng: q.site_lng! }} initial={ov?.areas ?? []} items={items} canEdit={canEdit}
