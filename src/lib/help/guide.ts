@@ -43,7 +43,7 @@ SETUP (client admins): company details and logo, brand colour, people and their 
 - Roles: client admins change everything; estimators make and send quotes; viewers can only look.
 - Devices: each plan allows a number of devices per person; signing in on another one signs out the oldest.
 
-PLAN (client admins): the plan, upgrade or switch, and billing through Stripe. Plans: Site, Pro, Business. The free trial is 14 days.
+PLAN (client admins): the plan, upgrade or switch, and billing through Stripe. Every plan does everything; they differ in quotes a month: Starter $299 (30), Pro $499 (100), Business $799 (200), ex GST. A quote counts once (each RFQ drafted, each new quote made on site); reading again, changes, options and revisions are free. Out of quotes: top up 10 for $50 on the Plan page; top-ups never expire. The free trial is 14 days with 15 quotes.
 
 HELP: this assistant; "Ask us" to email the quoteout team; client admins can download all the company's data or close the account.
 

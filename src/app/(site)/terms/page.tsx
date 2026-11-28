@@ -20,7 +20,7 @@ export default function Terms() {
       <p>Your company owns its rates, rules, RFQs and quotes. You give us permission to store and process them to run quoteout for you. See the privacy page for details.</p>
 
       <h2>Fair use</h2>
-      <p>Each plan includes a number of AI quotes a month. Don&apos;t use quoteout to break the law, to send spam, or to try to get into another company&apos;s data.</p>
+      <p>Each plan includes a number of quotes a month, and you can buy more. Don&apos;t use quoteout to break the law, to send spam, or to try to get into another company&apos;s data.</p>
 
       <h2>Our responsibility</h2>
       <p>We work hard to keep quoteout accurate and available, but quotes are drafts made by software and AI, and can be wrong. To the extent the law allows, we are not responsible for losses from a quote you send without checking. Nothing here limits your rights under the Australian Consumer Law.</p>
