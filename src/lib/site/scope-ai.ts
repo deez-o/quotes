@@ -25,7 +25,7 @@ export const SITE_SCOPE_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["title", "job_type", "site_location", "customer_name", "customer_email", "items", "crew", "plant", "supply_plant_id", "truck_cost_item_id", "establishments", "float_moves", "optional_rates", "assumptions", "questions"],
+    required: ["title", "job_type", "site_location", "customer_name", "customer_email", "items", "crew", "plant", "supply_plant_id", "truck_cost_item_id", "establishments", "float_moves", "optional_rates", "paving_factor", "assumptions", "questions"],
     properties: {
       title: { type: "string" },
       job_type: { type: "string", enum: ["carpark", "driveway", "road", "subdivision", "patching", "spray_seal", "other"] },
@@ -55,6 +55,7 @@ export const SITE_SCOPE_SCHEMA = {
       truck_cost_item_id: nullableString,
       establishments: { type: "number", description: "How many separate set-ups on site the job needs, if the RFQ or job says (e.g. one for the prime and one per asphalt layer = 4). 0 if not said." },
       float_moves: { type: "number", description: "How many times the paver and roller go to site: the number of asphalt establishments (prime and seal don't need the paver). 0 if just one." },
+      paving_factor: { type: "number", description: "How much of a normal day's m² a crew can lay on this job, from the plans: 1 = straight, open work; less for side streets, roundabouts, bays and islands, hand work. 1 if there are no plans." },
       optional_rates: {
         type: "array", description: "Rates the customer asks for as extras or options, not in the price (extra establishment, optional MTV). Each from the library.",
         items: { type: "object", additionalProperties: false, required: ["key", "cost_item_id", "description", "quantity"], properties: { key: { type: "string" }, cost_item_id: { type: "string" }, description: { type: "string" }, quantity: { type: "number", description: "Only for a lump sum: how much (e.g. the m2 to profile). 0 for a plain rate." } } },
@@ -100,6 +101,7 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `6j. establishments: how many separate set-ups the RFQ says (each layer on its own visit, staging, night works). Count the prime/seal set-up too. Null if not said. Never add the establishment (category establishment) as an item or crew/plant line: the app prices it from this number.`,
     `6k. MTV (material transfer vehicle, shuttle buggy): if the RFQ says one is needed, add the library's MTV item to plant with the same days as the asphalt crew. If the RFQ asks for an MTV rate as an option, add it to optional_rates instead ("MTV / shuttle buggy (optional)"). Use the night-shift MTV for night works, otherwise the day-shift one. If the library has no MTV item, ask.`,
     `6m. Profiling (and similar work) asked for as a rate or option: add it to optional_rates in the form asked. An m2 rate -> the library's profiling item charged per m2; an hourly rate -> the one per hour; a lump sum -> the m2 item with quantity set to the area to profile. If the library has no item in that unit, ask. If profiling is part of the job itself, it's a normal item instead.`,
+    `6o. paving_factor: if there are plans, judge how hard the job is to pave and how much of a normal day's output a crew gets (1 = long straight runs). Count the paver runs: a paver lays 2.5 to 4.5 m wide per run, so a 7 m road is 2 runs and a 12 m wide area is 3 to 4. Less for each side street or intersection (short runs, hand work at the joins, about 0.9 with a few, 0.8 with many), a roundabout (about 0.8), car parks with many bays and islands (0.7 to 0.8 on top of the car-park rate), tight access or lots of hand work. Never above 1.1. Say what you saw and the factor in assumptions ("Paving factor 0.8: 4 side streets and a roundabout, 3 runs on the main road"). No plans: 1.`,
     `6l. optional_rates: rates the customer asks for that aren't part of the price. "Extra-over rate for additional establishments" -> the library's establishment item, described "Extra establishment (each)". Only use ids from the library; if it's missing, ask.`,
     `7. truck_cost_item_id: the truck item from the library if any material must be carted (not delivered by the supplier).`,
     `8. Use short, clear descriptions a customer would understand ("Supply and lay AC10, 40 mm").`,
@@ -284,6 +286,7 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
       supply_plant_id: plantId,
       truck_cost_item_id: truckOk,
       establishments: raw.establishments != null && Number.isFinite(raw.establishments) && raw.establishments > 0 ? Math.min(50, Math.round(raw.establishments)) : null,
+      paving_factor: Number.isFinite(raw.paving_factor) && raw.paving_factor! > 0 ? Math.min(1.1, Math.max(0.3, raw.paving_factor!)) : 1,
       float_moves: raw.float_moves != null && Number.isFinite(raw.float_moves) && raw.float_moves > 0 ? Math.min(50, Math.round(raw.float_moves)) : null,
       optional_rates: (raw.optional_rates ?? []).filter((o) => o && ids.has(o.cost_item_id)).slice(0, 10)
         .map((o, n) => ({ key: uniqueKey(o.key, `o${n + 1}`), cost_item_id: o.cost_item_id, description: String(o.description ?? "").slice(0, 120), quantity: o.quantity != null && Number.isFinite(o.quantity) && o.quantity > 0 ? o.quantity : null })),

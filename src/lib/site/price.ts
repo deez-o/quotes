@@ -70,6 +70,8 @@ export type SiteScope = {
   haul_override?: { km: number; minutes: number } | null;
   /** Float moves (paver and roller to site and back). Null = automatic: 1 when the job has asphalt. */
   float_moves?: number | null;
+  /** From the plans: how much of a normal day's m² a crew lays here (1 = straight, open work). */
+  paving_factor?: number;
   /** Set-ups on site the job needs (e.g. one for the prime and one per asphalt layer). Null = 1 when there's work. */
   establishments?: number | null;
   /** Rates the customer asked for that aren't in the price (extra establishment, MTV if needed). */

@@ -61,7 +61,8 @@ export function layersOf(description: string): number {
 export function planCrew(scope: SiteScope, haulMinutes: number | null, o: CrewOutput, hourly: (costItemId: string) => boolean): { scope: SiteScope; note: string } | null {
   const m2 = scope.items.filter((i) => i.kind === "asphalt" && i.area_m2).reduce((s, i) => s + i.area_m2! * layersOf(i.description), 0);
   if (!(m2 > 0) || !scope.crew.some((l) => hourly(l.cost_item_id))) return null;
-  const day = perDay(scope.job_type, haulMinutes, o);
+  const factor = scope.paving_factor && scope.paving_factor > 0 ? Math.min(1.1, Math.max(0.3, scope.paving_factor)) : 1;
+  const day = Math.round(perDay(scope.job_type, haulMinutes, o) * factor / 50) * 50;
   const plan = shiftsFor(m2, day, o);
   const minimum = Math.max(1, scope.float_moves ?? 1);
   const shifts = Math.max(plan.shifts, minimum);
@@ -70,6 +71,6 @@ export function planCrew(scope: SiteScope, haulMinutes: number | null, o: CrewOu
   const why = shifts > plan.shifts
     ? `at least one shift for each of the ${minimum} asphalt set-ups`
     : plan.hours === o.longHours ? `just over ${plan.shifts} shift${plan.shifts === 1 ? "" : "s"}, so ${o.longHours}-hour days instead of another shift` : `${o.hours}-hour days`;
-  const note = `Crew: ${Math.round(m2).toLocaleString("en-AU")} m² of asphalt at about ${day.toLocaleString("en-AU")} m² a shift${haulMinutes != null && haulMinutes > o.farMinutes ? " (long haul)" : ""} = ${shifts} shift${shifts === 1 ? "" : "s"}, ${why}.`;
+  const note = `Crew: ${Math.round(m2).toLocaleString("en-AU")} m² of asphalt at about ${day.toLocaleString("en-AU")} m² a shift${haulMinutes != null && haulMinutes > o.farMinutes ? " (long haul)" : ""}${factor !== 1 ? ` (${Math.round(factor * 100)}% of a normal day, from the plans)` : ""} = ${shifts} shift${shifts === 1 ? "" : "s"}, ${why}.`;
   return { scope: { ...scope, crew }, note };
 }
