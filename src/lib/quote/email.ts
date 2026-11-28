@@ -99,3 +99,25 @@ export const fromName = (s: string) => s.replace(/[\r\n]+/g, " ").replace(/["<>\
 
 /** A safe PDF file name. */
 export const pdfName = (quoteNo: string | null, job: string) => `${[`Quote ${quoteNo ?? ""}`.trim(), job].filter(Boolean).join(" - ")}`.replace(/[^\w.\- ()&,]+/g, "_").slice(0, 120) + ".pdf";
+
+/** The "your quote was accepted" email to the contractor: the win at a glance, then a button to the quote. */
+export function acceptedHtml(a: {
+  label: string; title: string; customer: string | null; acceptedBy: string; exGst: number; incGst: number;
+  po: string | null; note: string | null; site: string | null; quoteUrl: string; business: string;
+}): string {
+  const row = (k: string, v: string | null) => (v ? `<tr><td style="padding:9px 0;color:#6b7280;width:130px;vertical-align:top;border-top:1px solid #eef0f2">${esc(k)}</td><td style="padding:9px 0;font-weight:bold;border-top:1px solid #eef0f2">${esc(v).replace(/\n/g, "<br>")}</td></tr>` : "");
+  return `<!doctype html><html><body style="margin:0;padding:24px 12px;background:#f5f6f7;font-family:Arial,Helvetica,sans-serif;color:#1c1f23;font-size:15px;line-height:1.5">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e1e4e8">
+<div style="background:#16181B;padding:16px 24px;color:#fff;font-size:18px;font-weight:bold;letter-spacing:-0.3px">quote<span style="color:#FF6A13">out</span></div>
+<div style="padding:24px">
+<div style="display:inline-block;background:#e7f6ec;color:#166534;font-weight:bold;font-size:13px;padding:5px 12px;border-radius:999px">&#10003; Quote accepted</div>
+<h1 style="margin:14px 0 4px;font-size:22px;line-height:1.3">${esc(a.title || a.label)}</h1>
+<div style="color:#6b7280;font-size:14px">${esc([a.label, a.customer].filter(Boolean).join(" · "))}</div>
+<div style="margin:20px 0 6px;font-size:30px;font-weight:bold;letter-spacing:-0.5px">${money(a.exGst)} <span style="font-size:14px;color:#6b7280;font-weight:normal">ex GST</span></div>
+<div style="color:#6b7280;font-size:14px">${money(a.incGst)} inc GST</div>
+<table style="width:100%;border-collapse:collapse;margin-top:20px;font-size:15px">${row("Accepted by", a.acceptedBy)}${row("PO number", a.po)}${row("Their note", a.note)}${row("Site", a.site)}</table>
+<p style="margin:24px 0 0"><a href="${esc(a.quoteUrl)}" style="display:inline-block;background:#FF6A13;color:#fff;text-decoration:none;font-weight:bold;padding:13px 24px;border-radius:8px">Open the quote</a></p>
+</div></div>
+<p style="max-width:560px;margin:12px auto 0;font-size:11px;color:#9aa0a8;text-align:center">Sent to ${esc(a.business)} by quoteout</p>
+</body></html>`;
+}

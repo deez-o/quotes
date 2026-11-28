@@ -7,6 +7,7 @@ import { quoteLabel } from "@/lib/quote/numbering";
 import { sendEmail } from "@/lib/mail/send";
 import { appUrl } from "@/lib/app-url";
 import { loadBrand } from "@/lib/sheet/store";
+import { acceptedHtml } from "@/lib/quote/email";
 
 export type AcceptState = { ok: boolean; message: string } | null;
 
@@ -58,8 +59,14 @@ export async function acceptQuote(_: AcceptState, form: FormData): Promise<Accep
       `Open the quote: ${appUrl()}/site/${chosen.id}`,
     ].filter((l, i, a) => l !== "" || a[i - 1] !== "");
     await sendEmail({
-      fromName: "quoteout", replyTo: null, to, cc: [], subject: `Accepted: ${label} ${chosen.title ?? ""}`.trim(),
-      text: lines.join("\n"), html: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5">${lines.map((l) => l.replace(/&/g, "&amp;").replace(/</g, "&lt;")).join("<br>")}</div>`, attachments: [],
+      fromName: "quoteout", replyTo: null, to, cc: [], subject: `Accepted: ${label} – ${chosen.title ?? ""} (${money(total)} ex GST)`,
+      text: lines.join("\n"),
+      html: acceptedHtml({
+        label, title: chosen.title ?? "", customer: found.lead.customer_name ?? null, acceptedBy: name,
+        exGst: total, incGst: Math.round(total * (1 + brand.gstPercent / 100) * 100) / 100,
+        po: po || null, note: note || null, site: found.lead.site_address ?? null,
+        quoteUrl: `${appUrl()}/site/${chosen.id}`, business: brand.name,
+      }), attachments: [],
     }).catch(() => null);
   }
   return { ok: true, message: "Accepted" };
