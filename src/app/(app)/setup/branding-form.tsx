@@ -58,12 +58,12 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
       <input type="hidden" name="logo_path" value={logoPath ?? ""} />
       <input type="hidden" name="brand_color" value={color} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 340px)", gap: 24, alignItems: "start" }}>
-        <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
+        <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, minWidth: 0, flex: "1 1 340px" }}>
           <div style={field}>
             <span>Logo</span>
-            <div className="row" style={{ gap: 10, alignItems: "center" }}>
-              <div style={{ width: 160, height: 64, border: "1px dashed #b6bcc4", borderRadius: 8, display: "grid", placeItems: "center", background: "#fff", overflow: "hidden" }}>
+            <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ flex: "none", width: 160, height: 64, border: "1px dashed #b6bcc4", borderRadius: 8, display: "grid", placeItems: "center", background: "#fff", overflow: "hidden" }}>
                 {logoUrl ? <img src={logoUrl} alt="Your logo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span className="sub" style={{ marginTop: 0, fontSize: 12 }}>No logo yet</span>}
               </div>
               <input ref={file} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={(e) => void upload(e.target.files?.[0])} />
@@ -75,10 +75,10 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
 
           <div style={field}>
             <span>Colour</span>
-            <div className="row" style={{ gap: 8, alignItems: "center" }}>
+            <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               {BRAND_PRESETS.map((c) => (
                 <button key={c} type="button" aria-label={`Use ${c}`} aria-pressed={color.toUpperCase() === c} onClick={() => setColor(c)}
-                  style={{ width: 32, height: 32, borderRadius: 8, background: c, cursor: "pointer", border: color.toUpperCase() === c ? "3px solid var(--brand)" : "1px solid #d1d5db", outlineOffset: 2 }} />
+                  style={{ flex: "none", width: 32, height: 32, borderRadius: 8, background: c, cursor: "pointer", border: color.toUpperCase() === c ? "3px solid var(--brand)" : "1px solid #d1d5db", outlineOffset: 2 }} />
               ))}
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
                 <input type="color" value={isHex(color) ? color : DEFAULT_BRAND} onChange={(e) => setColor(e.target.value.toUpperCase())} aria-label="Pick any colour" style={{ width: 40, height: 32, padding: 0, border: 0, background: "none" }} />
@@ -87,7 +87,7 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(200px, 100%), 1fr))", gap: 10 }}>
             <label style={field}>Business name<input type="text" name="business_name" value={name} onChange={(e) => setName(e.target.value)} /></label>
             <label style={field}>ABN<input type="text" name="business_abn" defaultValue={initial.business_abn ?? ""} /></label>
             <label style={field}>Phone<input type="tel" name="business_phone" defaultValue={initial.business_phone ?? ""} /></label>
@@ -97,7 +97,7 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
           </div>
         </fieldset>
 
-        <div aria-label="Preview of your quote header" style={{ border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden", background: "#fff", fontSize: 12 }}>
+        <div aria-label="Preview of your quote header" style={{ flex: "1 1 260px", maxWidth: 420, minWidth: 0, border: "1px solid var(--line)", borderRadius: 10, overflow: "hidden", background: "#fff", fontSize: 12 }}>
           <div style={{ height: 6, background: color }} />
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: 14 }}>
             <div>
