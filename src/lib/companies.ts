@@ -28,6 +28,8 @@ export async function createTenant(db: SupabaseClient, name: string, plan: PlanI
   const id = tenant.id as string;
   await db.from("tenant_modules").insert({ tenant_id: id, module: "quoting", enabled: true });
   await db.from("tenant_settings").insert({ tenant_id: id });
+  // Starter rate they can change in Your costs: tack coat goes under asphalt by default.
+  await db.from("cost_items").insert({ tenant_id: id, name: "Tack coat", category: "material", material_kind: "tack", unit: "m2", rate: 2, sell_rate: 3, active: true });
   await db.from("inbound_addresses").insert({ local_part: slug, tenant_id: id });
   return { ok: true, id, slug };
 }
