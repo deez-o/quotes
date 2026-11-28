@@ -47,6 +47,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   bitumen?: { indexes: BitumenIndex[]; binderPercent: number; quotedAt: string } | null;
 }) {
   const router = useRouter();
+  const [moveSite, setMoveSite] = useState(false);
   const [scope, setScope] = useState<SiteScope>(() => ({ ...quote.scope, items: tidyItems(quote.scope.items ?? []) }));
   const [margin, setMargin] = useState(quote.margin_percent);
   const [customer, setCustomer] = useState(quote.customer_name ?? "");
@@ -502,9 +503,17 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span style={small}>{site.lat == null ? "Where is the job? (no GPS was taken)" : "Job location"}</span>
-            {site.lat != null && <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>{address || `${site.lat.toFixed(4)}, ${site.lng?.toFixed(4)}`}{locating ? " · working out distances..." : ""}</span>}
-            <PlaceSearch label="Find the job site" placeholder="Street and suburb, or a business name" near={site.lat != null && site.lng != null ? { lat: site.lat, lng: site.lng } : null}
-              onPick={(p) => void placeSite(p.lat, p.lng, p.address || p.name)} />
+            {site.lat != null && (
+              <span className="sub" style={{ marginTop: 0, fontSize: 13, display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+                <span>{address || `${site.lat.toFixed(4)}, ${site.lng?.toFixed(4)}`}{locating ? " · working out distances..." : ""}</span>
+                {!moveSite && <button type="button" onClick={() => setMoveSite(true)} style={{ border: 0, background: "none", padding: 0, font: "inherit", fontWeight: 600, color: "var(--accent, #FF6A13)", textDecoration: "underline", cursor: "pointer" }}>Change</button>}
+              </span>
+            )}
+            {/* The search is only for setting or moving the site: hidden once it's placed. */}
+            {(site.lat == null || moveSite) && (
+              <PlaceSearch label="Find the job site" placeholder="Street and suburb, or a business name" near={site.lat != null && site.lng != null ? { lat: site.lat, lng: site.lng } : null}
+                onPick={(p) => { setMoveSite(false); void placeSite(p.lat, p.lng, p.address || p.name); }} />
+            )}
           </div>
         </section>
       </fieldset>
