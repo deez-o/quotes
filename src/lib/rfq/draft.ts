@@ -82,7 +82,9 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     return { kind: "follow_up", siteQuoteId: existing.id as string };
   }
 
+  const t0 = Date.now();
   const g = await gatherRfq(db, tenantId, jobId, job.site, messages ?? []);
+  console.info(`[draft] ${jobId} files read in ${Math.round((Date.now() - t0) / 1000)} s (${g.attachments.length} files, ${g.attachments.reduce((n, a) => n + (a.pages?.length ?? 0), 0)} drawing pages)`);
   const { summary, rfq, emails, attachments, summaryFiles } = g;
 
   const [{ data: tenant }, pc, rules, { access }] = await Promise.all([
@@ -130,7 +132,9 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     overviewPromise = opts.call === undefined ? makeOverview(tenantId, rfqInput) : Promise.resolve(null);
     const ctxAi = { tradingName: tenant?.name ?? "the contractor", library: pc.library, plants: pc.plants, rules, state: pc.settings.state ?? null };
     try {
+      const t1 = Date.now();
       const out = await scopeFromRfq(call, ctxAi, rfqInput);
+      console.info(`[draft] ${jobId} scope read in ${Math.round((Date.now() - t1) / 1000)} s`);
       scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
     } catch (e) {
       // A picture the AI won't take (an odd format, a broken file) shouldn't sink the whole read: try the words alone.
@@ -210,7 +214,8 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   await db.from("audit_log").insert({ tenant_id: tenantId, action: "job.drafted", target: job.quote_no, detail: { site_quote_id: made.id, questions: scope.questions.length, files: summaryFiles.length } });
 
   if (shadow) {
-    const results = await shadow;
+    // The comparison models don't hold up the job: whatever's back within a minute is kept.
+    const results = await Promise.race([shadow, new Promise<Awaited<typeof shadow>>((r) => setTimeout(() => r([]), 60_000))]);
     const batch = crypto.randomUUID();
     if (results.length) await db.from("ai_trials").insert(results.map((r) => ({
       batch_id: batch, tenant_id: tenantId, job_id: jobId, model: r.model, scope: r.scope, total_ex_gst: r.total,

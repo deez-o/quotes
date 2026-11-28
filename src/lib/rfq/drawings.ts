@@ -35,7 +35,7 @@ export function pickDrawingPages(sizes: { w: number; h: number; chars: number }[
  */
 export async function drawingPages(bytes: Uint8Array, opts: { max?: number; px?: number } = {}): Promise<DrawingPage[]> {
   const max = opts.max ?? 12;
-  const px = opts.px ?? 2000;
+  const px = opts.px ?? 1600;
   try {
     const mupdf = await load();
     const doc = mupdf.Document.openDocument(bytes, "application/pdf");

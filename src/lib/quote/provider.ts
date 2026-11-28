@@ -45,6 +45,9 @@ type ChatResponse = {
   error?: { message?: string };
 };
 
+/** Longest one AI call may take (the worker has 800 s). */
+export const AI_TIMEOUT_MS = 480_000;
+
 export type ChatPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } }
@@ -73,6 +76,8 @@ export async function xaiStructured(opts: {
   });
   const res = await f(`${opts.baseUrl ?? "https://api.x.ai/v1"}/chat/completions`, {
     method: "POST",
+    // Give up before the worker is cut off, so the job fails with a reason instead of hanging.
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.apiKey}` },
     body: JSON.stringify({
       model: opts.model,
@@ -135,6 +140,7 @@ export async function anthropicStructured(opts: {
   }));
   const res = await f(`${opts.baseUrl ?? "https://api.anthropic.com/v1"}/messages`, {
     method: "POST",
+    signal: AbortSignal.timeout(AI_TIMEOUT_MS),
     headers: { "Content-Type": "application/json", "x-api-key": opts.apiKey, "anthropic-version": "2023-06-01" },
     body: JSON.stringify({
       model: opts.model,
