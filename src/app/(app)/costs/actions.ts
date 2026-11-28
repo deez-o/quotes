@@ -174,32 +174,49 @@ export async function savePricingSettings(formData: FormData) {
   back("Pricing settings saved.", true);
 }
 
-/** A plant's base binder (what its mix prices include) and its binder extra-overs. */
-export async function saveBinders(formData: FormData) {
-  const ctx = await adminCtx();
-  const plantId = String(formData.get("plant_id") ?? "");
-  const supabase = await createClient();
-  const { data: plant } = await supabase.from("supply_plants").select("id, name").eq("id", plantId).eq("tenant_id", ctx.tenant.id).maybeSingle();
-  if (!plant) back("Plant not found.");
-  const base = normaliseBinder(String(formData.get("base_binder") ?? "")) ?? "C320";
-  await supabase.from("supply_plants").update({ base_binder: base }).eq("id", plantId).eq("tenant_id", ctx.tenant.id);
+type BinderResult = { ok: true } | { ok: false; message: string };
 
-  // Rows come in as binder_0 / extra_0, binder_1 / extra_1 ... plus a blank "add" row.
-  const rows = new Map<string, number>();
-  for (let n = 0; n < 40; n++) {
-    const b = normaliseBinder(String(formData.get(`binder_${n}`) ?? ""));
-    const raw = formData.get(`extra_${n}`);
-    if (!b || raw == null || String(raw).trim() === "") continue;
-    const x = num(raw);
-    if (x == null || Number.isNaN(x)) back(`Check the extra for ${binderLabel(b)}: it should be $ a tonne.`);
-    if (b === base) continue; // the base binder has no extra
-    rows.set(b, x as number);
-  }
-  await supabase.from("binder_extras").delete().eq("supply_plant_id", plantId).eq("tenant_id", ctx.tenant.id);
-  if (rows.size) {
-    const { error } = await supabase.from("binder_extras").insert([...rows].map(([binder, extra_per_t]) => ({ tenant_id: ctx.tenant.id, supply_plant_id: plantId, binder, extra_per_t })));
-    if (error) back(error.message);
-  }
+async function binderPlant(plantId: string) {
+  const ctx = await requireTenant();
+  if (ctx.role !== "admin") return null;
+  const supabase = await createClient();
+  const { data: plant } = await supabase.from("supply_plants").select("id, base_binder").eq("id", plantId).eq("tenant_id", ctx.tenant.id).maybeSingle();
+  return plant ? { ctx, supabase, plant } : null;
+}
+
+/** The binder a plant's mix prices include (usually C320). */
+export async function setBaseBinder(input: { plantId: string; binder: string }): Promise<BinderResult> {
+  const got = await binderPlant(input.plantId);
+  if (!got) return { ok: false, message: "Only a client admin can change binders." };
+  const base = normaliseBinder(input.binder) ?? "C320";
+  await got.supabase.from("supply_plants").update({ base_binder: base }).eq("id", got.plant.id).eq("tenant_id", got.ctx.tenant.id);
+  await got.supabase.from("binder_extras").delete().eq("supply_plant_id", got.plant.id).eq("binder", base).eq("tenant_id", got.ctx.tenant.id);
   revalidatePath("/costs");
-  back(`Saved binders at ${plant!.name}.`, true);
+  return { ok: true };
+}
+
+/** Add or change one binder's extra $/t at a plant. */
+export async function saveBinderExtra(input: { plantId: string; binder: string; extra: string }): Promise<BinderResult> {
+  const got = await binderPlant(input.plantId);
+  if (!got) return { ok: false, message: "Only a client admin can change binders." };
+  const binder = normaliseBinder(input.binder);
+  if (!binder) return { ok: false, message: "Pick a binder." };
+  const x = num(input.extra);
+  if (x == null || Number.isNaN(x) || Math.abs(x) > 2000) return { ok: false, message: `Put the extra for ${binderLabel(binder)} in $ a tonne.` };
+  if (binder === (normaliseBinder(got.plant.base_binder as string) ?? "C320")) return { ok: false, message: `${binderLabel(binder)} is already in the mix prices, so it has no extra.` };
+  const { error } = await got.supabase.from("binder_extras").upsert(
+    { tenant_id: got.ctx.tenant.id, supply_plant_id: got.plant.id, binder, extra_per_t: x, updated_at: new Date().toISOString() },
+    { onConflict: "supply_plant_id,binder" },
+  );
+  if (error) return { ok: false, message: error.message };
+  revalidatePath("/costs");
+  return { ok: true };
+}
+
+export async function removeBinderExtra(input: { plantId: string; binder: string }): Promise<BinderResult> {
+  const got = await binderPlant(input.plantId);
+  if (!got) return { ok: false, message: "Only a client admin can change binders." };
+  await got.supabase.from("binder_extras").delete().eq("supply_plant_id", got.plant.id).eq("binder", input.binder).eq("tenant_id", got.ctx.tenant.id);
+  revalidatePath("/costs");
+  return { ok: true };
 }
