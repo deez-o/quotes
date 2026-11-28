@@ -569,10 +569,21 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 13, color: "#b6bcc4" }}>Profit</div>
             <div style={{ fontFamily: "var(--font-head)", fontSize: 34, fontWeight: 600, lineHeight: 1.1, color: priced.profit > 0 ? "#86efac" : "#fca5a5" }}>{money(priced.profit)}</div>
-            <div style={{ fontSize: 13, color: "#d6d9de" }}>
-              {priced.profitPerShift != null ? `${money(Math.round(priced.profitPerShift))} a shift` : `cost ${money(priced.cost)}`}
-            </div>
+            <div style={{ fontSize: 13, color: "#d6d9de" }}>cost {money(priced.cost)}</div>
           </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14, paddingTop: 12, borderTop: "1px solid #3a3936" }}>
+          {[
+            ["Profit", priced.priceExGst > 0 ? `${(Math.round((priced.profit / priced.priceExGst) * 1000) / 10).toLocaleString("en-AU")}%` : "–", "of the price"],
+            ["Shifts", priced.shifts > 0 ? priced.shifts.toLocaleString("en-AU") : "–", priced.shifts > 0 ? "crew days" : "add crew days"],
+            ["Per shift", priced.profitPerShift != null ? money(Math.round(priced.profitPerShift)) : "–", "profit"],
+          ].map(([l, v, sub]) => (
+            <div key={l}>
+              <div style={{ fontSize: 12, color: "#b6bcc4" }}>{l}</div>
+              <div style={{ fontSize: 20, fontWeight: 600 }}>{v}</div>
+              <div style={{ fontSize: 11, color: "#9aa0a8" }}>{sub}</div>
+            </div>
+          ))}
         </div>
         {priced.perTonne && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 14, paddingTop: 12, borderTop: "1px solid #3a3936" }}>
