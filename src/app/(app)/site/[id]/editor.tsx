@@ -587,7 +587,20 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             <p className="sub" style={{ margin: "2px 0 6px", fontSize: 12 }}>Extra-overs the customer asked for (extra establishment, MTV, profiling): a rate, or a lump sum if you put a quantity. Shown on the quote with your margin on.</p>
             {priced.optionalRates.map((o) => (
               <div key={o.key} className="row" style={{ gap: 10, padding: "4px 0", alignItems: "center" }}>
-                <span className="grow">{o.description}</span>
+                {(() => {
+                  const raw = (scope.optional_rates ?? []).find((x) => x.key === o.key);
+                  if (!raw || raw.custom_rate == null || !canEdit) return <span className="grow">{o.description}</span>;
+                  const set = (patch: Partial<NonNullable<SiteScope["optional_rates"]>[number]>) => update({ ...scope, optional_rates: (scope.optional_rates ?? []).map((x) => (x.key === o.key ? { ...x, ...patch } : x)) });
+                  return (
+                    <span className="grow" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                      <input type="text" placeholder="What it's for, e.g. Line marking" value={raw.description} onChange={(e) => set({ description: e.target.value })} style={{ flex: "1 1 180px", padding: "6px 8px" }} />
+                      $<input type="text" inputMode="decimal" aria-label="Rate" value={raw.custom_rate || ""} onChange={(e) => set({ custom_rate: toNum(e.target.value) ?? 0 })} style={{ width: 90, padding: "6px 8px" }} />
+                      per<select value={raw.custom_unit ?? "each"} onChange={(e) => set({ custom_unit: e.target.value })} style={{ ...sel, width: "auto", padding: "6px 8px" }}>
+                        {["each", "m²", "hour", "day", "t", "lot"].map((u) => <option key={u} value={u}>{u}</option>)}
+                      </select>
+                    </span>
+                  );
+                })()}
                 {canEdit && (
                   <label className="sub" style={{ marginTop: 0, fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }} title="Leave blank for a rate; put a quantity for a lump sum">
                     Lump sum for
@@ -602,9 +615,16 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             ))}
             {canEdit && (
               <select style={{ ...sel, maxWidth: 320, marginTop: 6 }} value="" aria-label="Add a rate"
-                onChange={(e) => { const c = active.find((x) => x.id === e.target.value); if (c) update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: c.id, description: c.category === "establishment" ? "Extra establishment (each)" : `${c.name} (extra over)` }] }); }}>
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__other") { update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: "", description: "", custom_rate: 0, custom_unit: "each" }] }); return; }
+                  const c = active.find((x) => x.id === v);
+                  if (c) update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: c.id, description: c.category === "establishment" ? "Extra establishment (each)" : `${c.name} (extra over)` }] });
+                }}>
                 <option value="">+ Add a rate...</option>
-                {active.filter((c) => ["establishment", "plant", "crew", "other", "material"].includes(c.category) && !c.supply_plant_id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {/* The extra-overs builders ask for: establishment, MTV, profiling. Anything else: type it in. */}
+                {active.filter((c) => c.category === "establishment" || (c.category === "plant" && /mtv|shuttle|profil/i.test(c.name))).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="__other">Other (type your own)</option>
               </select>
             )}
           </div>

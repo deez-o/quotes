@@ -72,7 +72,7 @@ export type SiteScope = {
   /** Set-ups on site the job needs (e.g. one for the prime and one per asphalt layer). Null = 1 when there's work. */
   establishments?: number | null;
   /** Rates the customer asked for that aren't in the price (extra establishment, MTV if needed). */
-  optional_rates?: { key: string; cost_item_id: string; description: string; quantity?: number | null }[];
+  optional_rates?: { key: string; cost_item_id: string; description: string; quantity?: number | null; custom_rate?: number | null; custom_unit?: string | null }[];
   /** The job's address or suburb as they said it (the AI hears it); used instead of the phone's location. */
   site_location?: string | null;
   /** True when the plant was picked as the nearest one (re-picked if the site moves); false once the user chooses. */
@@ -519,11 +519,16 @@ export function priceSiteQuote(input: {
 
   // Rates asked for but not in the price: the cost rate with the same margin on.
   const optionalRates = (scope.optional_rates ?? []).flatMap((o) => {
+    const q = o.quantity != null && o.quantity > 0 ? o.quantity : null;
+    // Their own rate, typed in: shown as typed (it's already the price).
+    if (o.custom_rate != null && o.custom_rate >= 0) {
+      const unit = (o.custom_unit || "each").slice(0, 20);
+      return [{ key: o.key, description: o.description || "Rate", unit, rate: o.custom_rate, quantity: q, total: q ? Math.round(o.custom_rate * q) : null }];
+    }
     const ci = byId.get(o.cost_item_id);
     if (!ci || !ci.active) return [];
     const rate = ci.sell_rate ?? (ci.rate < 50 ? round2(ci.rate / (1 - marginPercent / 100)) : Math.round(ci.rate / (1 - marginPercent / 100)));
     // A quantity makes it a lump sum (e.g. profiling 7,002 m² at the m² rate).
-    const q = o.quantity != null && o.quantity > 0 ? o.quantity : null;
     return [{ key: o.key, description: o.description || ci.name, unit: UNIT_LABEL[ci.unit], rate, quantity: q, total: q ? Math.round(rate * q) : null }];
   });
 
