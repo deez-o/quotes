@@ -57,8 +57,10 @@ export async function drawingPages(bytes: Uint8Array, opts: { max?: number; px?:
       const pix = p.toPixmap(mupdf.Matrix.scale(s, s), mupdf.ColorSpace.DeviceRGB, false, true);
       out.push({ page: num, jpg: pix.asJPEG(78, false) });
     }
+    console.info(`[drawings] ${n} pages, ${out.length} as pictures (sizes ${sizes.slice(0, 4).map((z) => `${Math.round(z.w)}x${Math.round(z.h)}/${z.chars}`).join(", ")})`);
     return out;
-  } catch {
+  } catch (e) {
+    console.warn("[drawings] couldn't render:", e instanceof Error ? e.message : e);
     return [];
   }
 }
