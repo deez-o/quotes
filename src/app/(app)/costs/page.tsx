@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { KeepScroll, Toast } from "../keep-scroll";
 import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
@@ -193,8 +195,9 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
         <h1>Your costs</h1>
         <p className="sub">Set these once. Talk-to-quote prices every job from them, so quotes come out your way. All rates ex GST.</p>
       </div>
-      {saved && <p style={{ color: "var(--good)", fontWeight: 600 }} role="status">{saved}</p>}
-      {error && <p className="error" role="alert">{error}</p>}
+      <Suspense fallback={null}><KeepScroll /></Suspense>
+      {saved && <Toast key={`s${saved}`} text={saved} ok />}
+      {error && <Toast key={`e${error}`} text={error} ok={false} />}
       {!canEdit && <p className="sub">Only a client admin can change costs.</p>}
 
       {SECTIONS.map((sec) => <CostSection key={sec.key} s={sec} items={(items ?? []) as Item[]} canEdit={canEdit} />)}
