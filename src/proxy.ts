@@ -34,7 +34,7 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims?.sub);
-  const SITE_PAGES = ["/", "/privacy", "/terms"]; // the public website
+  const SITE_PAGES = ["/", "/privacy", "/terms", "/promo"]; // the public website
   const isPublic = SITE_PAGES.includes(request.nextUrl.pathname) || PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
 
   // Already signed in: no need to sign up or sign in again.
@@ -88,5 +88,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.png$|.*\\.svg$|.*\\.jpe?g$|.*\\.webp$|.*\\.mjs$|robots.txt|sitemap.xml|api/webhooks|api/cron|api/inbound|api/stripe).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.png$|.*\\.svg$|.*\\.jpe?g$|.*\\.webp$|.*\\.mjs$|.*\\.mp4$|robots.txt|sitemap.xml|api/webhooks|api/cron|api/inbound|api/stripe).*)"],
 };
