@@ -6,6 +6,7 @@ import type { Overview } from "@/lib/rfq/overview";
 import type { RfqSummary } from "@/lib/rfq/split";
 import type { SiteScope } from "@/lib/site/price";
 import { AreaMap } from "./area-map";
+import { DrawingMarkups } from "./markups";
 import { tidyItems } from "@/lib/site/tidy";
 import { fillAddedMixes } from "@/lib/site/fill-mixes";
 import { yardRoute } from "@/lib/site/yard-route";
@@ -135,6 +136,41 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
           browserKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? null} />
       ) : (
         <section className="card"><strong>Measure on the map</strong><p className="sub">Add the site address on the quote first, so the map knows where to look.</p></section>
+      )}
+
+      {(ov?.segments?.length ?? 0) > 0 && (() => {
+        const segs = ov!.segments!;
+        const segArea = segs.reduce((t, x) => t + (x.area_m2 || x.width_m * x.length_m), 0);
+        const quotedTop = Math.max(0, ...quoted.filter((r) => r.depth).map((r) => r.area ?? 0));
+        const gap = quotedTop && segArea ? (segArea - quotedTop) / quotedTop : 0;
+        return (
+          <section className="card">
+            <strong>Widths and lengths from the drawings</strong>
+            <div style={{ overflowX: "auto", marginTop: 8 }}>
+              <table className="dash-table">
+                <thead><tr><th>Stretch</th><th>Width</th><th>Length</th><th>Area</th><th>From</th></tr></thead>
+                <tbody>{segs.map((x, i) => (
+                  <tr key={i}><td>{x.label}</td><td>{x.width_m ? `${x.width_m} m` : "–"}</td><td>{x.length_m ? `${n0(x.length_m)} m` : "–"}</td><td style={{ fontWeight: 600 }}>{n0(x.area_m2 || x.width_m * x.length_m)} m²</td><td className="sub" style={{ whiteSpace: "normal" }}>{x.source}</td></tr>
+                ))}</tbody>
+              </table>
+            </div>
+            {quotedTop > 0 && (
+              <p style={{ margin: "10px 0 0", fontWeight: 600, color: Math.abs(gap) > 0.05 ? "var(--bad, #b42318)" : "var(--ink)" }}>
+                {Math.abs(gap) > 0.05
+                  ? `Check the quantities: the drawings come to ${n0(segArea)} m², ${Math.round(Math.abs(gap) * 100)}% ${gap > 0 ? "more" : "less"} than the ${n0(quotedTop)} m² on the quote.`
+                  : `The drawings agree with the quote (${n0(segArea)} m² against ${n0(quotedTop)} m²).`}
+              </p>
+            )}
+          </section>
+        );
+      })()}
+
+      {(ov?.markups?.length ?? 0) > 0 && files.length > 0 && (
+        <section className="card">
+          <strong>On the drawings</strong>
+          <p className="sub" style={{ margin: "2px 0 10px", fontSize: 13 }}>Our work marked on the plans: highlighted words on the drawing, with the note beside them.</p>
+          <DrawingMarkups markups={ov!.markups!} files={files} />
+        </section>
       )}
 
       {ov && ov.specs.length > 0 && (

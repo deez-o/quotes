@@ -169,6 +169,8 @@ export function defaultDensity(kind: PriceListLine["kind"]): number | null {
 export async function pdfText(bytes: Uint8Array): Promise<string> {
   const { extractText, getDocumentProxy } = await import("unpdf");
   const pdf = await getDocumentProxy(bytes);
-  const { text } = await extractText(pdf, { mergePages: true });
-  return String(text ?? "").trim();
+  // Page by page with a marker, so notes can say which sheet ("--- page 3 ---").
+  const { text } = await extractText(pdf, { mergePages: false });
+  const pages = (Array.isArray(text) ? text : [String(text ?? "")]).map((t) => String(t ?? "").trim());
+  return pages.length > 1 ? pages.map((t, i) => `--- page ${i + 1} ---\n${t}`).join("\n").trim() : (pages[0] ?? "").trim();
 }
