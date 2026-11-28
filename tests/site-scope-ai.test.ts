@@ -97,3 +97,15 @@ describe("calling Grok", () => {
       .rejects.toThrow("xAI 401: Incorrect API key");
   });
 });
+
+describe("mix names", () => {
+  it("AC15 becomes AC14, EME2 becomes AC20 with the EME2 binder", async () => {
+    const { fixMixName } = await import("@/lib/site/scope-ai");
+    const mk = (id: string, name: string) => ({ id, category: "material" as const, material_kind: "asphalt" as const, name, unit: "t" as const, rate: 180, density_t_per_m3: 2.4, includes_delivery: false, truck_capacity_t: null, active: true });
+    const lib = [mk("a14", "AC14"), mk("a20", "AC20")];
+    const item = (description: string, depth: number | null) => ({ key: "x", kind: "asphalt" as const, description, area_m2: 100, depth_mm: depth, cost_item_id: null, quantity: null, binder: null });
+    expect(fixMixName(item("Supply and lay AC15", 50), lib)).toMatchObject({ description: "Supply and lay AC14", cost_item_id: "a14" });
+    expect(fixMixName(item("EME2 base, 170 mm", 170), lib)).toMatchObject({ cost_item_id: "a20", binder: "EME2" });
+    expect(fixMixName(item("EME2 50 mm", 50), lib)).toMatchObject({ cost_item_id: "a14", binder: "EME2" });
+  });
+});

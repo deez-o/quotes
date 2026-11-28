@@ -92,6 +92,7 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `6e. Use the mix the RFQ or drawings specify, even if it seems unusual for the layer depth; if it looks wrong for the thickness (layer under about 3 times the stone size), keep it and add a short question.`,
     `6f. job_type: a carpark if the drawings or RFQ show parking bays, line marking, or concrete/kerbed islands within the asphalt (several islands = carpark), even if it isn't called one. A road is a long strip with kerb and channel; a driveway is one entry.`,
     `6g. Crew and plant: one line per crew or plant item for the whole job, with the total days across all areas and stages (e.g. 6 days, not 4 + 2), unless they work different hours a day.`,
+    `6n. EME2 is a hard-binder asphalt, not its own mix: unless the library has a mix named EME2, price it as AC20 (layers 60 mm and over) or AC14 (thinner) with binder "EME2". AC13 and AC15 aren't real mixes: always use AC14 (and say AC14 in the description).`,
     `6h. Interstate or unusual binders (e.g. NSW AR450, R-series): set binder to what's written; the app prices it at the company's default (C320) and flags it. Don't swap the mix for it.`,
     `6c. Never add the float (category float) as an item or plant line: the app adds float moves itself. Set float_moves to the number of asphalt establishments when there's more than one.`,
     `6i. Crew shifts are for laying asphalt (and base) only. Prime, tack coat and seal are m2 rates with their crew built in: never add crew days for a prime or seal establishment. E.g. prime + two EME2 layers + AC14 = 3 asphalt establishments = 3 crew days (unless a layer needs more than a day).`,
@@ -181,6 +182,35 @@ export function buildRfqUserMessage(input: { from: string; subject: string; rece
   ];
 }
 
+/** An active asphalt mix in the library by size, e.g. "AC14" (any plant: the app swaps to the chosen plant's price). */
+function mixBySize(library: CostItem[], size: string): CostItem | undefined {
+  const re = new RegExp(`^\\s*${size}\\b`, "i");
+  return library.find((c) => c.active && c.category === "material" && c.material_kind === "asphalt" && re.test(c.name) && !/eme|c600|a15|a35|pmb|crumb|multi/i.test(c.name))
+    ?? library.find((c) => c.active && c.category === "material" && c.material_kind === "asphalt" && re.test(c.name));
+}
+
+/**
+ * Mix names that aren't real or aren't their own mix:
+ * AC13 / AC15 -> AC14; EME2 -> AC20 (or AC14 under 60 mm) with the EME2 binder, unless there's an EME2 mix.
+ */
+export function fixMixName(i: SiteScope["items"][number], library: CostItem[]): SiteScope["items"][number] {
+  if (i.kind !== "asphalt") return i;
+  const chosen = i.cost_item_id ? library.find((c) => c.id === i.cost_item_id) : undefined;
+  const text = `${i.description} ${chosen?.name ?? ""}`;
+  if (/\bAC\s?1[35]\b/i.test(i.description) && !/\bAC\s?14\b/i.test(chosen?.name ?? "")) {
+    const ac14 = mixBySize(library, "AC\\s?14");
+    return { ...i, description: i.description.replace(/\bAC\s?1[35]\b/gi, "AC14"), cost_item_id: ac14?.id ?? i.cost_item_id };
+  }
+  if (/\bEME\s?2\b/i.test(text) && !/\bEME\s?2\b/i.test(chosen?.name ?? "")) {
+    const own = library.find((c) => c.active && c.category === "material" && c.material_kind === "asphalt" && /\bEME\s?2\b/i.test(c.name));
+    if (own) return { ...i, cost_item_id: own.id };
+    const thin = i.depth_mm != null && i.depth_mm < 60;
+    const mix = mixBySize(library, thin ? "AC\\s?14" : "AC\\s?20") ?? mixBySize(library, "AC\\s?14");
+    return { ...i, cost_item_id: chosen?.id ?? mix?.id ?? null, binder: "EME2" };
+  }
+  return i;
+}
+
 /** Keep only ids that exist; make keys unique; drop negatives. Returns notes for anything fixed. */
 export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPlant[]): { scope: SiteScope; fixes: string[] } {
   const ids = new Set(library.filter((c) => c.active).map((c) => c.id));
@@ -196,6 +226,7 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
   const pos = (n: number | null) => (n == null || !Number.isFinite(n) || n < 0 ? null : n);
 
   const items = raw.items.map((i, n) => {
+    i = fixMixName(i, library);
     let cost = i.cost_item_id;
     if (cost && !ids.has(cost)) {
       fixes.push(`"${i.description}" pointed at a cost that isn't in your library.`);
