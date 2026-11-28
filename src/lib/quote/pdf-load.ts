@@ -30,7 +30,7 @@ export async function loadGroup(db: SupabaseClient, tenantId: string, id: string
 }
 
 /** The quote (with any options) as its customer PDF, plus what the email needs. */
-export async function loadQuotePdf(db: SupabaseClient, tenantId: string, id: string, opts: { acceptUrl?: string | null } = {}) {
+export async function loadQuotePdf(db: SupabaseClient, tenantId: string, id: string, opts: { acceptUrl?: string | null; noMap?: boolean } = {}) {
   const [group, brand, { data: s }] = await Promise.all([
     loadGroup(db, tenantId, id),
     loadBrand(db, tenantId),
@@ -48,7 +48,7 @@ export async function loadQuotePdf(db: SupabaseClient, tenantId: string, id: str
     };
   });
   const areas = lead.overview?.areas ?? [];
-  const mapPng = lead.show_map && areas.length && lead.site_lat != null && lead.site_lng != null
+  const mapPng = !opts.noMap && lead.show_map && areas.length && lead.site_lat != null && lead.site_lng != null
     ? await fetchStaticMap({ lat: lead.site_lat, lng: lead.site_lng }, areas) : null;
   const data: QuotePdfData = {
     brand: brand.color ?? "#16181B",

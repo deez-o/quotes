@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { AreaMap } from "./overview/area-map";
 import { SendQuoteDialog } from "./send";
+import { RiseAndFall } from "./rise-fall";
+import type { BitumenIndex } from "@/lib/bitumen";
 import type { DrawnArea } from "@/lib/rfq/overview";
 
 import { useMemo, useRef, useState } from "react";
@@ -36,8 +38,9 @@ const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8
 let keySeq = 0;
 const newKey = (p: string) => `${p}${Date.now().toString(36)}${keySeq++}`;
 
-export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null, hasSheet = false, customers = [] }: {
+export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null, hasSheet = false, customers = [], bitumen = null }: {
   quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null; compare?: CompareView | null; hasSheet?: boolean; customers?: { name: string; email: string | null }[];
+  bitumen?: { indexes: BitumenIndex[]; binderPercent: number; quotedAt: string } | null;
 }) {
   const router = useRouter();
   const [scope, setScope] = useState<SiteScope>(quote.scope);
@@ -331,6 +334,13 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             Put the site map with the traced areas on the PDF{quote.areas.length ? "" : " (trace an area below first)"}
           </label>
         </section>
+
+        {bitumen && (priced.perTonne?.tonnes ?? 0) > 0 && (
+          <details className="card">
+            <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 17 }}>Bitumen rise and fall</summary>
+            <div style={{ marginTop: 10 }}><RiseAndFall tonnes={priced.perTonne!.tonnes} indexes={bitumen.indexes} binderPercent={bitumen.binderPercent} quotedAt={bitumen.quotedAt} /></div>
+          </details>
+        )}
 
         <details className="card" onToggle={(e) => setMapOpen((e.currentTarget as HTMLDetailsElement).open)}>
           <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 17 }}>

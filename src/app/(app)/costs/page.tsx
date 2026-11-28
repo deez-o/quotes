@@ -170,7 +170,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
     supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
-    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message")
+    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent")
       .eq("tenant_id", ctx.tenant.id).maybeSingle(),
   ]);
 
@@ -249,6 +249,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
           <label style={field}>Truck tipping (min)<input type="text" inputMode="decimal" name="truck_unload_minutes" defaultValue={s?.truck_unload_minutes ?? 10} /></label>
           <label style={field}>Shift length (min)<input type="text" inputMode="decimal" name="shift_minutes" defaultValue={s?.shift_minutes ?? 480} /></label>
           <label style={field}>GST (%)<input type="text" inputMode="decimal" name="gst_percent" defaultValue={s?.gst_percent ?? 10} /></label>
+          <label style={field}>Binder in asphalt (%)<input type="text" inputMode="decimal" name="binder_percent" defaultValue={s?.binder_percent ?? 5.5} /></label>
         </fieldset>
         <label style={field}>Terms printed on quotes
           <textarea name="quote_terms" rows={4} defaultValue={s?.quote_terms ?? DEFAULT_TERMS} disabled={!canEdit} />

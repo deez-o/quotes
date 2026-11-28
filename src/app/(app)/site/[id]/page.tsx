@@ -105,6 +105,11 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
     q.quote_no ? db.from("site_quotes").select("id, revision, option_label, sent_at, superseded_at").eq("tenant_id", t).eq("quote_no", q.quote_no).neq("revision", q.revision).order("revision") : Promise.resolve({ data: null }),
     db.from("customers").select("name, email").eq("tenant_id", t).order("name").limit(500),
   ]);
+  const [{ data: idx }, { data: ts }, { data: made }] = await Promise.all([
+    db.from("bitumen_indexes").select("month, value").order("month", { ascending: false }).limit(36),
+    db.from("tenant_settings").select("binder_percent").eq("tenant_id", t).maybeSingle(),
+    db.from("site_quotes").select("created_at").eq("tenant_id", t).eq("id", q.id).single(),
+  ]);
   const sameOpt = (r: { option_label: string | null }) => (r.option_label ?? "A") === (q.option_label ?? "A") || !r.option_label;
   const earlier = (revs ?? []).filter((r) => r.revision < q.revision && sameOpt(r));
   const latest = (revs ?? []).filter((r) => r.revision > q.revision && !r.superseded_at && sameOpt(r)).sort((a, b) => b.revision - a.revision)[0];
@@ -128,7 +133,8 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
       <QuoteBar v={bar} />
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
         hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} hasSheet
-        customers={(customers ?? []).map((c) => ({ name: c.name as string, email: (c.email as string | null) ?? null }))} />
+        customers={(customers ?? []).map((c) => ({ name: c.name as string, email: (c.email as string | null) ?? null }))}
+        bitumen={{ indexes: (idx ?? []).map((i) => ({ month: i.month as string, value: Number(i.value) })), binderPercent: Number(ts?.binder_percent ?? 5.5), quotedAt: (made?.created_at as string) ?? new Date().toISOString() }} />
     </div>
   );
 }

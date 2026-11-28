@@ -65,3 +65,18 @@ describe("dashboard", () => {
     expect(d.topCustomers[0]).toMatchObject({ name: "Acme", won: 150 });
   });
 });
+
+import { indexFor, riseAndFall } from "@/lib/bitumen";
+
+describe("bitumen rise and fall", () => {
+  it("prices the binder at the index change", () => {
+    expect(riseAndFall({ asphaltTonnes: 200, binderPercent: 5.5, baseIndex: 1458.59, currentIndex: 1878.59 })).toEqual({ binderTonnes: 11, change: 420, amount: 4620 });
+    expect(riseAndFall({ asphaltTonnes: 100, binderPercent: 5, baseIndex: 1900, currentIndex: 1800 }).amount).toBe(-500);
+  });
+  it("uses the latest index at or before the month", () => {
+    const list = [{ month: "2026-08-01", value: 1 }, { month: "2026-09-01", value: 2 }];
+    expect(indexFor(list, "2026-11-28")?.value).toBe(2);
+    expect(indexFor(list, "2026-08-15")?.value).toBe(1);
+    expect(indexFor(list, "2026-01-01")).toBeNull();
+  });
+});

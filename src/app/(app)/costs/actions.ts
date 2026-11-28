@@ -148,6 +148,11 @@ export async function savePricingSettings(formData: FormData) {
   }
   if (values.margin_percent >= 95) back("Margin must be under 95%.");
   if (values.shift_minutes < 60) back("Check the shift length.");
+  const binder = num(formData.get("binder_percent"));
+  if (binder != null && !Number.isNaN(binder)) {
+    if (binder <= 0 || binder >= 20) back("Binder content should be between 0 and 20%.");
+    values.binder_percent = binder;
+  }
   const supabase = await createClient();
   const { error } = await supabase.from("tenant_settings").upsert({
     tenant_id: ctx.tenant.id, ...values,
