@@ -20,6 +20,7 @@ export function SendQuoteDialog({ quoteId, onClose, onSent }: { quoteId: string;
   const box = useRef<HTMLDivElement>(null);
 
   const closeRef = useRef(onClose);
+  const downOnBackdrop = useRef(false);
   const busyRef = useRef(busy);
   useEffect(() => { closeRef.current = onClose; busyRef.current = busy; });
 
@@ -53,7 +54,10 @@ export function SendQuoteDialog({ quoteId, onClose, onSent }: { quoteId: string;
 
   const lbl: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 13, fontWeight: 600 };
   return (
-    <div role="presentation" onClick={(e) => { if (e.target === e.currentTarget && !busy) onClose(); }}
+    <div role="presentation"
+      // Only a click that starts and ends on the backdrop closes it: dragging to select text and letting go outside the box doesn't.
+      onMouseDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (e.target === e.currentTarget && downOnBackdrop.current && !busy) onClose(); downOnBackdrop.current = false; }}
       style={{ position: "fixed", inset: 0, background: "rgba(16,18,20,.45)", zIndex: 60, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "4vh 12px", overflowY: "auto" }}>
       <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="send-title" className="card"
         style={{ width: "min(620px, 100%)", display: "flex", flexDirection: "column", gap: 12, outline: "none" }}>
@@ -90,11 +94,10 @@ export function SendQuoteDialog({ quoteId, onClose, onSent }: { quoteId: string;
             <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
               <input type="checkbox" checked={copyMe} onChange={(e) => setCopyMe(e.target.checked)} /> Send me a copy
             </label>
-            <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              <span aria-hidden>📎</span>
-              <a href={`/api/quotes/${quoteId}/pdf`} target="_blank" rel="noreferrer">The quote PDF</a>
-              <span className="sub" style={{ marginTop: 0 }}>is attached. Open it to check. A &quot;View and accept quote&quot; button goes under your message.</span>
-            </div>
+            <p className="sub" style={{ margin: 0, fontSize: 14, lineHeight: 1.5 }}>
+              <span aria-hidden>📎 </span><a href={`/api/quotes/${quoteId}/pdf`} target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>The quote PDF</a> is attached (tap to check it).
+              A &quot;View and accept quote&quot; button goes under your message.
+            </p>
             {draft.history.length > 0 && (
               <div className="sub" style={{ marginTop: 0 }}>
                 Sent before: {draft.history.map((h) => `${h.to.join(", ")} on ${new Date(h.at).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`).join("; ")}
