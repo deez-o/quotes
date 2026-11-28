@@ -54,10 +54,15 @@ function columns(category: string, kinds?: [string, string][], plantId?: string)
   return { heads: [...base, ""], template: [...t, ACTIONS_COL].join(" ") };
 }
 
+/** One field in a cost line; its label only shows on phones, where the lines stack. */
+function Cell({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {
+  return <div className={wide ? "cost-cell wide" : "cost-cell"}><span className="cost-label" aria-hidden="true">{label}</span>{children}</div>;
+}
+
 function HeadRow({ category, kinds, plantId }: { category: string; kinds?: [string, string][]; plantId?: string }) {
   const c = columns(category, kinds, plantId);
   return (
-    <div aria-hidden="true" style={{ display: "grid", gridTemplateColumns: c.template, gap: 10, padding: "10px 0 6px", fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
+    <div aria-hidden="true" className="cost-head" style={{ display: "grid", gridTemplateColumns: c.template, gap: 10, padding: "10px 0 6px", fontSize: 12, fontWeight: 600, color: "var(--muted)" }}>
       {c.heads.map((h, i) => <span key={i}>{h}</span>)}
     </div>
   );
@@ -70,7 +75,7 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault }: {
   const hourly = category === "crew" || category === "plant";
   const c = columns(category, kinds, plantId);
   const n = item?.name ?? "new";
-  const tiers = isMaterial || category === "plant" || category === "other";
+  const tiers = isMaterial; // job-size price breaks: materials only
   return (
     <form action={saveCostItem} style={{ borderTop: "1px solid var(--line-soft)", padding: "8px 0" }}>
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
@@ -78,33 +83,33 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault }: {
         <input type="hidden" name="category" value={category} />
         {plantId && <input type="hidden" name="supply_plant_id" value={plantId} />}
         {plantId && <input type="hidden" name="material_kind" value="asphalt" />}
-        <div style={{ display: "grid", gridTemplateColumns: c.template, gap: 10, alignItems: "center" }}>
-          <input type="text" name="name" aria-label="Name" defaultValue={item?.name ?? ""} required placeholder={item ? "" : plantId ? "Add a mix, e.g. AC10 C320" : "Add a new one"} />
-          <input type="text" inputMode="decimal" name="rate" aria-label={`${n} rate (ex GST)`} defaultValue={item?.rate ?? ""} required placeholder="$" />
-          <select name="unit" aria-label={`${n} per`} defaultValue={item?.unit ?? unitDefault ?? (isMaterial ? "t" : category === "float" ? "each" : "h")} style={sel}>
+        <div className="cost-row" style={{ "--cols": c.template } as React.CSSProperties}>
+          <Cell label="Name" wide><input type="text" name="name" aria-label="Name" defaultValue={item?.name ?? ""} required placeholder={item ? "" : plantId ? "Add a mix, e.g. AC10 C320" : "Add a new one"} /></Cell>
+          <Cell label="Rate (ex GST)"><input type="text" inputMode="decimal" name="rate" aria-label={`${n} rate (ex GST)`} defaultValue={item?.rate ?? ""} required placeholder="$" /></Cell>
+          <Cell label="Per"><select name="unit" aria-label={`${n} per`} defaultValue={item?.unit ?? unitDefault ?? (isMaterial ? "t" : category === "float" ? "each" : "h")} style={sel}>
             {UNITS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-          </select>
+          </select></Cell>
           {hourly && (
             <>
-              <input type="text" inputMode="decimal" name="ordinary_hours" aria-label={`${n} normal hours a day`} defaultValue={item?.ordinary_hours ?? (category === "crew" ? 8 : "")} placeholder={category === "crew" ? "8" : "–"} />
-              <input type="text" inputMode="decimal" name="ot1_hours" aria-label={`${n} overtime hours`} defaultValue={item?.ot1_hours ?? 2} />
-              <input type="text" inputMode="decimal" name="ot1_multiplier" aria-label={`${n} overtime rate (×)`} defaultValue={item?.ot1_multiplier ?? 1.5} />
-              <input type="text" inputMode="decimal" name="ot2_multiplier" aria-label={`${n} after that (×)`} defaultValue={item?.ot2_multiplier ?? 2} />
+              <Cell label="Normal hrs"><input type="text" inputMode="decimal" name="ordinary_hours" aria-label={`${n} normal hours a day`} defaultValue={item?.ordinary_hours ?? (category === "crew" ? 8 : "")} placeholder={category === "crew" ? "8" : "–"} /></Cell>
+              <Cell label="OT hrs"><input type="text" inputMode="decimal" name="ot1_hours" aria-label={`${n} overtime hours`} defaultValue={item?.ot1_hours ?? 2} /></Cell>
+              <Cell label="OT ×"><input type="text" inputMode="decimal" name="ot1_multiplier" aria-label={`${n} overtime rate (×)`} defaultValue={item?.ot1_multiplier ?? 1.5} /></Cell>
+              <Cell label="Then ×"><input type="text" inputMode="decimal" name="ot2_multiplier" aria-label={`${n} after that (×)`} defaultValue={item?.ot2_multiplier ?? 2} /></Cell>
             </>
           )}
           {isMaterial && kinds && !plantId && (
-            <select name="material_kind" aria-label={`${n} type`} defaultValue={item?.material_kind ?? kinds[0][0]} style={sel}>
+            <Cell label="Type"><select name="material_kind" aria-label={`${n} type`} defaultValue={item?.material_kind ?? kinds[0][0]} style={sel}>
               {kinds.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
+            </select></Cell>
           )}
           {isMaterial && (
-            <input type="text" inputMode="decimal" name="density_t_per_m3" aria-label={`${n} density (t/m³)`} defaultValue={item?.density_t_per_m3 ?? (plantId && !item ? 2.4 : "")} placeholder={plantId ? "2.4" : "if by tonne"} />
+            <Cell label="t/m³"><input type="text" inputMode="decimal" name="density_t_per_m3" aria-label={`${n} density (t/m³)`} defaultValue={item?.density_t_per_m3 ?? (plantId && !item ? 2.4 : "")} placeholder={plantId ? "2.4" : "if by tonne"} /></Cell>
           )}
           {category === "truck" && (
-            <input type="text" inputMode="decimal" name="truck_capacity_t" aria-label={`${n} carries (t)`} defaultValue={item?.truck_capacity_t ?? 12} />
+            <Cell label="Carries (t)"><input type="text" inputMode="decimal" name="truck_capacity_t" aria-label={`${n} carries (t)`} defaultValue={item?.truck_capacity_t ?? 12} /></Cell>
           )}
           {canEdit ? (
-            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <div className="cost-actions" style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
               {item && <button formAction={archiveCostItem} className="btn" style={{ padding: "9px 10px", color: "#9a3412", borderColor: "#f0b8a8", background: "#fdf1ed" }} aria-label={`Remove ${item.name}`}>Remove</button>}
               <button type="submit" className={`btn${item ? "" : " primary"}`} style={{ padding: "9px 14px", minWidth: 64 }}>{item ? "Save" : "Add"}</button>
             </div>
@@ -149,8 +154,8 @@ function CostSection({ s, items, canEdit }: { s: Section; items: Item[]; canEdit
     <section className="card">
       <h2 style={{ margin: 0 }}>{s.title}</h2>
       <p className="sub" style={{ marginTop: 2, marginBottom: 4, fontSize: 13 }}>{s.hint}</p>
-      <div style={{ overflowX: "auto" }}>
-        <div style={{ minWidth: 700 }}>
+      <div className="cost-scroll">
+        <div className="cost-table">
           <HeadRow category={s.category} kinds={s.kinds} />
           {rows.map((i) => <ItemForm key={i.id} item={i} category={s.category} canEdit={canEdit} kinds={s.kinds} />)}
           {canEdit && <ItemForm category={s.category} canEdit={canEdit} kinds={s.kinds} unitDefault={s.key === "seal" ? "m2" : undefined} />}
@@ -222,8 +227,8 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
             {p.prices_note && <p className="sub" style={{ marginTop: 0, fontSize: 12 }}>{p.prices_note}</p>}
             {mixes.length === 0 && <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>No prices for this plant yet. Upload their price list or type them in.</p>}
             {canEdit && <PriceListUpload tenantId={ctx.tenant.id} plantId={p.id} plantName={p.name} hasAi={hasAi} />}
-            <div style={{ overflowX: "auto" }}>
-              <div style={{ minWidth: 560 }}>
+            <div className="cost-scroll">
+              <div className="cost-table">
                 <HeadRow category="material" plantId={p.id} />
                 {mixes.map((i) => <ItemForm key={i.id} item={i} category="material" canEdit={canEdit} plantId={p.id} />)}
                 {canEdit && <ItemForm category="material" canEdit={canEdit} plantId={p.id} />}

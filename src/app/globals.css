@@ -99,3 +99,16 @@ label { font-weight: 600; }
   h1 { font-size: 26px; }
   input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input[type="number"], input[type="search"], input[type="password"], input:not([type]), textarea, select { font-size: 16px; } /* no zoom on focus in iOS */
 }
+
+/* Cost lines: a row of fields on a wide screen, a tidy two-column card on a phone (no sideways scrolling). */
+.cost-row { display: grid; grid-template-columns: var(--cols); gap: 10px; align-items: center; }
+.cost-label { display: none; }
+.cost-cell { min-width: 0; }
+@media (min-width: 761px) { .cost-scroll { overflow-x: auto; } .cost-table { min-width: 640px; } }
+@media (max-width: 760px) {
+  .cost-head { display: none !important; }
+  .cost-row { grid-template-columns: 1fr 1fr; gap: 8px 10px; align-items: end; }
+  .cost-cell.wide, .cost-actions { grid-column: 1 / -1; }
+  .cost-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 3px; }
+  .cost-actions { justify-content: flex-start !important; }
+}
