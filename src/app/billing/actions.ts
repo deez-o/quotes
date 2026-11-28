@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireTenant } from "@/lib/tenant";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadAccess } from "@/lib/access-load";
-import { checkoutUrl, isPaidPlan, portalUrl, stripeClient, switchPlan, tenantFromSubscription } from "@/lib/stripe";
+import { checkoutUrl, isPaidPlan, portalUrl, stripeClient, switchPlan, tenantFromSubscription, topupCheckoutUrl } from "@/lib/stripe";
 import { PLANS } from "@/lib/plans";
 
 type Result = { ok: true; url?: string; message?: string } | { ok: false; message: string };
@@ -56,5 +56,19 @@ export async function manageBilling(): Promise<Result> {
     return { ok: true, url: await portalUrl(stripe, tenant.stripe_customer_id, await origin()) };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Couldn't open billing." };
+  }
+}
+
+/** Buy more quotes for this month and after (they don't expire). */
+export async function buyTopup(packs: number): Promise<Result> {
+  try {
+    const ctx = await requireTenant();
+    if (ctx.role !== "admin") return { ok: false, message: "Only your company's admin can buy more quotes." };
+    const stripe = stripeClient();
+    if (!stripe) return { ok: false, message: "Online payments aren't switched on yet. Contact quoteout for more quotes." };
+    const { tenant } = await loadAccess(ctx.tenant.id);
+    return { ok: true, url: await topupCheckoutUrl(stripe, createAdminClient(), tenant, ctx.email, packs, await origin()) };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Couldn't open the payment page." };
   }
 }

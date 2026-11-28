@@ -19,9 +19,10 @@ export type Plan = {
 
 export const PLANS: Record<PlanId, Plan> = {
   trial: { id: "trial", name: "Trial", priceMonthly: 0, aiQuotes: 15, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "14 days, everything in Business, 15 AI quotes." },
-  site: { id: "site", name: "Site", priceMonthly: 149, aiQuotes: 40, emailAutoQuote: false, connectedMailbox: false, maxDevices: 2, blurb: "Quote on site by voice and photos, import RFQs, paste emails." },
-  pro: { id: "pro", name: "Pro", priceMonthly: 249, aiQuotes: 150, emailAutoQuote: true, connectedMailbox: false, maxDevices: 2, blurb: "Everything in Site, plus the email auto-quoter by forwarding." },
-  business: { id: "business", name: "Business", priceMonthly: 449, aiQuotes: 500, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "Everything in Pro, plus a connected Microsoft 365 or Gmail inbox." },
+  // Every plan has everything; they differ only in how many quotes a month. (Plan id "site" is Starter.)
+  site: { id: "site", name: "Starter", priceMonthly: 299, aiQuotes: 50, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "Everything quoteout does, 50 quotes a month." },
+  pro: { id: "pro", name: "Pro", priceMonthly: 449, aiQuotes: 100, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "Everything quoteout does, 100 quotes a month." },
+  business: { id: "business", name: "Business", priceMonthly: 799, aiQuotes: 200, emailAutoQuote: true, connectedMailbox: true, maxDevices: null, blurb: "Everything quoteout does, 200 quotes a month." },
   pilot: { id: "pilot", name: "Pilot (free)", priceMonthly: 0, aiQuotes: null, emailAutoQuote: true, connectedMailbox: true, maxDevices: null, blurb: "Free, everything on, no limits. For partners and testing." },
 };
 
@@ -53,12 +54,22 @@ export const MAILBOX_READY = false;
 const inbox = (t: string) => (MAILBOX_READY ? t : `${t} (coming soon)`);
 
 /** What each plan includes, as shown on sign-up, the billing page and the website. */
+const ALL = [inbox("quoteout watches your inbox and drafts every RFQ"), "Forward or upload RFQs, drawings and BOQs", "Quote on site by voice and photos", "Send from your own Outlook; customers accept online", "PDF and Xero, with your branding", "Unlimited users"];
 export const PLAN_FEATURES: Record<"trial" | "site" | "pro" | "business", string[]> = {
-  trial: [MAILBOX_READY ? "Everything in Business for 14 days, including the connected inbox" : "Everything in Business for 14 days", "15 AI quotes", "No card needed"],
-  site: ["Quote on site by voice and photos", "Import an RFQ or paste an email, get a priced draft", "40 AI quotes a month", "PDF and Xero, with your branding", "Your rates, plants and rules set up for you", "Unlimited users"],
-  pro: ["Everything in Site", "Forward RFQ emails to your own quoteout address and they come back as priced drafts", "150 AI quotes a month"],
-  business: ["Everything in Pro", inbox("quoteout watches your inbox and drafts every RFQ, no forwarding"), "500 AI quotes a month"],
+  trial: ["Everything quoteout does, for 14 days", "15 quotes", "No card needed"],
+  site: ["50 quotes a month", ...ALL],
+  pro: ["100 quotes a month", ...ALL],
+  business: ["200 quotes a month", ...ALL],
 };
 
-/** AI uses that count as a quote against the allowance (changes and price lists don't). */
-export const QUOTE_KINDS = ["ai_quote", "ai_rfq"];
+/** The plan most companies pick, shown first on the plan page. */
+export const POPULAR_PLAN = "pro";
+
+/** Top-ups once the month's quotes are used: they don't expire. Dearer per quote than moving up a plan. */
+export const TOPUP = { quotes: 10, priceAud: 50 };
+
+/**
+ * What counts as a quote against the allowance: a new quote made on site, or an RFQ drafted the first time.
+ * Re-reads, changes, options, revisions and price lists don't count.
+ */
+export const QUOTE_KINDS = ["ai_quote", "quote_drafted"];

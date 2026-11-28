@@ -7,6 +7,7 @@ import { runTrials } from "./trial";
 import { cleanOverview, OVERVIEW_SCHEMA, overviewMessages, type Overview } from "./overview";
 import { buildRfqUserMessage } from "@/lib/site/scope-ai";
 import { loadAccess } from "@/lib/access-load";
+import { takeQuote } from "@/lib/quota";
 import { loadPricingContext, emptyScope, haulFor } from "@/lib/site/load";
 import { loadLayeredRules } from "@/lib/rules-load";
 import { routesToPlants } from "@/lib/site/routes";
@@ -97,7 +98,15 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   const readsPdfs = opts.readsPdfs ?? (await liveModelReadsPdfs());
 
   let overviewPromise: Promise<Overview | null> = Promise.resolve(null);
-  if (access.state === "locked") {
+  // Counts against the month's quotes the first time an RFQ is drafted; re-reads are free.
+  let quotaMsg: string | null = null;
+  if (access.state !== "locked" && opts.call === undefined && !redoId) {
+    const took = await takeQuote(tenantId, null, "quote_drafted");
+    if (!took.ok) quotaMsg = took.message;
+  }
+  if (quotaMsg) {
+    scope.questions.push(`${quotaMsg} This RFQ was filed but not read.`);
+  } else if (access.state === "locked") {
     scope.questions.push(`${access.message} This RFQ was filed but not read.`);
   } else if (!call) {
     scope.questions.push("The AI isn't switched on yet, so add the items from the RFQ yourself.");

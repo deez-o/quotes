@@ -50,13 +50,13 @@ describe("devices", () => {
 });
 
 describe("plans", () => {
-  it("uses the launch prices", () => {
-    expect([PLANS.site.priceMonthly, PLANS.pro.priceMonthly, PLANS.business.priceMonthly]).toEqual([149, 249, 449]);
-    expect(PLANS.site.emailAutoQuote).toBe(false);
-    expect(PLANS.pro.emailAutoQuote).toBe(true);
+  it("uses the founding prices, every plan with everything", () => {
+    expect([PLANS.site.priceMonthly, PLANS.pro.priceMonthly, PLANS.business.priceMonthly]).toEqual([299, 449, 799]);
+    expect([PLANS.site.aiQuotes, PLANS.pro.aiQuotes, PLANS.business.aiQuotes]).toEqual([50, 100, 200]);
+    expect(PLANS.site.emailAutoQuote && PLANS.site.connectedMailbox).toBe(true);
   });
   it("lets a company's own limits override its plan", () => {
-    expect(limitsFor({ plan: "pro", ai_quota_month: null, max_devices: null })).toMatchObject({ aiQuotes: 150, maxDevices: 2 });
+    expect(limitsFor({ plan: "pro", ai_quota_month: null, max_devices: null })).toMatchObject({ aiQuotes: 100, maxDevices: 3 });
     expect(limitsFor({ plan: "pro", ai_quota_month: 300, max_devices: 5 })).toMatchObject({ aiQuotes: 300, maxDevices: 5 });
     expect(limitsFor({ plan: "nonsense", ai_quota_month: null, max_devices: null }).plan.id).toBe("trial");
   });

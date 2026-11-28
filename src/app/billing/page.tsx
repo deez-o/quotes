@@ -5,7 +5,9 @@ import { PLANS, PLAN_FEATURES, planFor } from "@/lib/plans";
 import { PAID_PLANS } from "@/lib/stripe-keys";
 import { signOut } from "@/app/actions";
 import { Logo } from "../logo";
-import { ManageBillingButton, PlanButton } from "./plan-buttons";
+import { ManageBillingButton, PlanButton, TopupButton } from "./plan-buttons";
+import { allowance } from "@/lib/quota";
+import { POPULAR_PLAN, TOPUP } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,7 @@ const STATUS: Record<string, string> = {
 };
 
 /** Plan and billing. Also where people land when their trial or payments lapse. */
-export default async function BillingPage({ searchParams }: { searchParams: Promise<{ paid?: string; cancelled?: string; start?: string }> }) {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ paid?: string; cancelled?: string; start?: string; topped?: string }> }) {
   const ctx = await requireTenant();
   const q = await searchParams;
   const { tenant, access, trialQuotesUsed } = await loadAccess(ctx.tenant.id);
@@ -24,6 +26,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   const isAdmin = ctx.role === "admin";
   const paid = PAID_PLANS.includes(current.id as (typeof PAID_PLANS)[number]);
   const live = ["active", "trialing", "past_due"].includes(tenant.billing_status ?? "");
+  const use = await allowance(ctx.tenant.id);
   const startPlan = q.start && PAID_PLANS.includes(q.start as (typeof PAID_PLANS)[number]) ? q.start : null;
 
   return (
@@ -43,6 +46,25 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               {current.id === "trial" && ` · ${trialQuotesUsed} of ${tenant.ai_quota_month ?? current.aiQuotes} trial quotes used`}</p>
           </div>
 
+          {q.topped && <p className="card" style={{ background: "var(--good-bg)", borderColor: "var(--good)", margin: 0 }}>Thanks: {q.topped} more quotes are being added. They&apos;re used once this month&apos;s plan quotes run out, and they don&apos;t expire.</p>}
+          {use.cap != null && current.id !== "pilot" && (
+            <section className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div className="row" style={{ justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <strong>{current.id === "trial" ? "Trial quotes" : "Quotes this month"}</strong>
+                <span style={{ fontWeight: 700 }}>{Math.min(use.used, use.cap)} of {use.cap} used{use.credits > 0 ? ` · ${use.credits} top-up quote${use.credits === 1 ? "" : "s"} left` : ""}</span>
+              </div>
+              <div aria-hidden style={{ height: 10, borderRadius: 5, background: "var(--line-soft, #eef0f2)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.min(100, (use.used / use.cap) * 100)}%`, background: use.used >= use.cap ? "var(--bad, #b42318)" : use.used >= use.cap * 0.9 ? "var(--accent, #FF6A13)" : "var(--bitumen)" }} />
+              </div>
+              <p className="sub" style={{ margin: 0, fontSize: 13 }}>A quote counts once: each RFQ quoteout drafts, and each new quote made on site. Reading again, changes, options and revisions are free. {current.id !== "trial" && "Plan quotes reset on the 1st."}</p>
+              {isAdmin && paid && live && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <span style={{ fontWeight: 600 }}>Need more this month? Top up: ${TOPUP.priceAud / TOPUP.quotes} a quote, and they don&apos;t expire.</span>
+                  <TopupButton quotes={TOPUP.quotes} price={TOPUP.priceAud} />
+                </div>
+              )}
+            </section>
+          )}
           {q.paid && <p className="card" style={{ background: "var(--good-bg)", borderColor: "var(--good)", margin: 0 }}>Thanks, payment received. Your plan switches on within a minute. <Link href="/setup" style={{ fontWeight: 600, textDecoration: "underline" }}>Go to Setup</Link></p>}
           {q.cancelled && <p className="card" style={{ margin: 0 }}>Payment wasn&apos;t finished. Pick a plan below whenever you&apos;re ready.</p>}
           {access.state === "locked" && !q.paid && (
@@ -58,18 +80,18 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               const mine = current.id === id && live;
               const up = (p.priceMonthly ?? 0) > (paid && live ? current.priceMonthly ?? 0 : 0);
               return (
-                <section key={id} className="card" style={{ display: "flex", flexDirection: "column", gap: 12, ...(mine ? { border: "2px solid var(--brand)" } : id === "pro" ? { borderColor: "#b6bcc4" } : {}) }}>
+                <section key={id} className="card" style={{ display: "flex", flexDirection: "column", gap: 12, ...(mine ? { border: "2px solid var(--brand)" } : id === POPULAR_PLAN ? { border: "2px solid var(--bitumen)" } : {}) }}>
                   <div className="row" style={{ justifyContent: "space-between", gap: 8 }}>
                     <h2 style={{ margin: 0, fontSize: 20 }}>{p.name}</h2>
-                    {mine ? <span className="badge good">Your plan</span> : id === "pro" ? <span className="badge quiet">Most popular</span> : null}
+                    {mine ? <span className="badge good">Your plan</span> : id === POPULAR_PLAN ? <span className="badge">Most popular</span> : null}
                   </div>
                   <div><span style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.02em" }}>${p.priceMonthly}</span><span className="sub"> a month + GST</span></div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{p.aiQuotes} AI quotes a month</div>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{p.aiQuotes} quotes a month · then ${TOPUP.priceAud / TOPUP.quotes} a quote</div>
                   <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4, fontSize: 14, flex: 1 }}>
                     {PLAN_FEATURES[id].map((f) => <li key={f}>{f}</li>)}
                   </ul>
                   {isAdmin && !mine && (
-                    <PlanButton plan={id} primary={up || id === "pro"}
+                    <PlanButton plan={id} primary={up || id === POPULAR_PLAN}
                       label={paid && live ? (up ? `Upgrade to ${p.name}` : `Switch to ${p.name}`) : `Choose ${p.name}`}
                       confirmText={paid && live ? `Confirm: $${p.priceMonthly}/mo + GST` : undefined}
                       autoStart={startPlan === id && !live} />
@@ -80,7 +102,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
           </div>
 
           <p className="sub" style={{ margin: 0, fontSize: 13 }}>
-            Launch prices: sign up now and keep them. Every plan includes unlimited users and setup of your rates, plants and rules.
+            Every plan does everything; they differ only in how many quotes a month. Founding prices: sign up now and keep them. Unlimited users, and setup of your rates, plants and rules.
             Changing plan takes effect straight away; Stripe charges or credits the difference for the month. Cancel any time.
           </p>
 

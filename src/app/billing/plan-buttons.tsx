@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { choosePlan, manageBilling } from "./actions";
+import { buyTopup, choosePlan, manageBilling } from "./actions";
 
 export function PlanButton({ plan, label, primary, confirmText, autoStart }: { plan: string; label: string; primary?: boolean; confirmText?: string; autoStart?: boolean }) {
   const [pending, start] = useTransition();
@@ -43,5 +43,24 @@ export function ManageBillingButton() {
       })}>{pending ? "Opening..." : "Card details and invoices"}</button>
       {err && <span className="error" style={{ fontSize: 13, marginLeft: 8 }}>{err}</span>}
     </span>
+  );
+}
+
+/** Buy quotes: 1 to 5 packs. */
+export function TopupButton({ quotes, price }: { quotes: number; price: number }) {
+  const [pending, start] = useTransition();
+  const [packs, setPacks] = useState(1);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <select value={packs} onChange={(e) => setPacks(Number(e.target.value))} aria-label="How many quotes" style={{ font: "inherit", padding: "9px 10px", borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff" }}>
+        {[1, 2, 3, 5].map((n) => <option key={n} value={n}>{n * quotes} quotes: ${n * price} + GST</option>)}
+      </select>
+      <button type="button" className="btn primary" disabled={pending} onClick={() => start(async () => {
+        const r = await buyTopup(packs);
+        if (r.ok && r.url) window.location.assign(r.url); else if (!r.ok) setErr(r.message);
+      })}>{pending ? "Opening..." : "Buy quotes"}</button>
+      {err && <span className="error" role="status" style={{ fontSize: 13 }}>{err}</span>}
+    </div>
   );
 }

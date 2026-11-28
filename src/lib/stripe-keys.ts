@@ -2,7 +2,9 @@
 export const PAID_PLANS = ["site", "pro", "business"] as const;
 export type PaidPlan = (typeof PAID_PLANS)[number];
 
-export const LOOKUP = (p: PaidPlan) => `quoteout_${p}_monthly_v1`;
+// v2: Nov 2026 pricing (Starter $299 / Pro $449 / Business $799). Existing subscribers keep their v1 price.
+export const LOOKUP = (p: PaidPlan) => `quoteout_${p}_monthly_v2`;
+export const TOPUP_LOOKUP = "quoteout_topup10_v1";
 
 export function isPaidPlan(p: string): p is PaidPlan {
   return (PAID_PLANS as readonly string[]).includes(p);

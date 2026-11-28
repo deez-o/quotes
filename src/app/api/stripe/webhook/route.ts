@@ -30,6 +30,14 @@ export async function POST(request: Request) {
       case "checkout.session.completed": {
         const s = event.data.object as Stripe.Checkout.Session;
         const tenantId = s.client_reference_id ?? s.metadata?.tenant_id;
+        // A top-up: add its quotes once it's paid (each checkout once).
+        if (tenantId && s.mode === "payment" && s.metadata?.topup_quotes && s.payment_status === "paid") {
+          const n = Number(s.metadata.topup_quotes);
+          if (n > 0) {
+            await db.rpc("add_quote_credits", { t: tenantId, n, sid: s.id, amount: (s.amount_total ?? 0) / 100 });
+            await db.from("audit_log").insert({ tenant_id: tenantId, actor: null, action: "billing.topup", target: `${n} quotes ${s.id}` });
+          }
+        }
         if (tenantId && typeof s.subscription === "string") {
           const sub = await stripe.subscriptions.retrieve(s.subscription);
           await apply(db, tenantId, sub, typeof s.customer === "string" ? s.customer : null);

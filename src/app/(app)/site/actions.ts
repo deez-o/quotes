@@ -1,5 +1,7 @@
 "use server";
 
+import { takeQuote } from "@/lib/quota";
+
 import { revalidatePath } from "next/cache";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
@@ -53,6 +55,9 @@ export async function buildSiteQuote(input: {
 
     const db = await createClient();
     const pc = await loadPricingContext(db, ctx.tenant.id);
+    // A new quote on site counts against the month's quotes (top-up credits once those are gone).
+    const took = await takeQuote(ctx.tenant.id, ctx.userId, "ai_quote");
+    if (!took.ok) return { ok: false, message: took.message };
     const call = await siteCaller(ctx, "ai_quote");
     const title = input.customer ? `${input.customer}${input.address ? `, ${input.address.split(",")[0]}` : ""}` : input.address || "Quote";
 

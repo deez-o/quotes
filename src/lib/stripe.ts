@@ -3,7 +3,8 @@ import Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLANS, type PlanId } from "@/lib/plans";
 
-import { LOOKUP, PAID_PLANS, isPaidPlan, planFromLookupKey, type PaidPlan } from "@/lib/stripe-keys";
+import { LOOKUP, PAID_PLANS, TOPUP_LOOKUP, isPaidPlan, planFromLookupKey, type PaidPlan } from "@/lib/stripe-keys";
+import { TOPUP } from "@/lib/plans";
 export { PAID_PLANS, isPaidPlan, planFromLookupKey, type PaidPlan };
 
 export function stripeClient(): Stripe | null {
@@ -100,4 +101,29 @@ export function tenantFromSubscription(sub: Stripe.Subscription, current: { past
     past_due_since: status === "past_due" ? (current.past_due_since ?? new Date().toISOString()) : null,
     ...(plan && status !== "canceled" && status !== "incomplete_expired" ? { plan: plan as PlanId, trial_ends_at: null } : {}),
   };
+}
+
+/** The one-off price for a top-up of quotes (made in Stripe the first time it's needed). */
+async function topupPrice(stripe: Stripe): Promise<string> {
+  const found = await stripe.prices.list({ lookup_keys: [TOPUP_LOOKUP], active: true, limit: 1 });
+  if (found.data[0]) return found.data[0].id;
+  const product = await stripe.products.create({ name: `quoteout top-up: ${TOPUP.quotes} quotes`, metadata: { quoteout_topup: String(TOPUP.quotes) } });
+  const price = await stripe.prices.create({ product: product.id, currency: "aud", unit_amount: TOPUP.priceAud * 100, lookup_key: TOPUP_LOOKUP, tax_behavior: "exclusive", metadata: { quoteout_topup: String(TOPUP.quotes) } });
+  return price.id;
+}
+
+/** Stripe's checkout for a top-up (one payment, GST on top). Credits are added by the webhook. */
+export async function topupCheckoutUrl(stripe: Stripe, db: SupabaseClient, t: Tenant, email: string | null, packs: number, origin: string) {
+  const [customer, price, gst] = await Promise.all([customerFor(stripe, db, t, email), topupPrice(stripe), gstRate(stripe)]);
+  const n = Math.max(1, Math.min(10, Math.round(packs)));
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment", customer, client_reference_id: t.id,
+    line_items: [{ price, quantity: n, tax_rates: [gst] }],
+    metadata: { tenant_id: t.id, topup_quotes: String(n * TOPUP.quotes) },
+    invoice_creation: { enabled: true },
+    success_url: `${origin}/billing?topped=${n * TOPUP.quotes}`,
+    cancel_url: `${origin}/billing`,
+  });
+  if (!session.url) throw new Error("Stripe didn't return a checkout page.");
+  return session.url;
 }
