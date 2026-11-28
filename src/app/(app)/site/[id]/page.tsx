@@ -1,3 +1,4 @@
+import { RereadButton } from "../../quotes/reread";
 import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -144,6 +145,13 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
         <span className="sub" style={{ marginTop: 0, fontWeight: 600 }}>{quoteLabel(q)} · {q.status}</span>
       </div>
       <QuoteBar v={bar} />
+      {q.job_id && !q.sent_at && !q.option_group && !(Number(q.revision) > 0) && !((q.scope as { items?: unknown[] } | null)?.items?.length) && ctx.role !== "viewer" && (
+        <div className="card" style={{ background: "var(--warn-bg)", borderColor: "transparent", display: "flex", flexDirection: "column", gap: 8 }}>
+          <strong>Nothing has been priced on this RFQ yet.</strong>
+          <span className="sub" style={{ marginTop: 0 }}>If it was read before your costs were set up, read it again now and quoteout fills in the items from the RFQ.</span>
+          <RereadButton siteQuoteId={q.id} label="Read it again with your costs" />
+        </div>
+      )}
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
         hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} hasSheet
         customers={(customers ?? []).map((c) => ({ name: c.name as string, email: (c.email as string | null) ?? null }))}

@@ -46,7 +46,7 @@ async function download(db: SupabaseClient, path: string) {
  * (it may have been edited); it's flagged on the quote instead.
  * Runs in the worker with the service role, so every query names the tenant.
  */
-export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId: string, opts: { call?: ScopeCall | null; readsPdfs?: boolean } = {}): Promise<DraftOutcome> {
+export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId: string, opts: { call?: ScopeCall | null; readsPdfs?: boolean; redo?: boolean } = {}): Promise<DraftOutcome> {
   const { data: job } = await db.from("jobs").select("id, quote_no, status, source, site").eq("tenant_id", tenantId).eq("id", jobId).maybeSingle();
   if (!job) return { kind: "skipped", reason: "job not found" };
 
@@ -54,7 +54,12 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     .eq("tenant_id", tenantId).eq("job_id", jobId).order("received_at", { ascending: true });
 
   // Already drafted: a follow-up email in the thread. Flag it rather than overwrite their edits.
-  const { data: existing } = await db.from("site_quotes").select("id, scope, rfq_summary").eq("tenant_id", tenantId).eq("job_id", jobId).maybeSingle();
+  let { data: existing } = await db.from("site_quotes").select("id, scope, rfq_summary, sent_at, option_group, revision").eq("tenant_id", tenantId).eq("job_id", jobId).maybeSingle();
+  // Read again (e.g. the costs weren't in yet): only a draft nobody has sent or turned into options/revisions.
+  if (existing && opts.redo && !existing.sent_at && !existing.option_group && !(Number(existing.revision) > 0)) {
+    await db.from("site_quotes").delete().eq("tenant_id", tenantId).eq("id", existing.id);
+    existing = null;
+  }
   if (existing) {
     const scope = existing.scope as SiteScope;
     const n = (messages?.length ?? 1) - 1;

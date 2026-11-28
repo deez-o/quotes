@@ -1,3 +1,5 @@
+import { RereadButton } from "./reread";
+import { staleRfqDrafts } from "./actions";
 import Link from "next/link";
 import { quoteLabel } from "@/lib/quote/numbering";
 import { requireTenant } from "@/lib/tenant";
@@ -75,6 +77,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
   const needle = q.trim().toLowerCase();
   if (needle) rows = rows.filter((r) => [r.no, r.title, r.customer].some((v) => v?.toLowerCase().includes(needle)));
   const canEdit = ctx.role !== "viewer";
+  const stale = canEdit ? await staleRfqDrafts(db, t) : [];
 
   return (
     <div className="page" style={{ maxWidth: 1180 }}>
@@ -93,6 +96,12 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         )}
       </div>
 
+      {stale.length > 0 && (
+        <div className="card" style={{ background: "var(--warn-bg)", borderColor: "transparent", display: "flex", flexDirection: "column", gap: 8 }}>
+          <strong>{stale.length === 1 ? "1 RFQ was" : `${stale.length} RFQs were`} read before your costs were set up, so {stale.length === 1 ? "it has" : "they have"} nothing priced.</strong>
+          <RereadButton label={`Read ${stale.length === 1 ? "it" : "them"} again with your costs`} />
+        </div>
+      )}
       {sent && <p className="card" style={{ background: "var(--good-bg)", borderColor: "transparent", color: "var(--good)", fontWeight: 600 }}>RFQ received. It&apos;s being processed now and will show as &quot;Ready for review&quot; when the draft is done.</p>}
 
       <form className="row" style={{ gap: 8, justifyContent: "space-between" }}>

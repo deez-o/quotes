@@ -110,7 +110,9 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
 
     async draft_quote(job: QueueJob) {
       // Read the RFQ and its files, and turn it into a priced draft quote for the estimator to check.
-      const out = await draftRfqQuote(db, job.tenant_id, String(job.payload.job_id));
+      const redo = job.payload.redo === true;
+      const out = await draftRfqQuote(db, job.tenant_id, String(job.payload.job_id), { redo });
+      if (redo) return; // they asked for it in the app: no email
       if (out.kind === "drafted") await notifyDrafted(db, job.tenant_id, out.siteQuoteId, "drafted", out.questions);
       else if (out.kind === "follow_up") await notifyDrafted(db, job.tenant_id, out.siteQuoteId, "follow_up");
     },
