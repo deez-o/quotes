@@ -116,3 +116,7 @@ label { font-weight: 600; }
   .cost-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 3px; }
   .cost-actions { justify-content: flex-start !important; }
 }
+
+/* A supply plant inside the Asphalt box on Costs. */
+.plant-panel { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line, #e1e4e8); border-radius: 10px; min-width: 0; }
+@media (max-width: 640px) { .plant-panel { padding: 10px; } }

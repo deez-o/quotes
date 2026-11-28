@@ -5,6 +5,7 @@
  * Every number carries its working so the user can see how it was reached.
  * Pure functions: runs on the server and live in the phone browser.
  */
+import { binderExtraFor, binderLabel, type BinderSetup } from "@/lib/binder";
 
 export type CostItem = {
   id: string;
@@ -26,6 +27,8 @@ export type CostItem = {
   ot2_multiplier?: number | null;
   /** Sliding scale by quantity: the whole quantity is priced at its band's rate; above the last break, `rate`. */
   rate_tiers?: { up_to: number; rate: number }[] | null;
+  /** Minimum hire: charged for at least this many hours a day (trucks, bobcats, crew). */
+  min_hours?: number | null;
 };
 
 export type SupplyPlant = { id: string; name: string; lat: number | null; lng: number | null };
@@ -42,6 +45,8 @@ export type ScopeItem = {
   cost_item_id: string | null;
   /** For items not measured by area (e.g. 3 each, 12 m3). */
   quantity: number | null;
+  /** Asphalt: the binder asked for (C320, C600, A15E...). Null = the company default. */
+  binder?: string | null;
 };
 
 /** amount: per day, in the cost item's unit (hours, shifts...). days: how many days (1 if not set). */
@@ -81,6 +86,8 @@ export type PricingSettings = {
   road_factor: number;
   average_speed_kmh: number;
   gst_percent: number;
+  /** Plant base binders and extra-overs. Absent = no binder extras. */
+  binders?: BinderSetup;
 };
 
 export type Haul = { km: number; minutes: number; source: "gps" | "entered" | "road" };
@@ -271,7 +278,17 @@ export function priceSiteQuote(input: {
         itemTonnes.set(item.key, tonnes);
         const r = rateFor(ci, tonnes);
         rate = r.rate;
-        working = `${fmtN(item.area_m2, 0)} m² × ${item.depth_mm / 1000} m × ${ci.density_t_per_m3} t/m³ = ${fmtN(tonnes)} t × ${money(rate)}/t${r.band ? ` (${r.band})` : ""}`;
+        let binderNote = "";
+        if (item.kind === "asphalt") {
+          const b = binderExtraFor(settings.binders, ci.supply_plant_id, ci.name, item.binder ?? settings.binders?.defaultBinder);
+          if (b.kind === "extra") {
+            rate = round2(rate + b.extra);
+            binderNote = ` (${money(r.rate)} + ${money(b.extra)} extra for ${binderLabel(b.binder)})`;
+          } else if (b.kind === "missing") {
+            warnings.push(`${ci.name}: no extra-over price for ${binderLabel(b.binder)} at this plant, so it's priced at ${binderLabel(b.base)}. Add it under Costs, at the plant.`);
+          }
+        }
+        working = `${fmtN(item.area_m2, 0)} m² × ${item.depth_mm / 1000} m × ${ci.density_t_per_m3} t/m³ = ${fmtN(tonnes)} t × ${money(rate)}/t${binderNote}${r.band ? ` (${r.band})` : ""}`;
         calc = { kind: "tonnes", area_m2: item.area_m2, depth_mm: item.depth_mm, density: ci.density_t_per_m3, tonnes, rate, unit: "t", band: r.band, delivered: ci.includes_delivery };
         if (!ci.includes_delivery) truckTonnes += tonnes;
       }
@@ -317,8 +334,11 @@ export function priceSiteQuote(input: {
       const capacity = truck.truck_capacity_t ?? 12;
       const loads = Math.ceil(truckTonnes / capacity - 1e-9);
       const cycle = 2 * haul.minutes + settings.truck_load_minutes + settings.truck_unload_minutes;
-      const hours = round2((loads * cycle) / 60);
+      const workHours = round2((loads * cycle) / 60);
       const trucksNeeded = Math.min(loads, Math.max(1, Math.ceil((loads * cycle) / settings.shift_minutes)));
+      // Minimum hire: each truck is paid for at least its minimum hours.
+      const minHours = truck.unit === "h" && truck.min_hours ? truck.min_hours * trucksNeeded : 0;
+      const hours = Math.max(workHours, minHours);
       const rateUnit = truck.unit === "h" ? hours : truck.unit === "km" ? loads * 2 * haul.km : truck.unit === "each" || truck.unit === "day" ? trucksNeeded : hours;
       const cost = round2(rateUnit * truck.rate);
       trucks = { loads, trucks: trucksNeeded, cycleMinutes: cycle, hours, tonnes: round2(truckTonnes) };
@@ -326,7 +346,7 @@ export function priceSiteQuote(input: {
         key: "trucks",
         group: "trucks",
         label: `Cartage from plant (${trucksNeeded} truck${trucksNeeded === 1 ? "" : "s"})`,
-        working: `${fmtN(truckTonnes)} t ÷ ${capacity} t = ${loads} loads × ${cycle} min cycle (${haul.minutes} min each way + load/unload) = ${fmtN(hours, 2)} h × ${money(truck.rate)}/h`,
+        working: `${fmtN(truckTonnes)} t ÷ ${capacity} t = ${loads} loads × ${cycle} min cycle (${haul.minutes} min each way + load/unload) = ${fmtN(workHours, 2)} h${hours > workHours ? `, charged ${fmtN(hours, 2)} h (${fmtN(truck.min_hours!)} h minimum a truck)` : ""} × ${money(truck.rate)}/h`,
         cost,
         calc: {
           kind: "trucks", tonnes: round2(truckTonnes), capacity, loads, minutesEachWay: haul.minutes, km: haul.km,
@@ -350,20 +370,22 @@ export function priceSiteQuote(input: {
         continue;
       }
       const dayPrefix = days !== 1 ? `${fmtN(days)} days × ` : "";
-      const note = l.note ? ` (${l.note})` : "";
+      // Minimum hire a day (hourly only): a 2-hour bobcat job still pays the 6-hour minimum.
+      const charged = ci.unit === "h" && ci.min_hours && l.amount < ci.min_hours ? ci.min_hours : l.amount;
+      const note = `${charged > l.amount ? ` (${fmtN(l.amount)} h needed, ${fmtN(charged)} h minimum)` : ""}${l.note ? ` (${l.note})` : ""}`;
       if (ci.unit === "h" && ci.ordinary_hours) {
-        const day = overtimeDay(ci, l.amount);
+        const day = overtimeDay(ci, charged);
         const parts = day.parts.map((p) => `${fmtN(p.hours)} h × ${money(p.rate)}`).join(" + ");
         costLines.push({
           key: l.key, group, label: ci.name, cost: round2(day.cost * days),
-          calc: { kind: "time", days, amount: l.amount, unit: "h", rate: ci.rate, parts: day.parts },
+          calc: { kind: "time", days, amount: charged, unit: "h", rate: ci.rate, parts: day.parts },
           working: `${dayPrefix}${days !== 1 || day.parts.length > 1 ? `(${parts})` : parts}${day.parts.length > 1 ? ` (overtime after ${fmtN(ci.ordinary_hours)} h)` : ""}${note}`,
         });
       } else {
         costLines.push({
-          key: l.key, group, label: ci.name, cost: round2(l.amount * days * ci.rate),
-          calc: { kind: "time", days, amount: l.amount, unit: UNIT_LABEL[ci.unit], rate: ci.rate, parts: null },
-          working: `${dayPrefix}${fmtN(l.amount)} ${UNIT_LABEL[ci.unit]} × ${money(ci.rate)}/${UNIT_LABEL[ci.unit]}${note}`,
+          key: l.key, group, label: ci.name, cost: round2(charged * days * ci.rate),
+          calc: { kind: "time", days, amount: charged, unit: UNIT_LABEL[ci.unit], rate: ci.rate, parts: null },
+          working: `${dayPrefix}${fmtN(charged)} ${UNIT_LABEL[ci.unit]} × ${money(ci.rate)}/${UNIT_LABEL[ci.unit]}${note}`,
         });
       }
     }

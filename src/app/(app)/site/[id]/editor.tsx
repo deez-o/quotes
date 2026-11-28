@@ -1,4 +1,6 @@
 "use client";
+
+import { BINDERS, binderLabel } from "@/lib/binder";
 import Link from "next/link";
 import { AreaMap } from "./overview/area-map";
 import { SendQuoteDialog } from "./send";
@@ -361,6 +363,15 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 )}
                 {needsDepth && (
                   <label style={small}>Depth (mm)<input type="text" inputMode="decimal" value={i.depth_mm ?? ""} onChange={(e) => setItem(i.key, { depth_mm: toNum(e.target.value) })} /></label>
+                )}
+                {i.kind === "asphalt" && (
+                  <label style={small}>Binder
+                    <select style={sel} value={i.binder ?? ""} onChange={(e) => setItem(i.key, { binder: e.target.value || null })}>
+                      <option value="">{settings.binders?.defaultBinder ? `Default (${binderLabel(settings.binders.defaultBinder)})` : "As priced"}</option>
+                      {BINDERS.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
+                      {i.binder && !BINDERS.some((b) => b.code === i.binder) && <option value={i.binder}>{i.binder}</option>}
+                    </select>
+                  </label>
                 )}
                 {!byArea && (
                   <label style={small}>Quantity ({ci ? UNIT[ci.unit] : "units"})<input type="text" inputMode="decimal" value={i.quantity ?? ""} onChange={(e) => setItem(i.key, { quantity: toNum(e.target.value) })} /></label>

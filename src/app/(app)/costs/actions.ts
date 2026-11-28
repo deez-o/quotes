@@ -3,6 +3,7 @@
 import { toCodes } from "@/lib/quote/placeholders";
 
 import { revalidatePath } from "next/cache";
+import { binderLabel, normaliseBinder } from "@/lib/binder";
 import { redirect } from "next/navigation";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
@@ -40,6 +41,8 @@ export async function saveCostItem(formData: FormData) {
   const ot1h = num(formData.get("ot1_hours"));
   const ot1m = num(formData.get("ot1_multiplier"));
   const ot2m = num(formData.get("ot2_multiplier"));
+  const minHours = num(formData.get("min_hours"));
+  if (Number.isNaN(minHours) || (minHours != null && (minHours <= 0 || minHours > 24))) back("Minimum hire is hours a day, between 0 and 24.");
   const hourly = (category === "crew" || category === "plant") && unit === "h";
   if (hourly && ordinary != null) {
     if (Number.isNaN(ordinary) || ordinary <= 0 || ordinary > 24) back("Ordinary hours must be between 0 and 24.");
@@ -75,6 +78,7 @@ export async function saveCostItem(formData: FormData) {
   const row = {
     tenant_id: ctx.tenant.id, name, category, unit, rate, material_kind,
     density_t_per_m3: density, includes_delivery: formData.get("includes_delivery") === "on",
+    min_hours: ["crew", "plant", "truck"].includes(category) ? minHours : null,
     truck_capacity_t: category === "truck" ? capacity ?? 12 : null, supply_plant_id, active: true, rate_tiers: tiers.length ? tiers : null,
     ordinary_hours: hourly ? ordinary : null, ot1_hours: hourly && ordinary ? ot1h ?? 2 : null,
     ot1_multiplier: hourly && ordinary ? ot1m ?? 1.5 : null, ot2_multiplier: hourly && ordinary ? ot2m ?? 2 : null, updated_at: new Date().toISOString(),
@@ -143,12 +147,15 @@ export async function savePricingSettings(formData: FormData) {
   const ctx = await adminCtx();
   const fields = ["truck_load_minutes", "truck_unload_minutes", "shift_minutes", "gst_percent"] as const;
   const values: Record<string, number> = {};
+  // Shown in hours ("Truck working day"), stored in minutes.
+  const hrs = num(formData.get("shift_hours"));
+  if (hrs != null && !Number.isNaN(hrs)) formData.set("shift_minutes", String(Math.round(hrs * 60)));
   for (const f of fields) {
     const n = num(formData.get(f));
     if (n == null || Number.isNaN(n) || n < 0) back("Pricing settings must be numbers.");
     values[f] = n as number;
   }
-  if (values.shift_minutes < 60) back("Check the shift length.");
+  if (values.shift_minutes < 60) back("Check the truck working day: it should be at least 1 hour.");
   const binder = num(formData.get("binder_percent"));
   if (binder != null && !Number.isNaN(binder)) {
     if (binder <= 0 || binder >= 20) back("Binder content should be between 0 and 20%.");
@@ -165,4 +172,34 @@ export async function savePricingSettings(formData: FormData) {
   if (error) back(error.message);
   revalidatePath("/costs");
   back("Pricing settings saved.", true);
+}
+
+/** A plant's base binder (what its mix prices include) and its binder extra-overs. */
+export async function saveBinders(formData: FormData) {
+  const ctx = await adminCtx();
+  const plantId = String(formData.get("plant_id") ?? "");
+  const supabase = await createClient();
+  const { data: plant } = await supabase.from("supply_plants").select("id, name").eq("id", plantId).eq("tenant_id", ctx.tenant.id).maybeSingle();
+  if (!plant) back("Plant not found.");
+  const base = normaliseBinder(String(formData.get("base_binder") ?? "")) ?? "C320";
+  await supabase.from("supply_plants").update({ base_binder: base }).eq("id", plantId).eq("tenant_id", ctx.tenant.id);
+
+  // Rows come in as binder_0 / extra_0, binder_1 / extra_1 ... plus a blank "add" row.
+  const rows = new Map<string, number>();
+  for (let n = 0; n < 40; n++) {
+    const b = normaliseBinder(String(formData.get(`binder_${n}`) ?? ""));
+    const raw = formData.get(`extra_${n}`);
+    if (!b || raw == null || String(raw).trim() === "") continue;
+    const x = num(raw);
+    if (x == null || Number.isNaN(x)) back(`Check the extra for ${binderLabel(b)}: it should be $ a tonne.`);
+    if (b === base) continue; // the base binder has no extra
+    rows.set(b, x as number);
+  }
+  await supabase.from("binder_extras").delete().eq("supply_plant_id", plantId).eq("tenant_id", ctx.tenant.id);
+  if (rows.size) {
+    const { error } = await supabase.from("binder_extras").insert([...rows].map(([binder, extra_per_t]) => ({ tenant_id: ctx.tenant.id, supply_plant_id: plantId, binder, extra_per_t })));
+    if (error) back(error.message);
+  }
+  revalidatePath("/costs");
+  back(`Saved binders at ${plant!.name}.`, true);
 }

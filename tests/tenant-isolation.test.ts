@@ -20,7 +20,7 @@ const configured = Boolean(url && anonKey && serviceKey);
 const TENANT_TABLES = [
   "tenant_modules", "connections", "customers", "jobs", "messages", "attachments",
   "catalogue_products", "rates", "rules", "examples", "workbook_templates",
-  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses", "cost_items", "supply_plants", "site_quotes", "quote_sends", "support_requests", "help_chats",
+  "ai_runs", "quote_drafts", "corrections", "usage_events", "tenant_settings", "inbound_addresses", "cost_items", "supply_plants", "binder_extras", "site_quotes", "quote_sends", "support_requests", "help_chats",
 ] as const;
 
 describe.skipIf(!configured)("tenant isolation", () => {
@@ -92,6 +92,8 @@ describe.skipIf(!configured)("tenant isolation", () => {
       const { error } = await admin.from(table).insert(row);
       if (error) throw new Error(`seeding ${table}: ${error.message}`);
     }
+    const { data: plantB } = await admin.from("supply_plants").select("id").eq("tenant_id", tenantB).limit(1).single();
+    await admin.from("binder_extras").insert({ tenant_id: tenantB, supply_plant_id: plantB!.id, binder: "C600", extra_per_t: 9 });
     await admin.from("connection_secrets").insert({ connection_id: connB!.id, tenant_id: tenantB, token_ciphertext: "secret" });
 
     asA = createClient(url!, anonKey!, { auth: { persistSession: false } });

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { defaultDensity, type PriceListRead } from "@/lib/site/price-list";
+import { BINDERS, binderLabel } from "@/lib/binder";
 import { importPriceList, readPriceListFile, type ImportLine } from "./price-list-actions";
 
 const MAX_MB = 20;
@@ -25,6 +26,8 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
   const [read, setRead] = useState<PriceListRead | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState(false);
+  const [base, setBase] = useState<string>("");
+  const [extras, setExtras] = useState<{ binder: string; extra: string; use: boolean; note: string | null }[]>([]);
 
   async function upload(list: FileList | null) {
     const files = Array.from(list ?? []).slice(0, 6);
@@ -49,6 +52,11 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
       const r = await readPriceListFile({ plantId, paths });
       if (!r.ok) throw new Error(r.message);
       setRead(r.read);
+      setBase(r.read.base_binder ?? (r.read.binder_extras.length ? "C320" : ""));
+      setExtras(r.read.binder_extras.map((e) => ({
+        binder: e.binder, extra: String(e.extra_per_t), use: !e.applies_to,
+        note: [e.applies_to ? `Only for ${e.applies_to}: check before using` : null, e.notes].filter(Boolean).join(". ") || null,
+      })));
       setRows(r.read.lines.map((l, i) => ({
         name: l.name, unit: l.unit === "other" ? "t" : l.unit, rate: l.rate, kind: l.kind,
         density: l.unit === "t" ? defaultDensity(l.kind) : null, existingId: r.matches[i], use: l.unit !== "other", notes: l.notes,
@@ -69,13 +77,16 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
     setError(null);
     const r = await importPriceList({
       plantId, supplier: read?.supplier ?? null, validUntil: read?.valid_until ?? null,
+      baseBinder: extras.some((e) => e.use) ? base || "C320" : null,
+      binderExtras: extras.filter((e) => e.use).map((e) => ({ binder: e.binder, extra_per_t: Number(e.extra) })),
       lines: rows.filter((x) => x.use).map(({ name, unit, rate, kind, density, existingId }) => ({ name, unit, rate: Number(rate), kind, density: density == null ? null : Number(density), existingId })),
     });
     setBusy(false);
     if (!r.ok) return setError(r.message);
     setRead(null);
     setRows([]);
-    setStatus(`Imported: ${r.updated} price${r.updated === 1 ? "" : "s"} updated, ${r.added} added.`);
+    setExtras([]);
+    setStatus(`Imported: ${r.updated} price${r.updated === 1 ? "" : "s"} updated, ${r.added} added${r.binders ? `, ${r.binders} binder extra${r.binders === 1 ? "" : "s"}` : ""}.`);
     router.refresh();
   }
 
@@ -129,11 +140,32 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
               </tbody>
             </table>
           </div>
+          {extras.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+              <strong style={{ fontSize: 14 }}>Binder extras</strong>
+              <label style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", fontSize: 13 }}>
+                The mix prices above include
+                <select style={sel} value={base} onChange={(e) => setBase(e.target.value)}>
+                  {BINDERS.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
+                </select>
+              </label>
+              {extras.map((e, i) => (
+                <div key={i} className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 13, opacity: e.use ? 1 : 0.5 }}>
+                  <input type="checkbox" aria-label={`Import ${binderLabel(e.binder)} extra`} checked={e.use} onChange={(x) => setExtras((all) => all.map((y, n) => (n === i ? { ...y, use: x.target.checked } : y)))} />
+                  <span style={{ minWidth: 140 }}>{binderLabel(e.binder)}</span>
+                  <span>+ $</span>
+                  <input type="text" inputMode="decimal" value={e.extra} onChange={(x) => setExtras((all) => all.map((y, n) => (n === i ? { ...y, extra: x.target.value } : y)))} style={{ width: 80, padding: 8 }} aria-label="Extra per tonne" />
+                  <span>a tonne</span>
+                  {e.note && <span className="sub" style={{ marginTop: 0, fontSize: 12 }}>{e.note}</span>}
+                </div>
+              ))}
+            </div>
+          )}
           <div className="row" style={{ gap: 8 }}>
-            <button type="button" className="btn primary" disabled={busy || !rows.some((r) => r.use)} onClick={() => void save()}>
-              {busy ? "Saving..." : `Import ${rows.filter((r) => r.use).length} price${rows.filter((r) => r.use).length === 1 ? "" : "s"}`}
+            <button type="button" className="btn primary" disabled={busy || (!rows.some((r) => r.use) && !extras.some((e) => e.use))} onClick={() => void save()}>
+              {busy ? "Saving..." : `Import ${rows.filter((r) => r.use).length} price${rows.filter((r) => r.use).length === 1 ? "" : "s"}${extras.some((e) => e.use) ? ` and ${extras.filter((e) => e.use).length} binder extra${extras.filter((e) => e.use).length === 1 ? "" : "s"}` : ""}`}
             </button>
-            <button type="button" className="btn" disabled={busy} onClick={() => { setRead(null); setRows([]); }}>Cancel</button>
+            <button type="button" className="btn" disabled={busy} onClick={() => { setRead(null); setRows([]); setExtras([]); }}>Cancel</button>
           </div>
           <p className="sub" style={{ margin: 0, fontSize: 12 }}>Densities for asphalt (2.4) and base (2.2) are typical figures: change them if your supplier gives different ones.</p>
         </div>

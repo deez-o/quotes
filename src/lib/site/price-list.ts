@@ -4,6 +4,7 @@
  */
 import type { ChatMessage, ChatPart, ProviderResult } from "@/lib/quote/provider";
 import type { CostItem } from "./price";
+import { normaliseBinder } from "@/lib/binder";
 
 export type PriceListLine = {
   name: string;
@@ -14,11 +15,17 @@ export type PriceListLine = {
   notes: string | null;
 };
 
+/** "Extra over" for a binder: added to every asphalt mix's $/t when the job asks for that binder. */
+export type BinderExtraLine = { binder: string; extra_per_t: number; applies_to: string | null; notes: string | null };
+
 export type PriceListRead = {
   supplier: string | null;
   valid_until: string | null; // YYYY-MM-DD
   gst: "excluded" | "included" | "unknown";
   lines: PriceListLine[];
+  /** The binder the mix prices are based on, if the list says (e.g. "prices based on C320"). */
+  base_binder: string | null;
+  binder_extras: BinderExtraLine[];
   warnings: string[];
 };
 
@@ -28,7 +35,7 @@ export const PRICE_LIST_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["supplier", "valid_until", "gst", "lines", "warnings"],
+    required: ["supplier", "valid_until", "gst", "lines", "base_binder", "binder_extras", "warnings"],
     properties: {
       supplier: { type: ["string", "null"] },
       valid_until: { type: ["string", "null"], description: "YYYY-MM-DD if printed" },
@@ -44,6 +51,21 @@ export const PRICE_LIST_SCHEMA = {
             unit: { type: "string", enum: ["t", "m2", "m3", "each", "h", "day", "km", "other"] },
             rate: { type: "number" },
             kind: { type: "string", enum: ["asphalt", "base", "prime", "seal", "other"] },
+            notes: { type: ["string", "null"] },
+          },
+        },
+      },
+      base_binder: { type: ["string", "null"], description: "The binder the mix prices include, if stated or obvious (usually C320)." },
+      binder_extras: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["binder", "extra_per_t", "applies_to", "notes"],
+          properties: {
+            binder: { type: "string", description: "As printed, e.g. C600, Multigrade, A15E, PMB, crumb rubber" },
+            extra_per_t: { type: "number", description: "AUD per tonne added on top of the mix price. Negative if it's a discount." },
+            applies_to: { type: ["string", "null"], description: "If the extra is only for some mixes (e.g. 'AC14 only'), say which; null for all mixes." },
             notes: { type: ["string", "null"] },
           },
         },
@@ -66,6 +88,9 @@ export function buildPriceListMessages(input: { plantName: string; text: string 
     `5. name: short and clear, keeping the mix code and binder (e.g. "AC10 C320", "AC14 Multigrade", "Type 2.1 crushed rock"). If one of the contractor's existing names below is clearly the same product, use that exact name.`,
     `6. Put conditions in notes (minimum order, small-load fee, delivered vs ex-plant). Put surcharges and fees that aren't products in warnings, not lines.`,
     `7. valid_until: the date the prices run to, if printed, as YYYY-MM-DD.`,
+    `8. Binders. Plants often price each mix once (at a standard binder, usually C320) and then list extra charges for other binders. These are written many ways: "extra over", "EO", "E/O", "add for", "binder surcharge", "+$12/t", "premium", "upcharge", a "Binder" table with $/t, or a column per binder. Each of those is a binder_extras row: binder as printed (C170, C450, C600, Multigrade or M1000, PMB A10E/A15E/A20E/A25E/A35P, SBS, crumb rubber, EME2, warm mix), extra_per_t as the $ per tonne added. Don't put them in lines.`,
+    `9. If a table prices the same mix in several binders (e.g. AC14 C320 $165, AC14 C600 $172), keep each as its own line with the binder in its name, and add no binder_extras for them. If the list gives the extra as a percentage or per litre, leave it out of binder_extras and add a warning saying what it said.`,
+    `10. base_binder: the binder the plain mix prices include, if the list says so (e.g. "prices based on C320 bitumen"); if mixes are named without a binder and extras are listed for other binders, it's usually C320, so say C320. Null if there's nothing about binders.`,
     ``,
     `# The contractor's existing names`,
     input.existingNames.length ? input.existingNames.join("\n") : "None yet.",
@@ -106,7 +131,19 @@ export function cleanPriceList(raw: unknown): PriceListRead {
   const gst = o.gst === "included" || o.gst === "excluded" ? o.gst : "unknown";
   if (gst === "included") warnings.unshift("These prices include GST. Your costs are ex GST: check and divide by 1.1 before importing.");
   const valid = typeof o.valid_until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.valid_until) ? o.valid_until : null;
-  return { supplier: o.supplier ? String(o.supplier).slice(0, 120) : null, valid_until: valid, gst, lines, warnings };
+  const extras: BinderExtraLine[] = [];
+  const seenB = new Set<string>();
+  for (const e of Array.isArray(o.binder_extras) ? o.binder_extras : []) {
+    const binder = normaliseBinder(String(e?.binder ?? ""));
+    const x = Number(e?.extra_per_t);
+    if (!binder || !Number.isFinite(x) || Math.abs(x) > 2000) continue;
+    const key = `${binder}|${e?.applies_to ?? ""}`;
+    if (seenB.has(key)) continue;
+    seenB.add(key);
+    extras.push({ binder, extra_per_t: Math.round(x * 100) / 100, applies_to: e?.applies_to ? String(e.applies_to).slice(0, 120) : null, notes: e?.notes ? String(e.notes).slice(0, 200) : null });
+  }
+  const base = normaliseBinder(typeof o.base_binder === "string" ? o.base_binder : null);
+  return { supplier: o.supplier ? String(o.supplier).slice(0, 120) : null, valid_until: valid, gst, lines, base_binder: base, binder_extras: extras.filter((e) => e.binder !== base), warnings };
 }
 
 export type PriceListCall = (messages: ChatMessage[]) => Promise<ProviderResult>;

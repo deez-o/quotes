@@ -1,3 +1,4 @@
+import { normaliseBinder } from "@/lib/binder";
 /**
  * Talk-to-quote: what the contractor said on site (plus photos) -> a scope.
  * The AI only describes the job and picks items from the customer's own costs
@@ -30,7 +31,7 @@ export const SITE_SCOPE_SCHEMA = {
         type: "array",
         items: {
           type: "object", additionalProperties: false,
-          required: ["key", "kind", "description", "area_m2", "depth_mm", "cost_item_id", "quantity"],
+          required: ["key", "kind", "description", "area_m2", "depth_mm", "cost_item_id", "quantity", "binder"],
           properties: {
             key: { type: "string" },
             kind: { type: "string", enum: ["asphalt", "base", "prime", "seal", "excavation", "other"] },
@@ -39,6 +40,7 @@ export const SITE_SCOPE_SCHEMA = {
             depth_mm: nullableNumber,
             cost_item_id: nullableString,
             quantity: nullableNumber,
+            binder: { type: ["string", "null"], description: "Asphalt only: the binder asked for, as written (C320, C600, Multigrade, A15E, crumb rubber...). Null if not said." },
           },
         },
       },
@@ -78,7 +80,8 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `5. Prime under new asphalt on a new base is normal practice: add it and say so in assumptions if it wasn't mentioned.`,
     `6. supply_plant_id: only if they name a plant (match it to the list). Otherwise null: the app picks the nearest plant to the site.`,
     `6a. Mixes marked "from <plant> only" are that plant's prices. Pick the right mix by name from any plant; the app swaps it to the chosen plant's price.`,
-    `6b. Never add the float (category float) as an item or plant line: the app adds float moves itself.`,
+    `6b. binder: for asphalt, the binder the job asks for (e.g. "AC14 C600", "multigrade", "PMB A15E", "crumb rubber") as written; null if not said. Pick the mix by its size and type (AC10, AC14, SMA...): if the library has a mix with that exact binder in its name, use it; otherwise use the plain mix and set binder, and the app adds the plant's extra-over price.`,
+    `6c. Never add the float (category float) as an item or plant line: the app adds float moves itself.`,
     `7. truck_cost_item_id: the truck item from the library if any material must be carted (not delivered by the supplier).`,
     `8. Use short, clear descriptions a customer would understand ("Supply and lay AC10, 40 mm").`,
     `9. Every assumption you make goes in assumptions. Anything you need to know goes in questions, briefly.`,
@@ -180,7 +183,8 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
       fixes.push(`"${i.description}" pointed at a cost that isn't in your library.`);
       cost = null;
     }
-    return { ...i, key: uniqueKey(i.key, `i${n + 1}`), cost_item_id: cost, area_m2: pos(i.area_m2), depth_mm: pos(i.depth_mm), quantity: pos(i.quantity) };
+    return { ...i, key: uniqueKey(i.key, `i${n + 1}`), cost_item_id: cost, area_m2: pos(i.area_m2), depth_mm: pos(i.depth_mm), quantity: pos(i.quantity),
+      binder: i.kind === "asphalt" ? normaliseBinder(i.binder ?? null) : null };
   });
   const lines = (arr: SiteScope["crew"], prefix: string) =>
     arr.filter((l) => {

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { binderLabel, normaliseBinder } from "@/lib/binder";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { aiCaller } from "@/lib/ai/call";
@@ -50,7 +51,7 @@ export async function readPriceListFile(input: { plantId: string; paths: string[
       call,
       { plantName: plant.name, text: texts.join("\n\n---\n\n") || null, imageUrls, existingNames },
     );
-    if (!read.lines.length) return { ok: false, message: "Couldn't find any prices in that. Try a clearer photo, or type them in below." };
+    if (!read.lines.length && !read.binder_extras.length) return { ok: false, message: "Couldn't find any prices in that. Try a clearer photo, or type them in below." };
     return { ok: true, read, matches: matchToLibrary(read.lines, pc.library, plant.id) };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Couldn't read the price list." };
@@ -63,11 +64,12 @@ const UNITS = new Set(["t", "m2", "m3", "each", "h", "day", "km"]);
 const KINDS = new Set(["asphalt", "base", "prime", "seal", "other"]);
 
 /** Save the rows the user ticked: update prices that exist at this plant, add the rest. */
-export async function importPriceList(input: { plantId: string; lines: ImportLine[]; validUntil: string | null; supplier: string | null }): Promise<{ ok: true; updated: number; added: number } | Fail> {
+export async function importPriceList(input: { plantId: string; lines: ImportLine[]; validUntil: string | null; supplier: string | null; baseBinder?: string | null; binderExtras?: { binder: string; extra_per_t: number }[] }): Promise<{ ok: true; updated: number; added: number; binders: number } | Fail> {
   try {
     const { ctx, db, plant } = await adminFor(input.plantId);
     const lines = (input.lines ?? []).slice(0, 200);
-    if (!lines.length) return { ok: false, message: "Tick at least one row to import." };
+    const extras = (input.binderExtras ?? []).slice(0, 40);
+    if (!lines.length && !extras.length) return { ok: false, message: "Tick at least one row to import." };
     const { data: current } = await db.from("cost_items").select("id, name").eq("tenant_id", ctx.tenant.id).eq("supply_plant_id", plant.id).eq("active", true);
     const byName = new Map((current ?? []).map((c) => [String(c.name).toLowerCase(), c.id as string]));
     const ids = new Set((current ?? []).map((c) => c.id as string));
@@ -94,11 +96,28 @@ export async function importPriceList(input: { plantId: string; lines: ImportLin
       if (id) updated++; else added++;
     }
 
+    // Binder extra-overs: replace the ones for the binders on this list, keep any others.
+    const base = normaliseBinder(input.baseBinder ?? null);
+    if (base) await db.from("supply_plants").update({ base_binder: base }).eq("id", plant.id).eq("tenant_id", ctx.tenant.id);
+    let binders = 0;
+    for (const e of extras) {
+      const binder = normaliseBinder(e.binder);
+      const x = Number(e.extra_per_t);
+      if (!binder || binder === base) continue;
+      if (!Number.isFinite(x) || Math.abs(x) > 2000) return { ok: false, message: `Check the extra for ${binderLabel(binder)}.` };
+      const { error } = await db.from("binder_extras").upsert(
+        { tenant_id: ctx.tenant.id, supply_plant_id: plant.id, binder, extra_per_t: x, updated_at: now },
+        { onConflict: "supply_plant_id,binder" },
+      );
+      if (error) return { ok: false, message: `${binderLabel(binder)}: ${error.message}` };
+      binders++;
+    }
+
     const valid = input.validUntil && /^\d{4}-\d{2}-\d{2}$/.test(input.validUntil) ? input.validUntil : null;
     const note = `Price list${input.supplier ? ` from ${String(input.supplier).slice(0, 80)}` : ""} imported ${new Date().toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Brisbane" })}`;
     await db.from("supply_plants").update({ prices_valid_until: valid, prices_note: note }).eq("id", plant.id).eq("tenant_id", ctx.tenant.id);
     revalidatePath("/costs");
-    return { ok: true, updated, added };
+    return { ok: true, updated, added, binders };
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : "Import failed." };
   }

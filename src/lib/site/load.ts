@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { normaliseBinder, type BinderSetup } from "@/lib/binder";
 import { estimateHaul, type CostItem, type Haul, type HaulRoutes, type PricingSettings, type SiteScope, type SupplyPlant } from "./price";
 
 export const DEFAULT_PRICING: PricingSettings = {
@@ -7,17 +8,23 @@ export const DEFAULT_PRICING: PricingSettings = {
 
 const optNum = (v: unknown) => (v == null ? null : Number(v));
 const tiers = (v: unknown) => (Array.isArray(v) ? v.map((t) => ({ up_to: Number(t?.up_to), rate: Number(t?.rate) })).filter((t) => t.up_to > 0 && Number.isFinite(t.rate)) : null);
-const nums = (c: CostItem) => ({ rate_tiers: tiers(c.rate_tiers), ordinary_hours: optNum(c.ordinary_hours), ot1_hours: optNum(c.ot1_hours), ot1_multiplier: optNum(c.ot1_multiplier), ot2_multiplier: optNum(c.ot2_multiplier) });
+const nums = (c: CostItem) => ({ min_hours: optNum(c.min_hours), rate_tiers: tiers(c.rate_tiers), ordinary_hours: optNum(c.ordinary_hours), ot1_hours: optNum(c.ot1_hours), ot1_multiplier: optNum(c.ot1_multiplier), ot2_multiplier: optNum(c.ot2_multiplier) });
 
 /** Everything a site quote is priced from, for one tenant (RLS applies). */
 export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
-  const [{ data: items }, { data: plants }, { data: s }] = await Promise.all([
-    db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers")
+  const [{ data: items }, { data: plants }, { data: s }, { data: extras }] = await Promise.all([
+    db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours")
       .eq("tenant_id", tenantId).order("name"),
-    db.from("supply_plants").select("id, name, lat, lng").eq("tenant_id", tenantId).eq("active", true).order("name"),
-    db.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms")
+    db.from("supply_plants").select("id, name, lat, lng, base_binder").eq("tenant_id", tenantId).eq("active", true).order("name"),
+    db.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, default_binder")
       .eq("tenant_id", tenantId).maybeSingle(),
+    db.from("binder_extras").select("supply_plant_id, binder, extra_per_t").eq("tenant_id", tenantId),
   ]);
+  const binders: BinderSetup = {
+    plantBase: Object.fromEntries((plants ?? []).map((p) => [p.id as string, normaliseBinder(p.base_binder as string) ?? "C320"])),
+    extras: (extras ?? []).map((e) => ({ supply_plant_id: e.supply_plant_id as string, binder: e.binder as string, extra_per_t: Number(e.extra_per_t) })),
+    defaultBinder: normaliseBinder((s?.default_binder as string | null) ?? null),
+  };
   const library = ((items ?? []) as CostItem[]).map((c) => ({ ...c, rate: Number(c.rate), density_t_per_m3: c.density_t_per_m3 == null ? null : Number(c.density_t_per_m3), truck_capacity_t: c.truck_capacity_t == null ? null : Number(c.truck_capacity_t), ...nums(c) }));
   const settings: PricingSettings = {
     truck_load_minutes: Number(s?.truck_load_minutes ?? DEFAULT_PRICING.truck_load_minutes),
@@ -27,10 +34,11 @@ export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
     road_factor: DEFAULT_PRICING.road_factor,
     average_speed_kmh: DEFAULT_PRICING.average_speed_kmh,
     gst_percent: Number(s?.gst_percent ?? DEFAULT_PRICING.gst_percent),
+    binders,
   };
   return {
     library,
-    plants: (plants ?? []) as SupplyPlant[],
+    plants: (plants ?? []).map((p) => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng })) as SupplyPlant[],
     settings,
     defaultMargin: Number(s?.margin_percent ?? 15),
     terms: (s?.quote_terms as string | null) ?? null,

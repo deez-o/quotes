@@ -6,6 +6,7 @@ import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { archiveCostItem, saveCostItem, savePricingSettings } from "./actions";
 import { PlantForm } from "./plant-form";
+import { BinderExtras } from "./binders";
 import { DEFAULT_TERMS } from "@/lib/site/terms";
 import { DEFAULT_QUOTE_MESSAGE } from "@/lib/quote/email";
 import { toShown } from "@/lib/quote/placeholders";
@@ -16,8 +17,9 @@ type Item = {
   density_t_per_m3: number | null; includes_delivery: boolean; truck_capacity_t: number | null; supply_plant_id: string | null;
   ordinary_hours: number | null; ot1_hours: number | null; ot1_multiplier: number | null; ot2_multiplier: number | null;
   rate_tiers: { up_to: number; rate: number }[] | null;
+  min_hours?: number | null;
 };
-type Plant = { id: string; name: string; address: string | null; lat: number | null; lng: number | null; prices_valid_until: string | null; prices_note: string | null };
+type Plant = { id: string; name: string; address: string | null; lat: number | null; lng: number | null; prices_valid_until: string | null; prices_note: string | null; base_binder: string | null };
 
 type Section = { key: string; category: string; title: string; hint: string; kinds?: [string, string][]; match: (i: Item) => boolean };
 
@@ -81,6 +83,8 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
   const n = item?.name ?? "new";
   // Job-size price breaks: spray seal only (and any item that already has some, so they can be cleared).
   const tiers = sliding || Boolean(item?.rate_tiers?.length);
+  // Trucks, bobcats and crew hired by the hour often have a minimum (e.g. 6 hours).
+  const hireMin = category === "crew" || category === "plant" || category === "truck";
   return (
     <form action={saveCostItem} style={{ borderTop: "1px solid var(--line-soft)", padding: "8px 0" }}>
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
@@ -120,8 +124,15 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
             </div>
           ) : <span />}
         </div>
-        {((isMaterial && !plantId) || tiers) && (
-          <div className="row" style={{ gap: 16, marginTop: 6, fontSize: 13 }}>
+        {((isMaterial && !plantId) || tiers || hireMin) && (
+          <div className="row" style={{ gap: 16, marginTop: 6, fontSize: 13, flexWrap: "wrap" }}>
+            {hireMin && (
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
+                Minimum hire
+                <input type="text" inputMode="decimal" name="min_hours" defaultValue={item?.min_hours ?? ""} placeholder="none" style={{ width: 70 }} aria-label={`${n} minimum hours a day`} />
+                hours a day <span className="sub" style={{ marginTop: 0, fontSize: 12 }}>(when charged by the hour)</span>
+              </label>
+            )}
             {isMaterial && !plantId && (
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
                 <input type="checkbox" name="includes_delivery" defaultChecked={item?.includes_delivery ?? false} /> Price includes delivery
@@ -176,12 +187,13 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
   const ctx = await requireTenant();
   const canEdit = ctx.role === "admin";
   const supabase = await createClient();
-  const [{ data: items }, { data: plants }, { data: s }] = await Promise.all([
-    supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers")
+  const [{ data: items }, { data: plants }, { data: s }, { data: extras }] = await Promise.all([
+    supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
-    supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
+    supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note, base_binder").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts")
       .eq("tenant_id", ctx.tenant.id).maybeSingle(),
+    supabase.from("binder_extras").select("supply_plant_id, binder, extra_per_t").eq("tenant_id", ctx.tenant.id).order("binder"),
   ]);
 
   const hasAi = Boolean(keyFor(await liveModel()));
@@ -202,65 +214,73 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
 
       {SECTIONS.map((sec) => <CostSection key={sec.key} s={sec} items={(items ?? []) as Item[]} canEdit={canEdit} />)}
 
-      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <h2 style={{ margin: 0 }}>Asphalt</h2>
-        <p className="sub" style={{ marginTop: 2, marginBottom: 4, fontSize: 13 }}>
-          Your asphalt comes from supply plants, and each plant has its own mix prices. Add each plant you buy from, then its mixes (or upload its price list). quoteout uses the nearest plant that has the mix, and the road distance sets the trucks.
-          {!hasMaps && " Searching by business name works best once the Google maps key is added; street addresses work now."}
-        </p>
-      </section>
-      {((items ?? []) as Item[]).some((i) => i.category === "material" && i.material_kind === "asphalt" && !i.supply_plant_id) && (
-        <section className="card">
-          <h3 style={{ margin: 0, fontSize: 15 }}>Asphalt not tied to a plant</h3>
-          {((items ?? []) as Item[]).filter((i) => i.category === "material" && i.material_kind === "asphalt" && !i.supply_plant_id)
-            .map((i) => <ItemForm key={i.id} item={i} category="material" canEdit={canEdit} kinds={[["asphalt", "Asphalt"], ["base", "Base"], ["other", "Other"]]} />)}
-        </section>
-      )}
-      {((plants ?? []) as Plant[]).map((p) => {
-        const mixes = ((items ?? []) as Item[]).filter((i) => i.supply_plant_id === p.id);
-        const expired = p.prices_valid_until && p.prices_valid_until < today;
-        return (
-          <section key={p.id} className="card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-              <h2 style={{ margin: 0 }}>{p.name}</h2>
-              <span className="sub" style={{ marginTop: 0, fontSize: 13, color: expired ? "var(--bad, #b42318)" : undefined }}>
-                {p.lat == null ? "Not on the map yet" : p.address ?? ""}
-                {p.prices_valid_until ? ` · prices ${expired ? "expired" : "valid to"} ${p.prices_valid_until}` : ""}
-              </span>
-            </div>
-            <PlantForm plant={p} canEdit={canEdit} />
-            <h3 style={{ margin: "10px 0 0", fontSize: 15 }}>Mix prices at {p.name}</h3>
-            {p.prices_note && <p className="sub" style={{ marginTop: 0, fontSize: 12 }}>{p.prices_note}</p>}
-            {mixes.length === 0 && <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>No prices for this plant yet. Upload their price list or type them in.</p>}
-            {canEdit && <PriceListUpload tenantId={ctx.tenant.id} plantId={p.id} plantName={p.name} hasAi={hasAi} />}
-            <div className="cost-scroll">
-              <div className="cost-table">
-                <HeadRow category="material" plantId={p.id} />
-                {mixes.map((i) => <ItemForm key={i.id} item={i} category="material" canEdit={canEdit} plantId={p.id} />)}
-                {canEdit && <ItemForm category="material" canEdit={canEdit} plantId={p.id} />}
+      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Asphalt</h2>
+          <p className="sub" style={{ marginTop: 2, marginBottom: 0, fontSize: 13 }}>
+            Your asphalt comes from supply plants, and each plant has its own mix prices. Add each plant you buy from, then its mixes (or upload its price list). quoteout uses the nearest plant that has the mix, and the road distance sets the trucks.
+            {!hasMaps && " Searching by business name works best once the Google maps key is added; street addresses work now."}
+          </p>
+        </div>
+        {((items ?? []) as Item[]).some((i) => i.category === "material" && i.material_kind === "asphalt" && !i.supply_plant_id) && (
+          <div className="plant-panel">
+            <h3 style={{ margin: 0, fontSize: 15 }}>Asphalt not tied to a plant</h3>
+            {((items ?? []) as Item[]).filter((i) => i.category === "material" && i.material_kind === "asphalt" && !i.supply_plant_id)
+              .map((i) => <ItemForm key={i.id} item={i} category="material" canEdit={canEdit} kinds={[["asphalt", "Asphalt"], ["base", "Base"], ["other", "Other"]]} />)}
+          </div>
+        )}
+        {((plants ?? []) as Plant[]).map((p) => {
+          const mixes = ((items ?? []) as Item[]).filter((i) => i.supply_plant_id === p.id);
+          const expired = p.prices_valid_until && p.prices_valid_until < today;
+          const plantExtras = (extras ?? []).filter((e) => e.supply_plant_id === p.id).map((e) => ({ binder: e.binder as string, extra_per_t: Number(e.extra_per_t) }));
+          return (
+            <div key={p.id} id={`plant-${p.id}`} className="plant-panel">
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 6 }}>
+                <h3 style={{ margin: 0, fontSize: 17 }}>{p.name}</h3>
+                <span className="sub" style={{ marginTop: 0, fontSize: 13, color: expired ? "var(--bad, #b42318)" : undefined }}>
+                  {p.lat == null ? "Not on the map yet" : p.address ?? ""}
+                  {p.prices_valid_until ? ` · prices ${expired ? "expired" : "valid to"} ${p.prices_valid_until}` : ""}
+                </span>
               </div>
+              <PlantForm plant={p} canEdit={canEdit} />
+              <h4 style={{ margin: "8px 0 0", fontSize: 15 }}>Mix prices</h4>
+              {p.prices_note && <p className="sub" style={{ marginTop: 0, fontSize: 12 }}>{p.prices_note}</p>}
+              {mixes.length === 0 && <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>No prices for this plant yet. Upload their price list or type them in.</p>}
+              {canEdit && <PriceListUpload tenantId={ctx.tenant.id} plantId={p.id} plantName={p.name} hasAi={hasAi} />}
+              <div className="cost-scroll">
+                <div className="cost-table">
+                  <HeadRow category="material" plantId={p.id} />
+                  {mixes.map((i) => <ItemForm key={i.id} item={i} category="material" canEdit={canEdit} plantId={p.id} />)}
+                  {canEdit && <ItemForm category="material" canEdit={canEdit} plantId={p.id} />}
+                </div>
+              </div>
+              <h4 style={{ margin: "8px 0 0", fontSize: 15 }}>Binders</h4>
+              <BinderExtras plantId={p.id} plantName={p.name} base={p.base_binder ?? "C320"} extras={plantExtras} canEdit={canEdit} />
             </div>
-          </section>
-        );
-      })}
-      {canEdit && (
-        <section className="card" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <h2 style={{ margin: 0 }}>Add a supply plant</h2>
-          <PlantForm canEdit={canEdit} />
-        </section>
-      )}
+          );
+        })}
+        {canEdit && (
+          <div className="plant-panel" style={{ borderStyle: "dashed" }}>
+            <h3 style={{ margin: 0, fontSize: 15 }}>Add a supply plant</h3>
+            <PlantForm canEdit={canEdit} />
+          </div>
+        )}
+      </section>
 
       {AFTER_ASPHALT.map((sec) => <CostSection key={sec.key} s={sec} items={(items ?? []) as Item[]} canEdit={canEdit} />)}
 
       <form action={savePricingSettings} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <h2 style={{ margin: 0 }}>Pricing settings</h2>
         <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, ...grid }}>
-          <label style={field}>Truck loading (min)<input type="text" inputMode="decimal" name="truck_load_minutes" defaultValue={s?.truck_load_minutes ?? 15} /></label>
-          <label style={field}>Truck tipping (min)<input type="text" inputMode="decimal" name="truck_unload_minutes" defaultValue={s?.truck_unload_minutes ?? 10} /></label>
-          <label style={field}>Shift length (min)<input type="text" inputMode="decimal" name="shift_minutes" defaultValue={s?.shift_minutes ?? 480} /></label>
+          <label style={field}>Loading a truck (minutes)<input type="text" inputMode="decimal" name="truck_load_minutes" defaultValue={s?.truck_load_minutes ?? 15} /></label>
+          <label style={field}>Tipping a truck (minutes)<input type="text" inputMode="decimal" name="truck_unload_minutes" defaultValue={s?.truck_unload_minutes ?? 10} /></label>
+          <label style={field}>Truck working day (hours)<input type="text" inputMode="decimal" name="shift_hours" defaultValue={Number(s?.shift_minutes ?? 480) / 60} /></label>
           <label style={field}>GST (%)<input type="text" inputMode="decimal" name="gst_percent" defaultValue={s?.gst_percent ?? 10} /></label>
           <label style={field}>Binder in asphalt (%)<input type="text" inputMode="decimal" name="binder_percent" defaultValue={s?.binder_percent ?? 5.5} /></label>
         </fieldset>
+        <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>
+          Cartage is worked out from these: each load takes loading + the drive there and back + tipping. A truck does as many loads as fit in its working day; more loads than that means another truck. Binder in asphalt is how much of each tonne is bitumen, for rise and fall.
+        </p>
         <label style={field}>Terms printed on quotes
           <textarea name="quote_terms" rows={5} defaultValue={toShown(s?.quote_terms ?? DEFAULT_TERMS)} disabled={!canEdit} />
           <span className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 400 }}>[Bitumen month] becomes the month the quote was priced, e.g. November 2026.</span>
