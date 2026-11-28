@@ -1,5 +1,7 @@
 "use server";
 
+import { STATE_MIXES, type AuState } from "@/lib/mixes";
+
 import { toCodes } from "@/lib/quote/placeholders";
 
 import { revalidatePath } from "next/cache";
@@ -130,10 +132,19 @@ export async function savePlant(formData: FormData) {
   }
   const supabase = await createClient();
   const row = { tenant_id: ctx.tenant.id, name, address, lat, lng, place_source, active: true };
-  const { error } = id
-    ? await supabase.from("supply_plants").update(row).eq("id", id).eq("tenant_id", ctx.tenant.id)
-    : await supabase.from("supply_plants").insert(row);
+  const { data: made, error } = id
+    ? await supabase.from("supply_plants").update(row).eq("id", id).eq("tenant_id", ctx.tenant.id).select("id").single()
+    : await supabase.from("supply_plants").insert(row).select("id").single();
   if (error) back(error.message);
+  // A new plant starts with the usual mixes for their state, ready for prices.
+  if (!id && made) {
+    const { data: st } = await supabase.from("tenant_settings").select("state").eq("tenant_id", ctx.tenant.id).maybeSingle();
+    const mixes = STATE_MIXES[(st?.state as AuState) ?? "QLD"] ?? STATE_MIXES.QLD;
+    await supabase.from("cost_items").insert(mixes.map((m) => ({
+      tenant_id: ctx.tenant.id, name: m, category: "material", material_kind: "asphalt", unit: "t", rate: 0, density_t_per_m3: 2.4,
+      includes_delivery: false, supply_plant_id: made.id, active: true,
+    })));
+  }
   revalidatePath("/costs");
   back(lat == null ? `Saved ${name}, but couldn't find it on the map. Add its latitude and longitude.` : `Saved ${name}.`, lat != null);
 }

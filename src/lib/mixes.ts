@@ -26,3 +26,23 @@ export function hasMix(names: string[], mix: string): boolean {
 }
 
 export const ADD_MIX = "Add mix:";
+
+export const STATES = ["QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"] as const;
+export type AuState = (typeof STATES)[number];
+
+/**
+ * The usual mixes a new plant starts with, by state (names only: they type in the prices).
+ * Queensland's list is confirmed; the others are a plain starting set until they're checked.
+ */
+export const STATE_MIXES: Record<AuState, string[]> = {
+  QLD: ["AC7", "AC10", "AC14", "AC20", "OG10", "OG14", "SMA10", "SMA14", "EME2"],
+  NSW: ["AC10", "AC14", "AC20"], VIC: ["AC10", "AC14", "AC20"], SA: ["AC10", "AC14", "AC20"], WA: ["AC10", "AC14", "AC20"],
+  TAS: ["AC10", "AC14", "AC20"], NT: ["AC10", "AC14", "AC20"], ACT: ["AC10", "AC14", "AC20"],
+};
+
+/** Mixes that come with their own binder in the price (never a binder extra-over): EME2, and PMB for OG and SMA. */
+export function ownBinder(mixName: string): string | null {
+  if (/\bEME\s?2\b/i.test(mixName)) return "EME2";
+  if (/\b(OG(?:A)?|SMA)\s?\d/i.test(mixName)) return "PMB";
+  return null;
+}

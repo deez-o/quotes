@@ -155,3 +155,6 @@ label { font-weight: 600; }
 .job-item-sum.tag-mix { background: var(--bitumen, #16181B); color: #fff; font-weight: 600; }
 .job-item-sum.tag-tonnes { color: var(--ink); font-weight: 700; }
 .job-item-sum.tag-binder { background: #fdf1e3; color: #8a4b0f; }
+
+/* A mix from the state list that still needs its price. */
+input.needs-price { border-color: var(--accent, #FF6A13); background: #fff7f1; }

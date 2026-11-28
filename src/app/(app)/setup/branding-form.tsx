@@ -9,7 +9,7 @@ import { AutoSave } from "../auto-save";
 
 export type Branding = {
   logo_path: string | null; logo_url: string | null; brand_color: string | null;
-  business_name: string | null; business_abn: string | null; business_phone: string | null;
+  business_name: string | null; business_abn: string | null; business_phone: string | null; state?: string | null;
   business_email: string | null; business_address: string | null; business_website: string | null;
 };
 
@@ -96,6 +96,11 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
             <label style={field}>Email<input type="email" name="business_email" defaultValue={initial.business_email ?? ""} /></label>
             <label style={field}>Website<input type="text" name="business_website" defaultValue={initial.business_website ?? ""} /></label>
             <label style={field}>Address<input type="text" name="business_address" defaultValue={initial.business_address ?? ""} /></label>
+            <label style={field}>State you work in
+              <select name="state" defaultValue={initial.state ?? "QLD"} style={{ font: "inherit", padding: 10, borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff" }}>
+                {["QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"].map((x) => <option key={x} value={x}>{x}</option>)}
+              </select>
+            </label>
           </div>
         </fieldset>
 

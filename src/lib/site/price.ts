@@ -7,6 +7,7 @@ import { WORK_ORDER } from "./tidy";
  * Pure functions: runs on the server and live in the phone browser.
  */
 import { binderExtraFor, binderLabel, type BinderSetup } from "@/lib/binder";
+import { ownBinder } from "@/lib/mixes";
 
 export type CostItem = {
   id: string;
@@ -267,6 +268,12 @@ export function priceSiteQuote(input: {
       direct.set(item.key, 0);
       continue;
     }
+    // A mix added from the state list but not priced yet: never quote it at $0.
+    if (!(ci.rate > 0) && ci.sell_rate == null && !ci.rate_tiers?.length) {
+      warnings.push(`${ci.name} has no price yet. Add it in Your costs${ci.supply_plant_id ? ", at the plant" : ""}.`);
+      direct.set(item.key, 0);
+      continue;
+    }
     if (ci.supply_plant_id && scope.supply_plant_id && ci.supply_plant_id !== scope.supply_plant_id) {
       warnings.push(`${ci.name} is priced at a different plant from the one chosen for this job.`);
     }
@@ -289,7 +296,7 @@ export function priceSiteQuote(input: {
         rate = r.rate;
         let binderNote = "";
         // EME2 is its own mix with its own binder, priced as a whole: never a binder extra-over.
-        if (item.kind === "asphalt" && !/\bEME\s?2\b/i.test(ci.name)) {
+        if (item.kind === "asphalt" && !ownBinder(ci.name)) {
           const b = binderExtraFor(settings.binders, ci.supply_plant_id, ci.name, item.binder ?? settings.binders?.defaultBinder);
           if (b.kind === "extra") {
             rate = round2(rate + b.extra);

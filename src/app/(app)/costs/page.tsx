@@ -99,7 +99,7 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
         {plantId && <input type="hidden" name="material_kind" value="asphalt" />}
         <div className="cost-row" style={{ "--cols": c.template } as React.CSSProperties}>
           <Cell label="Name" wide><input type="text" name="name" aria-label="Name" defaultValue={item?.name ?? defaultName ?? ""} autoFocus={Boolean(defaultName)} required placeholder={item ? "" : plantId ? "Add a mix, e.g. AC10 C320" : "Add a new one"} /></Cell>
-          <Cell label="Rate (ex GST)"><input type="text" inputMode="decimal" name="rate" aria-label={`${n} rate (ex GST)`} defaultValue={item?.rate ?? ""} required placeholder="$" /></Cell>
+          <Cell label="Rate (ex GST)"><input type="text" inputMode="decimal" name="rate" aria-label={`${n} rate (ex GST)`} defaultValue={item && item.rate > 0 ? item.rate : ""} required placeholder={item ? "Add price" : "$"} className={item && !(item.rate > 0) ? "needs-price" : undefined} /></Cell>
           <Cell label="Per"><select name="unit" aria-label={`${n} per`} defaultValue={item?.unit ?? unitDefault ?? (isMaterial ? "t" : category === "float" || category === "establishment" ? "each" : "h")} style={sel}>
             {UNITS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select></Cell>

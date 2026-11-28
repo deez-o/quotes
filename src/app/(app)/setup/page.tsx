@@ -28,7 +28,7 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
   const pricing = await loadSettings(ctx.tenant.id);
   const supa = await createClient();
   const { data: b } = await supa.from("tenant_settings")
-    .select("logo_path, brand_color, business_name, business_abn, business_phone, business_email, business_address, business_website")
+    .select("logo_path, brand_color, business_name, business_abn, business_phone, business_email, business_address, business_website, state")
     .eq("tenant_id", ctx.tenant.id).maybeSingle();
   const logoUrl = b?.logo_path ? (await supa.storage.from("job-files").createSignedUrl(b.logo_path, 3600)).data?.signedUrl ?? null : null;
   const branding: Branding = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { tidyItems } from "@/lib/site/tidy";
-import { ADD_MIX, hasMix, knownMix } from "@/lib/mixes";
+import { ADD_MIX, hasMix, knownMix, ownBinder } from "@/lib/mixes";
 
 /** A mix the quote asked them to add, now in their costs: price the lines with it and drop the ask. */
 function fillAddedMixes(scope: SiteScope, library: CostItem[]): SiteScope {
@@ -380,7 +380,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             const tonnesOf = (x: ScopeItem) => (x.kind === "asphalt" || x.kind === "base") && density && x.area_m2 && x.depth_mm ? x.area_m2 * (x.depth_mm / 1000) * density : null;
             const approx = !ci?.density_t_per_m3;
             // EME2 is a mix with its own binder: no binder choice, never an extra-over.
-            const isEme = /\bEME\s?2\b/i.test(`${ci?.name ?? ""} ${i.description}`);
+            const own = ownBinder(`${ci?.name ?? ""} ${ci ? "" : i.description}`);
             const byArea = ["asphalt", "base", "prime", "tack", "seal"].includes(i.kind) || ci?.unit === "m2";
             const needsDepth = i.kind === "asphalt" || i.kind === "base" || ci?.unit === "m3";
             return (
@@ -392,7 +392,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                     [i.depth_mm ? `${i.depth_mm} mm` : null, ""],
                     [i.area_m2 ? `${i.area_m2.toLocaleString("en-AU", { maximumFractionDigits: 0 })} m²` : null, ""],
                     [tonnesOf(i) != null ? `${approx ? "≈ " : ""}${tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: approx ? 0 : 1 })} t` : null, "tonnes"],
-                    [i.kind === "asphalt" ? `${isEme ? "EME2" : binderLabel(i.binder || settings.binders?.defaultBinder || "C320")} binder` : null, "binder"],
+                    [i.kind === "asphalt" ? `${own ?? binderLabel(i.binder || settings.binders?.defaultBinder || "C320")} binder` : null, "binder"],
                     [!byArea && i.quantity ? `${i.quantity.toLocaleString("en-AU")} ${ci ? UNIT[ci.unit] : ""}`.trim() : null, ""],
                   ] as [string | null, string][]).filter(([t]) => t).map(([t, k]) => <span key={t} className={`job-item-sum${k ? ` tag-${k}` : ""}`}>{t}</span>)}
                   <button type="button" className="job-item-remove" aria-label={`Remove ${i.description || KIND_LABEL[i.kind]}`} title="Remove this item"
@@ -420,7 +420,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 {needsDepth && (
                   <label style={small}>Depth (mm)<input type="text" inputMode="decimal" value={i.depth_mm ?? ""} onChange={(e) => setItem(i.key, { depth_mm: toNum(e.target.value) })} /></label>
                 )}
-                {i.kind === "asphalt" && !isEme && (
+                {i.kind === "asphalt" && !own && (
                   <label style={small}>Binder
                     <select style={sel} value={i.binder ?? ""} onChange={(e) => setItem(i.key, { binder: e.target.value || null })}>
                       <option value="">{settings.binders?.defaultBinder ? `Default (${binderLabel(settings.binders.defaultBinder)})` : "As priced"}</option>

@@ -27,6 +27,7 @@ export async function saveBranding(formData: FormData): Promise<{ ok: boolean; m
     brand_color: color ? color.toUpperCase() : null,
     business_name: t(formData, "business_name"),
     business_abn: t(formData, "business_abn", 30),
+    state: ["QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"].includes(String(formData.get("state"))) ? String(formData.get("state")) : null,
     business_phone: t(formData, "business_phone", 40),
     business_email: email,
     business_address: t(formData, "business_address", 300),
