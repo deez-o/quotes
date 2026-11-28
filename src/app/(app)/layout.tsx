@@ -46,7 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {access.state === "ok" && access.banner && (
           <div className="card row" style={{ background: "var(--warn-bg)", borderColor: "#f0dba5", padding: "10px 16px", gap: 12, marginBottom: 20 }}>
             <span className="grow">{access.banner}</span>
-            {ctx.role === "admin" && <Link href="/billing" className="btn primary" style={{ padding: "6px 12px" }}>Choose a plan</Link>}
+            {ctx.role === "admin" && <Link href="/billing" className="btn primary" style={{ padding: "6px 12px" }}>{/quotes this month|top-up/i.test(access.banner) ? "Top up or upgrade" : "Choose a plan"}</Link>}
           </div>
         )}
         {access.state === "locked" && owner && (
