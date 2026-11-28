@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { saveCustomer, type CustomerState } from "./actions";
+import { AutoSave } from "../auto-save";
 
 export type CustomerRow = { id: string; name: string; contact_name: string | null; email: string | null; phone: string | null; address: string | null; abn: string | null; notes: string | null };
 
@@ -19,7 +20,8 @@ export function CustomerForm({ c, canEdit }: { c: CustomerRow | null; canEdit: b
       <label style={f}>ABN<input name="abn" defaultValue={c?.abn ?? ""} disabled={!canEdit} /></label>
       <label style={{ ...f, gridColumn: "1 / -1" }}>Notes<textarea name="notes" rows={2} defaultValue={c?.notes ?? ""} disabled={!canEdit} /></label>
       {canEdit && <div className="row" style={{ gap: 8, alignItems: "center" }}>
-        <button type="submit" className="btn primary" disabled={pending}>{pending ? "Saving..." : c ? "Save" : "Add customer"}</button>
+        {c ? <AutoSave /> : <button type="submit" className="btn primary" disabled={pending}>{pending ? "Saving..." : "Add customer"}</button>}
+        {c && pending && <span className="sub" style={{ marginTop: 0 }}>Saving...</span>}
         {state && <span className={state.ok ? "sub" : "error"} style={{ marginTop: 0 }} role="status">{state.message}</span>}
       </div>}
     </form>

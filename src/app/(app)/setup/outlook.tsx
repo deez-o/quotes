@@ -1,3 +1,4 @@
+import { AutoSave } from "../auto-save";
 import { revalidatePath } from "next/cache";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
@@ -47,7 +48,7 @@ export async function OutlookCard({ tenantId, plan, isAdmin }: { tenantId: strin
                 <input type="checkbox" name="on" defaultChecked={Boolean(s?.send_from_mailbox)} disabled={!isAdmin} />
                 Send quotes from {mb.email}
               </label>
-              {isAdmin && <button type="submit" className="btn">Save</button>}
+              {isAdmin && <AutoSave />}
               <span className="sub" style={{ marginTop: 0, flexBasis: "100%" }}>Quotes come from your own address and are kept in your Sent Items. If Outlook can&apos;t send, quoteout sends it instead and tells you.</span>
             </form>
           ) : (

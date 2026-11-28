@@ -20,7 +20,7 @@ export const BINDERS: { code: string; label: string }[] = [
   { code: "A35P", label: "PMB A35P" },
   { code: "A40R", label: "PMB A40R" },
   { code: "CRUMB", label: "Crumb rubber" },
-  { code: "EME2", label: "EME2 (hard grade)" },
+  { code: "EME2", label: "EME2" },
   { code: "WARM", label: "Warm mix additive" },
   { code: "RAP", label: "RAP / recycled" },
 ];

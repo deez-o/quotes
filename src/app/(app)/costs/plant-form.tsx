@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PlaceSearch } from "../place-search";
 import { archivePlant, savePlant } from "./actions";
+import { AutoSave } from "../auto-save";
 
 export type PlantRow = { id: string; name: string; address: string | null; lat: number | null; lng: number | null };
 
@@ -32,6 +33,7 @@ export function PlantForm({ plant, canEdit }: { plant?: PlantRow; canEdit: boole
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10, minWidth: 0 }}>
         {plant && <input type="hidden" name="id" value={plant.id} />}
         <input type="hidden" name="place_source" value={source} />
+        {plant && canEdit && <AutoSave watch={[lat, lng]} />}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
           <label style={{ ...field, flex: "1 1 220px", minWidth: 0 }}>Name<input type="text" name="name" value={name} onChange={(e) => setName(e.target.value)} required placeholder={plant ? "" : "Plant name"} /></label>
           <label style={{ ...field, flex: "2 1 300px", minWidth: 0 }}>Address<input type="text" name="address" value={address} onChange={(e) => { setAddress(e.target.value); setSource(""); setLat(""); setLng(""); }} placeholder="Street, suburb, state" /></label>
@@ -48,7 +50,7 @@ export function PlantForm({ plant, canEdit }: { plant?: PlantRow; canEdit: boole
         </details>
         {canEdit && (
           <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-            <button type="submit" className={`btn${plant ? "" : " primary"}`} style={{ padding: "9px 14px" }}>{plant ? "Save" : "Add plant"}</button>
+            {!plant && <button type="submit" className="btn primary" style={{ padding: "9px 14px" }}>Add plant</button>}
             {plant && !finding && <button type="button" className="btn" style={{ padding: "9px 14px" }} onClick={() => setFinding(true)}>Find on the map</button>}
             {plant && <button formAction={archivePlant} className="btn" style={{ padding: "9px 14px", marginLeft: "auto" }}>Remove plant</button>}
           </div>

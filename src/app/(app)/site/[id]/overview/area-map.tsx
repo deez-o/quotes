@@ -194,8 +194,15 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, 
     if (!r.ok) return setMsg({ ok: false, text: r.message });
     setDirty(false);
     setMsg({ ok: true, text: "Areas saved." });
-    router.refresh();
   }
+  // Saves on its own a moment after an area is finished, moved, renamed or deleted.
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; });
+  useEffect(() => {
+    if (!dirty || drawing || !canEdit) return;
+    const t = setTimeout(() => void saveRef.current(), 1200);
+    return () => clearTimeout(t);
+  }, [areas, dirty, drawing, canEdit]);
   async function applyTo(a: DrawnArea) {
     const itemKey = pick[a.id] ?? items[0]?.key;
     if (!itemKey) return;
@@ -253,7 +260,7 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, 
           ) : (
             <button type="button" className="btn primary" style={{ minHeight: 44 }} onClick={startDraw}>Draw an area</button>
           )}
-          {dirty && !drawing && <button type="button" className="btn" disabled={busy !== null} onClick={() => void save()}>{busy === "save" ? "Saving..." : "Save areas"}</button>}
+          {busy === "save" && <span className="sub" style={{ marginTop: 0, alignSelf: "center" }}>Saving...</span>}
         </div>
       )}
 

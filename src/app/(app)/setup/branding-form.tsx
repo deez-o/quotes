@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BRAND_PRESETS, DEFAULT_BRAND, isHex, textOn } from "@/lib/branding";
 import { saveBranding } from "./branding-actions";
+import { AutoSave } from "../auto-save";
 
 export type Branding = {
   logo_path: string | null; logo_url: string | null; brand_color: string | null;
@@ -38,7 +39,7 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
     if (error) return setMsg({ ok: false, text: error.message });
     setLogoPath(path);
     setLogoUrl(URL.createObjectURL(f));
-    setMsg({ ok: true, text: "Logo added. Save to use it." });
+    setMsg({ ok: true, text: "Logo added." });
   }
 
   async function save(fd: FormData) {
@@ -57,6 +58,7 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
       </div>
       <input type="hidden" name="logo_path" value={logoPath ?? ""} />
       <input type="hidden" name="brand_color" value={color} />
+      {canEdit && <AutoSave watch={[logoPath, color]} />}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
         <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, minWidth: 0, flex: "1 1 340px" }}>
@@ -116,7 +118,7 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
 
       {canEdit && (
         <div className="row" style={{ gap: 12 }}>
-          <button type="submit" className="btn primary" disabled={busy !== null}>{busy === "save" ? "Saving..." : "Save branding"}</button>
+          <span className="sub" style={{ marginTop: 0 }}>{busy === "save" ? "Saving..." : "Changes save on their own."}</span>
           {msg && <span role="status" style={{ fontSize: 14, color: msg.ok ? "var(--good)" : "var(--bad, #b42318)" }}>{msg.text}</span>}
         </div>
       )}

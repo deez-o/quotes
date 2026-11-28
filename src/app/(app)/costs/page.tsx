@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { archiveCostItem, saveCostItem, savePricingSettings } from "./actions";
 import { PlantForm } from "./plant-form";
 import { BinderExtras } from "./binders";
+import { AutoSave } from "../auto-save";
 import { DEFAULT_TERMS } from "@/lib/site/terms";
 import { DEFAULT_QUOTE_MESSAGE } from "@/lib/quote/email";
 import { toShown } from "@/lib/quote/placeholders";
@@ -87,6 +88,7 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
   const hireMin = category === "crew" || category === "plant" || category === "truck";
   return (
     <form action={saveCostItem} style={{ borderTop: "1px solid var(--line-soft)", padding: "8px 0" }}>
+      {canEdit && <AutoSave isNew={!item} />}
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         {item && <input type="hidden" name="id" value={item.id} />}
         <input type="hidden" name="category" value={category} />
@@ -123,7 +125,7 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
           {canEdit ? (
             <div className="cost-actions" style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
               {item && <button formAction={archiveCostItem} className="btn" style={{ padding: "9px 10px", color: "#9a3412", borderColor: "#f0b8a8", background: "#fdf1ed" }} aria-label={`Remove ${item.name}`}>Remove</button>}
-              <button type="submit" className={`btn${item ? "" : " primary"}`} style={{ padding: "9px 14px", minWidth: 64 }}>{item ? "Save" : "Add"}</button>
+              {!item && <button type="submit" className="btn primary" style={{ padding: "9px 14px", minWidth: 64 }}>Add</button>}
             </div>
           ) : <span />}
         </div>
@@ -171,7 +173,7 @@ function CostSection({ s, items, canEdit }: { s: Section; items: Item[]; canEdit
         <div className="cost-table">
           <HeadRow category={s.category} kinds={s.kinds} />
           {rows.map((i) => <ItemForm key={i.id} item={i} category={s.category} canEdit={canEdit} kinds={s.kinds} sliding={s.key === "seal"} />)}
-          {canEdit && <ItemForm category={s.category} canEdit={canEdit} kinds={s.kinds} unitDefault={s.key === "seal" ? "m2" : undefined} sliding={s.key === "seal"} />}
+          {canEdit && <ItemForm key={`new-${rows.map((r) => r.id).join()}`} category={s.category} canEdit={canEdit} kinds={s.kinds} unitDefault={s.key === "seal" ? "m2" : undefined} sliding={s.key === "seal"} />}
         </div>
       </div>
       {rows.length === 0 && !canEdit && <p className="sub">None yet.</p>}
@@ -202,7 +204,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
       <div>
         <Link href="/setup" className="btn" style={{ padding: "8px 14px", display: "inline-block", marginBottom: 8 }}>← Back to Setup</Link>
         <h1>Your costs</h1>
-        <p className="sub">Set these once. Talk-to-quote prices every job from them, so quotes come out your way. All rates ex GST.</p>
+        <p className="sub">Set these once. Talk-to-quote prices every job from them, so quotes come out your way. All rates ex GST. Changes save as you go.</p>
       </div>
       <Suspense fallback={null}><KeepScroll /></Suspense>
       {saved && <Toast key={`s${saved}`} text={saved} ok />}
@@ -248,7 +250,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
                 <div className="cost-table">
                   <HeadRow category="material" plantId={p.id} />
                   {mixes.map((i) => <ItemForm key={i.id} item={i} category="material" canEdit={canEdit} plantId={p.id} />)}
-                  {canEdit && <ItemForm category="material" canEdit={canEdit} plantId={p.id} />}
+                  {canEdit && <ItemForm key={`new-${mixes.map((m) => m.id).join()}`} category="material" canEdit={canEdit} plantId={p.id} />}
                 </div>
               </div>
               <h4 style={{ margin: "8px 0 0", fontSize: 15 }}>Binders</h4>
@@ -289,7 +291,8 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
         <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
           <input type="checkbox" name="notify_drafts" defaultChecked={s?.notify_drafts !== false} disabled={!canEdit} /> Email us when an RFQ has been drafted and is ready to check
         </label>
-        {canEdit && <div><button type="submit" className="btn primary">Save pricing settings</button></div>}
+        {canEdit && <AutoSave />}
+        {canEdit && <span className="sub" style={{ marginTop: 0, fontSize: 12 }}>Changes save on their own.</span>}
         <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>Your margin is set once in <Link href="/setup#pricing" style={{ textDecoration: "underline" }}>Setup → Pricing target</Link>{s?.margin_percent != null ? ` (now ${s.margin_percent}%)` : ""}, and you can change it on each quote.</p>
       </form>
     </div>

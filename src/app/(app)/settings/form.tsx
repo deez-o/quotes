@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { saveSettings, type SaveState } from "./actions";
+import { AutoSave } from "../auto-save";
 
 export type Settings = {
   margin_mode: "none" | "per_shift" | "percent";
@@ -118,7 +119,8 @@ export function SettingsForm({ initial, canEdit }: { initial: Settings; canEdit:
 
       {canEdit ? (
         <div className="row" style={{ gap: 12 }}>
-          <button type="submit" className="btn primary" disabled={pending}>{pending ? "Saving..." : "Save settings"}</button>
+          <AutoSave />
+          <span className="sub" style={{ marginTop: 0 }}>{pending ? "Saving..." : "Changes save on their own."}</span>
           <span aria-live="polite" className={state.ok ? "" : "error"} style={{ color: state.ok ? "var(--good)" : undefined, fontWeight: 600 }}>
             {state.message}
           </span>
