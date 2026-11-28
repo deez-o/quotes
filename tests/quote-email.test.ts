@@ -101,3 +101,15 @@ describe("Xero quote status", () => {
     expect(statusFromXero("SENT")).toBeNull();
   });
 });
+
+import { toCodes, toShown } from "@/lib/quote/placeholders";
+
+describe("[square bracket] fill-ins", () => {
+  it("round-trips and forgives case", () => {
+    const shown = toShown("Hi {customer}, quote {quote_no}. {price_summary} {unknown}");
+    expect(shown).toBe("Hi [Customer], quote [Quote number]. [Price] {unknown}");
+    expect(toCodes(shown)).toBe("Hi {customer}, quote {quote_no}. {price_summary} {unknown}");
+    expect(toCodes("Hi [ customer ], see [Site plan]")).toBe("Hi {customer}, see [Site plan]");
+    expect(fillMessage("Hi [Customer], [Price]", facts)).toBe("Hi Sam, The total is $12,100.00 inc GST ($11,000.00 ex GST).");
+  });
+});

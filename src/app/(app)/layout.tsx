@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo } from "../logo";
 import { requireTenant } from "@/lib/tenant";
 import { signOut } from "@/app/actions";
-import { NavLinks } from "./nav";
+import { NavLinks, NavShell } from "./nav";
 import { SessionGuard } from "../session-guard";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -23,8 +23,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="shell">
-      <nav className="nav" aria-label="Main">
-        <div className="brand"><Logo size={26} dark /></div>
+      <NavShell brand={<Logo size={26} dark />}>
         <NavLinks />
         <div className="who">
           <span className="who-name">
@@ -41,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </form>
           </div>
         </div>
-      </nav>
+      </NavShell>
       <SessionGuard />
       <main className="main">
         {access.state === "ok" && access.banner && (

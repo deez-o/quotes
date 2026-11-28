@@ -1,3 +1,4 @@
+import { toCodes } from "./placeholders";
 /** The email that goes with a quote: addresses, subject, message. Pure, so it can be tested. */
 
 const EMAIL = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+\.[a-z]{2,}$/i;
@@ -58,7 +59,7 @@ export function defaultSubject(f: Pick<EmailFacts, "business" | "quoteNo" | "job
 
 /** The company's wording (or ours) with the placeholders filled in. */
 export function fillMessage(template: string | null | undefined, f: EmailFacts): string {
-  const t = template?.trim() || DEFAULT_QUOTE_MESSAGE;
+  const t = toCodes(template?.trim() || DEFAULT_QUOTE_MESSAGE);
   const vals: Record<string, string> = {
     customer: firstName(f.customer), quote_no: f.quoteNo ?? "", job: f.job || "the job", total: money(f.totalIncGst), total_ex: money(f.totalExGst),
     business: f.business, sender: f.sender || f.business, phone: f.phone ?? "", phone_line: f.phone ? ` or call ${f.phone}` : "",

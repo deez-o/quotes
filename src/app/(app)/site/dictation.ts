@@ -32,6 +32,14 @@ export function useDictation(onText: (text: string) => void) {
   const wanted = useRef(false);
   const onTextRef = useRef(onText);
   useEffect(() => { onTextRef.current = onText; }, [onText]);
+  // Words heard but not yet marked final. iPhones often never mark them final, so keep them when listening ends.
+  const pending = useRef("");
+  const lastCommitted = useRef("");
+  const commit = useCallback(() => {
+    const t = pending.current.trim();
+    pending.current = "";
+    if (t) { lastCommitted.current = t; onTextRef.current(t); }
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- feature detection after mount
@@ -40,29 +48,44 @@ export function useDictation(onText: (text: string) => void) {
 
   const start = useCallback(() => {
     const Ctor = getCtor();
-    if (!Ctor) return;
+    if (!Ctor) { setError("This browser can't take voice here. Use the microphone on your keyboard instead."); return; }
     setError(null);
     const r = new Ctor();
+    const iphone = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
     r.lang = "en-AU";
-    r.continuous = true;
+    // iPhones handle one phrase at a time more reliably; we restart after each pause.
+    r.continuous = !iphone;
     r.interimResults = true;
     r.onresult = (e) => {
       let live = "";
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
-        if (res.isFinal) onTextRef.current(res[0].transcript.trim());
+        if (res.isFinal) {
+          const said = res[0].transcript.trim();
+          pending.current = "";
+          // Already kept when listening paused: don't add it twice.
+          if (said && said !== lastCommitted.current) onTextRef.current(said);
+          lastCommitted.current = "";
+        }
         else live += res[0].transcript;
       }
+      pending.current = live;
       setInterim(live);
     };
     r.onerror = (e) => {
-      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-        wanted.current = false;
-        setError("Microphone access is blocked. Allow it for this site in your browser settings, or use your keyboard's mic.");
-      }
+      if (e.error === "no-speech" || e.error === "aborted") return; // a pause, or we stopped it
+      wanted.current = false;
+      setError(
+        e.error === "not-allowed" || e.error === "service-not-allowed"
+          ? "Microphone access is blocked. Allow it for quoteout in your browser settings, or use your keyboard's mic."
+          : e.error === "audio-capture" ? "No microphone found. Use your keyboard's mic instead."
+          : e.error === "network" ? "Voice needs an internet connection. Use your keyboard's mic, or try again."
+          : "Voice stopped working. Tap Talk to try again, or use your keyboard's mic.",
+      );
     };
-    // Phones stop listening after a pause: keep going until the user taps stop.
+    // Phones stop listening after a pause: keep what was heard, and keep going until the user taps stop.
     r.onend = () => {
+      commit();
       setInterim("");
       if (wanted.current) {
         try { r.start(); } catch { setListening(false); wanted.current = false; }
@@ -72,15 +95,23 @@ export function useDictation(onText: (text: string) => void) {
     };
     rec.current = r;
     wanted.current = true;
-    r.start();
-    setListening(true);
-  }, []);
+    try {
+      r.start();
+      setListening(true);
+    } catch {
+      wanted.current = false;
+      setListening(false);
+      setError("Voice couldn't start. Tap Talk again, or use your keyboard's mic.");
+    }
+  }, [commit]);
 
   const stop = useCallback(() => {
     wanted.current = false;
-    rec.current?.stop();
+    try { rec.current?.stop(); } catch { /* already stopped */ }
+    commit();
+    setInterim("");
     setListening(false);
-  }, []);
+  }, [commit]);
 
   useEffect(() => () => { wanted.current = false; rec.current?.stop(); }, []);
 

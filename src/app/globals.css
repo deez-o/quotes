@@ -42,6 +42,9 @@ p { margin: 0; }
 .nav a { color: var(--nav-ink); padding: 12px; border-radius: 8px; }
 .nav a[aria-current="page"] { color: #fff; background: var(--nav-active); }
 .nav .who { margin-top: auto; padding: 12px; font-size: 12px; color: #b6bcc4; }
+.nav-top { display: contents; }
+.nav-body { display: contents; }
+.nav-toggle { display: none; background: none; border: 1px solid #4a4f56; color: var(--nav-ink); border-radius: 8px; padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; }
 .nav .who button { margin-top: 8px; background: none; border: 1px solid #4a4f56; color: var(--nav-ink); border-radius: 6px; padding: 6px 10px; font: inherit; cursor: pointer; }
 .main { flex: 999 1 560px; min-width: 0; padding: 40px 48px; }
 .page { max-width: 1100px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
@@ -85,16 +88,17 @@ label { font-weight: 600; }
 .error { color: var(--accent-ink); font-weight: 600; }
 
 @media (max-width: 640px) {
-  /* Phone: the menu becomes a scrolling strip across the top. */
+  /* Phone: a top bar (logo + Menu); the menu opens as a full list below it. */
   .shell { flex-direction: column; flex-wrap: nowrap; }
-  .nav { max-width: none; flex: none; flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; gap: 2px; padding-top: max(10px, env(safe-area-inset-top)); -webkit-overflow-scrolling: touch; }
-  .nav .brand { padding: 0 10px 0 4px; font-size: 18px; }
-  .nav a { white-space: nowrap; padding: 10px 12px; }
-  /* Account links (Admin, Plan, Password, Sign out) stay reachable at the end of the strip. */
-  .nav .who { display: flex; align-items: center; padding: 0 4px; margin: 0; border: 0; }
-  .nav .who-name { display: none; }
-  .nav .who-links { flex-wrap: nowrap !important; margin-top: 0 !important; }
-  .nav .who-links a, .nav .who-links button { white-space: nowrap; padding: 8px 10px !important; font-size: 14px; margin-top: 0; }
+  .nav { max-width: none; flex: none; padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); gap: 0; position: sticky; top: 0; z-index: 40; }
+  .nav-top { display: flex; align-items: center; justify-content: space-between; }
+  .nav .brand { padding: 4px; font-size: 18px; }
+  .nav-toggle { display: inline-flex !important; }
+  .nav-body { display: none; flex-direction: column; gap: 2px; padding: 8px 0 6px; max-height: calc(100dvh - 70px); overflow-y: auto; }
+  .nav[data-open] .nav-body { display: flex; }
+  .nav a { padding: 14px 12px; font-size: 17px; }
+  .nav .who { margin: 8px 0 0; padding: 12px; border-top: 1px solid #3a3f46; }
+  .nav .who-name { display: block; margin-bottom: 4px; }
   .main { padding: 20px 16px calc(24px + env(safe-area-inset-bottom)); }
   h1 { font-size: 26px; }
   input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input[type="number"], input[type="search"], input[type="password"], input:not([type]), textarea, select { font-size: 16px; } /* no zoom on focus in iOS */

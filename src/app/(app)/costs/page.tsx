@@ -6,6 +6,7 @@ import { archiveCostItem, saveCostItem, savePricingSettings } from "./actions";
 import { PlantForm } from "./plant-form";
 import { DEFAULT_TERMS } from "@/lib/site/terms";
 import { DEFAULT_QUOTE_MESSAGE } from "@/lib/quote/email";
+import { toShown } from "@/lib/quote/placeholders";
 import { PriceListUpload } from "./price-list";
 
 type Item = {
@@ -249,7 +250,6 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
       <form action={savePricingSettings} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <h2 style={{ margin: 0 }}>Pricing settings</h2>
         <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, ...grid }}>
-          <label style={field}>Default margin (%)<input type="text" inputMode="decimal" name="margin_percent" defaultValue={s?.margin_percent ?? 15} /></label>
           <label style={field}>Truck loading (min)<input type="text" inputMode="decimal" name="truck_load_minutes" defaultValue={s?.truck_load_minutes ?? 15} /></label>
           <label style={field}>Truck tipping (min)<input type="text" inputMode="decimal" name="truck_unload_minutes" defaultValue={s?.truck_unload_minutes ?? 10} /></label>
           <label style={field}>Shift length (min)<input type="text" inputMode="decimal" name="shift_minutes" defaultValue={s?.shift_minutes ?? 480} /></label>
@@ -257,18 +257,18 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
           <label style={field}>Binder in asphalt (%)<input type="text" inputMode="decimal" name="binder_percent" defaultValue={s?.binder_percent ?? 5.5} /></label>
         </fieldset>
         <label style={field}>Terms printed on quotes
-          <textarea name="quote_terms" rows={4} defaultValue={s?.quote_terms ?? DEFAULT_TERMS} disabled={!canEdit} />
-          <span className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 400 }}>{"{bitumen_month}"} is filled in with the month the quote was done.</span>
+          <textarea name="quote_terms" rows={5} defaultValue={toShown(s?.quote_terms ?? DEFAULT_TERMS)} disabled={!canEdit} />
+          <span className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 400 }}>[Bitumen month] becomes the month the quote was priced, e.g. November 2026.</span>
         </label>
         <label style={field}>Email that goes with a quote
-          <textarea name="quote_email_message" rows={9} defaultValue={s?.quote_email_message ?? DEFAULT_QUOTE_MESSAGE} disabled={!canEdit} />
-          <span className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 400 }}>Filled in for you: {"{customer}"}, {"{quote_no}"}, {"{job}"}, {"{total}"} (inc GST), {"{total_ex}"}, {"{sender}"}, {"{business}"}, {"{phone_line}"}. You can change it before each send.</span>
+          <textarea name="quote_email_message" rows={11} defaultValue={toShown(s?.quote_email_message ?? DEFAULT_QUOTE_MESSAGE)} disabled={!canEdit} />
+          <span className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 400 }}>Words in [square brackets] are filled in for each quote: [Customer] becomes the customer&apos;s first name, [Price] the total, [Your name] whoever sends it. You can still change the email before each send.</span>
         </label>
         <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
           <input type="checkbox" name="notify_drafts" defaultChecked={s?.notify_drafts !== false} disabled={!canEdit} /> Email us when an RFQ has been drafted and is ready to check
         </label>
         {canEdit && <div><button type="submit" className="btn primary">Save pricing settings</button></div>}
-        <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>Margin is on the selling price: at 15%, a $85 cost sells for $100.</p>
+        <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>Your margin is set once in <Link href="/setup#pricing" style={{ textDecoration: "underline" }}>Setup → Pricing target</Link>{s?.margin_percent != null ? ` (now ${s.margin_percent}%)` : ""}, and you can change it on each quote.</p>
       </form>
     </div>
   );

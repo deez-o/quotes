@@ -1,5 +1,7 @@
 "use server";
 
+import { toCodes } from "@/lib/quote/placeholders";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireTenant } from "@/lib/tenant";
@@ -139,14 +141,13 @@ export async function archivePlant(formData: FormData) {
 
 export async function savePricingSettings(formData: FormData) {
   const ctx = await adminCtx();
-  const fields = ["margin_percent", "truck_load_minutes", "truck_unload_minutes", "shift_minutes", "gst_percent"] as const;
+  const fields = ["truck_load_minutes", "truck_unload_minutes", "shift_minutes", "gst_percent"] as const;
   const values: Record<string, number> = {};
   for (const f of fields) {
     const n = num(formData.get(f));
     if (n == null || Number.isNaN(n) || n < 0) back("Pricing settings must be numbers.");
     values[f] = n as number;
   }
-  if (values.margin_percent >= 95) back("Margin must be under 95%.");
   if (values.shift_minutes < 60) back("Check the shift length.");
   const binder = num(formData.get("binder_percent"));
   if (binder != null && !Number.isNaN(binder)) {
@@ -156,9 +157,9 @@ export async function savePricingSettings(formData: FormData) {
   const supabase = await createClient();
   const { error } = await supabase.from("tenant_settings").upsert({
     tenant_id: ctx.tenant.id, ...values,
-    quote_terms: String(formData.get("quote_terms") ?? "").trim().slice(0, 2000) || null,
+    quote_terms: toCodes(String(formData.get("quote_terms") ?? "").trim()).slice(0, 2000) || null,
     notify_drafts: formData.get("notify_drafts") === "on",
-    quote_email_message: String(formData.get("quote_email_message") ?? "").replace(/\r/g, "").trim().slice(0, 4000) || null,
+    quote_email_message: toCodes(String(formData.get("quote_email_message") ?? "").replace(/\r/g, "").trim()).slice(0, 4000) || null,
     updated_at: new Date().toISOString(),
   });
   if (error) back(error.message);
