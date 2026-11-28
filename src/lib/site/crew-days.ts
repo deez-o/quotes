@@ -58,16 +58,18 @@ export function layersOf(description: string): number {
  * Set the hourly crew's days and hours from the asphalt m² (each layer counts), at least one shift
  * per asphalt establishment. Returns the scope and a note for the assumptions, or null if nothing to do.
  */
-export function planCrew(scope: SiteScope, haulMinutes: number | null, o: CrewOutput, hourly: (costItemId: string) => boolean): { scope: SiteScope; note: string } | null {
+export function planCrew(scope: SiteScope, haulMinutes: number | null, o: CrewOutput, unitOf: (costItemId: string) => string | undefined): { scope: SiteScope; note: string } | null {
+  const hourly = (id: string) => unitOf(id) === "h";
+  const perShift = (id: string) => unitOf(id) === "shift" || unitOf(id) === "day";
   const m2 = scope.items.filter((i) => i.kind === "asphalt" && i.area_m2).reduce((s, i) => s + i.area_m2! * layersOf(i.description), 0);
-  if (!(m2 > 0) || !scope.crew.some((l) => hourly(l.cost_item_id))) return null;
+  if (!(m2 > 0) || !scope.crew.some((l) => hourly(l.cost_item_id) || perShift(l.cost_item_id))) return null;
   const factor = scope.paving_factor && scope.paving_factor > 0 ? Math.min(1.1, Math.max(0.3, scope.paving_factor)) : 1;
   const day = Math.round(perDay(scope.job_type, haulMinutes, o) * factor / 50) * 50;
   const plan = shiftsFor(m2, day, o);
   const minimum = Math.max(1, scope.float_moves ?? 1);
   const shifts = Math.max(plan.shifts, minimum);
   const hours = shifts > plan.shifts ? o.hours : plan.hours;
-  const crew = scope.crew.map((l) => (hourly(l.cost_item_id) ? { ...l, days: shifts, amount: hours } : l));
+  const crew = scope.crew.map((l) => (hourly(l.cost_item_id) ? { ...l, days: shifts, amount: hours } : perShift(l.cost_item_id) ? { ...l, days: shifts, amount: 1 } : l));
   const why = shifts > plan.shifts
     ? `at least one shift for each of the ${minimum} asphalt set-ups`
     : plan.hours === o.longHours ? `just over ${plan.shifts} shift${plan.shifts === 1 ? "" : "s"}, so ${o.longHours}-hour days instead of another shift` : `${o.hours}-hour days`;

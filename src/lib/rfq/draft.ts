@@ -317,7 +317,7 @@ export async function locateAndPrice(pc: Awaited<ReturnType<typeof loadPricingCo
       const r = await routesToPlants(site, [{ id: "base", name: "Base", lat: base.lat, lng: base.lng } as never]).catch(() => null);
       if (r?.base?.minutes != null) travel = r.base.minutes;
     }
-    const planned = planCrew(scope, travel, pc.settings.crewOutput, (id) => pc.library.find((c) => c.id === id)?.unit === "h");
+    const planned = planCrew(scope, travel, pc.settings.crewOutput, (id) => pc.library.find((c) => c.id === id)?.unit);
     if (planned) scope = { ...planned.scope, assumptions: [...planned.scope.assumptions.filter((a) => !/^Crew days estimated|^Hours on site each day/i.test(a)), planned.note] };
   }
   const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul, marginPercent: pc.defaultMargin });
