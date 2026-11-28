@@ -29,7 +29,7 @@ import { clearBackup, looksOffline, readBackup, writeBackup, type Backup } from 
 import type { BitumenIndex } from "@/lib/bitumen";
 import type { DrawnArea, PlanOverlay } from "@/lib/rfq/overview";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { alignToPlant, choosePlant, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
 import { haulFor } from "@/lib/site/load";
@@ -379,20 +379,22 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             const density = ci?.density_t_per_m3 ?? (i.kind === "asphalt" ? 2.4 : null);
             const tonnesOf = (x: ScopeItem) => (x.kind === "asphalt" || x.kind === "base") && density && x.area_m2 && x.depth_mm ? x.area_m2 * (x.depth_mm / 1000) * density : null;
             const approx = !ci?.density_t_per_m3;
+            // EME2 is a mix with its own binder: no binder choice, never an extra-over.
+            const isEme = /\bEME\s?2\b/i.test(`${ci?.name ?? ""} ${i.description}`);
             const byArea = ["asphalt", "base", "prime", "tack", "seal"].includes(i.kind) || ci?.unit === "m2";
             const needsDepth = i.kind === "asphalt" || i.kind === "base" || ci?.unit === "m3";
             return (
               <div key={i.key} className="job-item" data-kind={i.kind}>
                 <div className="job-item-head">
                   <span className="job-item-kind">{KIND_LABEL[i.kind]}</span>
-                  {[
-                    ci?.name ?? null,
-                    i.depth_mm ? `${i.depth_mm} mm` : null,
-                    i.area_m2 ? `${i.area_m2.toLocaleString("en-AU", { maximumFractionDigits: 0 })} m²` : null,
-                    tonnesOf(i) != null ? `${approx ? "≈ " : ""}${tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: approx ? 0 : 1 })} t` : null,
-                    i.kind === "asphalt" ? binderLabel(i.binder || settings.binders?.defaultBinder || "C320") : null,
-                    !byArea && i.quantity ? `${i.quantity.toLocaleString("en-AU")} ${ci ? UNIT[ci.unit] : ""}`.trim() : null,
-                  ].filter(Boolean).map((t) => <span key={t} className="job-item-sum">{t}</span>)}
+                  {([
+                    [ci?.name ?? null, "mix"],
+                    [i.depth_mm ? `${i.depth_mm} mm` : null, ""],
+                    [i.area_m2 ? `${i.area_m2.toLocaleString("en-AU", { maximumFractionDigits: 0 })} m²` : null, ""],
+                    [tonnesOf(i) != null ? `${approx ? "≈ " : ""}${tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: approx ? 0 : 1 })} t` : null, "tonnes"],
+                    [i.kind === "asphalt" ? `${isEme ? "EME2" : binderLabel(i.binder || settings.binders?.defaultBinder || "C320")} binder` : null, "binder"],
+                    [!byArea && i.quantity ? `${i.quantity.toLocaleString("en-AU")} ${ci ? UNIT[ci.unit] : ""}`.trim() : null, ""],
+                  ] as [string | null, string][]).filter(([t]) => t).map(([t, k]) => <span key={t} className={`job-item-sum${k ? ` tag-${k}` : ""}`}>{t}</span>)}
                   <button type="button" className="job-item-remove" aria-label={`Remove ${i.description || KIND_LABEL[i.kind]}`} title="Remove this item"
                     onClick={() => update({ ...scope, items: scope.items.filter((x) => x.key !== i.key) })}>
                     Remove
@@ -418,7 +420,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 {needsDepth && (
                   <label style={small}>Depth (mm)<input type="text" inputMode="decimal" value={i.depth_mm ?? ""} onChange={(e) => setItem(i.key, { depth_mm: toNum(e.target.value) })} /></label>
                 )}
-                {i.kind === "asphalt" && (
+                {i.kind === "asphalt" && !isEme && (
                   <label style={small}>Binder
                     <select style={sel} value={i.binder ?? ""} onChange={(e) => setItem(i.key, { binder: e.target.value || null })}>
                       <option value="">{settings.binders?.defaultBinder ? `Default (${binderLabel(settings.binders.defaultBinder)})` : "As priced"}</option>
@@ -586,7 +588,8 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             <strong style={{ fontSize: 14 }}>Rates, not in the total</strong>
             <p className="sub" style={{ margin: "2px 0 6px", fontSize: 12 }}>Extra-overs the customer asked for (extra establishment, MTV, profiling): a rate, or a lump sum if you put a quantity. Shown on the quote with your margin on.</p>
             {priced.optionalRates.map((o) => (
-              <div key={o.key} className="row" style={{ gap: 10, padding: "4px 0", alignItems: "center" }}>
+              <Fragment key={o.key}>
+              <div className="row" style={{ gap: 10, padding: "4px 0", alignItems: "center" }}>
                 {(() => {
                   const raw = (scope.optional_rates ?? []).find((x) => x.key === o.key);
                   if (!raw || raw.custom_rate == null || !canEdit) return <span className="grow">{o.description}</span>;
@@ -601,17 +604,26 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                     </span>
                   );
                 })()}
-                {canEdit && (
-                  <label className="sub" style={{ marginTop: 0, fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }} title="Leave blank for a rate; put a quantity for a lump sum">
-                    Lump sum for
-                    <input type="text" inputMode="decimal" placeholder="–" value={(scope.optional_rates ?? []).find((x) => x.key === o.key)?.quantity ?? ""} style={{ width: 80, padding: "6px 8px" }}
-                      onChange={(e) => update({ ...scope, optional_rates: (scope.optional_rates ?? []).map((x) => x.key === o.key ? { ...x, quantity: toNum(e.target.value) } : x) })} />
-                    {o.unit}
-                  </label>
-                )}
-                <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{o.total ? `${money(o.total)} lump sum` : `${money(o.rate)} per ${o.unit}`}</span>
+                <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{o.total ? `${money(o.total)} total` : `${money(o.rate)} per ${o.unit}`}</span>
                 {canEdit && <button type="button" className="job-item-remove" style={{ marginLeft: 0 }} onClick={() => update({ ...scope, optional_rates: (scope.optional_rates ?? []).filter((x) => x.key !== o.key) })}>Remove</button>}
               </div>
+              {(() => {
+                const raw = (scope.optional_rates ?? []).find((x) => x.key === o.key);
+                const ci = raw?.custom_rate == null ? active.find((c) => c.id === raw?.cost_item_id) : undefined;
+                return (
+                  <div className="sub" style={{ marginTop: -2, marginBottom: 6, fontSize: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    {ci && <span>From Your costs: {ci.name} {money(ci.sell_rate ?? ci.rate)}/{UNIT[ci.unit]}{ci.sell_rate == null ? ` + ${priced.marginPercent}% margin` : " (fixed price)"}</span>}
+                    {canEdit && (
+                      <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }} title="Leave blank to show it as a rate">
+                        Price a set amount instead: how many {o.unit}?
+                        <input type="text" inputMode="decimal" placeholder="–" value={raw?.quantity ?? ""} style={{ width: 70, padding: "4px 6px" }}
+                          onChange={(e) => update({ ...scope, optional_rates: (scope.optional_rates ?? []).map((x) => x.key === o.key ? { ...x, quantity: toNum(e.target.value) } : x) })} />
+                      </label>
+                    )}
+                  </div>
+                );
+              })()}
+              </Fragment>
             ))}
             {canEdit && (
               <select style={{ ...sel, maxWidth: 320, marginTop: 6 }} value="" aria-label="Add a rate"

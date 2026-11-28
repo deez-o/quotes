@@ -288,7 +288,8 @@ export function priceSiteQuote(input: {
         const r = rateFor(ci, tonnes);
         rate = r.rate;
         let binderNote = "";
-        if (item.kind === "asphalt") {
+        // EME2 is its own mix with its own binder, priced as a whole: never a binder extra-over.
+        if (item.kind === "asphalt" && !/\bEME\s?2\b/i.test(ci.name)) {
           const b = binderExtraFor(settings.binders, ci.supply_plant_id, ci.name, item.binder ?? settings.binders?.defaultBinder);
           if (b.kind === "extra") {
             rate = round2(rate + b.extra);
@@ -410,6 +411,17 @@ export function priceSiteQuote(input: {
       calc: { kind: "qty", qty: moves, rate: floatItem.rate, unit: "move", band: null },
       working: `${fmtN(moves)} move${moves === 1 ? "" : "s"} × ${money(floatItem.rate)}${scope.float_moves == null ? " (one per asphalt job)" : ""}`,
     });
+  }
+
+  // Numbers that look mistyped: a stray digit can turn a $500k job into $100 million.
+  for (const item of scope.items) {
+    if (item.depth_mm != null && item.depth_mm > 300) warnings.push(`"${item.description}" is ${fmtN(item.depth_mm, 0)} mm deep. Check the depth (it's in millimetres).`);
+    if (item.area_m2 != null && item.area_m2 > 200000) warnings.push(`"${item.description}" is ${fmtN(item.area_m2, 0)} m². Check the area.`);
+  }
+  for (const l of [...scope.crew, ...scope.plant]) {
+    if (l.days != null && l.days > 60) warnings.push(`A crew or plant line runs ${fmtN(l.days, 0)} days. Check the days.`);
+    const u = byId.get(l.cost_item_id)?.unit;
+    if (u === "h" && l.amount > 24) warnings.push(`A crew or plant line has ${fmtN(l.amount, 0)} hours in a day. Check the hours.`);
   }
 
   // Establishment: one charge per set-up on site, its own line on the quote.
