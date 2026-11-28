@@ -65,6 +65,8 @@ export type SiteScope = {
   supply_plant_id: string | null;
   truck_cost_item_id: string | null;
   assumptions: string[];
+  /** The few notes that need the estimator's attention on the quote (the full list is in the overview). */
+  attention?: string[];
   questions: string[];
   /** Set by the user when the GPS estimate is wrong (one-way). */
   haul_override?: { km: number; minutes: number } | null;

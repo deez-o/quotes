@@ -1,25 +1,9 @@
 "use client";
 
 import { tidyItems } from "@/lib/site/tidy";
-import { ADD_MIX, hasMix, knownMix, ownBinder } from "@/lib/mixes";
+import { ADD_MIX, ownBinder } from "@/lib/mixes";
+import { fillAddedMixes } from "@/lib/site/fill-mixes";
 
-/** A mix the quote asked them to add, now in their costs: price the lines with it and drop the ask. */
-function fillAddedMixes(scope: SiteScope, library: CostItem[]): SiteScope {
-  const mixes = library.filter((c) => c.active && c.category === "material" && c.material_kind === "asphalt");
-  const added = new Set<string>();
-  const items = scope.items.map((i) => {
-    if (i.kind !== "asphalt" || i.cost_item_id) return i;
-    const m = knownMix(i.description);
-    const hit = m ? mixes.find((c) => hasMix([c.name], m)) : undefined;
-    if (!hit) return i;
-    added.add(m!);
-    return { ...i, cost_item_id: hit.id };
-  });
-  // Crew with no hours a day yet: a 10-hour day.
-  const crew = scope.crew.map((l) => (l.amount > 0 ? l : { ...l, amount: library.find((c) => c.id === l.cost_item_id)?.unit === "h" ? 10 : 1 }));
-  if (!added.size) return { ...scope, crew };
-  return { ...scope, crew, items, questions: scope.questions.filter((q) => !(q.startsWith(ADD_MIX) && added.has(q.slice(ADD_MIX.length).trim()))) };
-}
 import { COMMON_BASES, COMMON_EXTRAS, binderLabel } from "@/lib/binder";
 import Link from "next/link";
 import { PlanViewer } from "./plan-viewer";
@@ -286,7 +270,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         <label style={{ ...small, gridColumn: "1 / -1" }}>Site address<input type="text" value={address} disabled={!canEdit} onChange={(e) => { setAddress(e.target.value); setDirty(true); }} /></label>
         </section>
 
-        {(scope.questions.length > 0 || scope.assumptions.length > 0) && (
+        {(scope.questions.length > 0 || (scope.attention ?? []).length > 0) && (
           <section className="card" style={{ background: "var(--warn-bg)", borderColor: "#f0dba5", display: "flex", flexDirection: "column", gap: 6 }}>
             <strong>To confirm</strong>
             {scope.questions.map((q, i) => (
@@ -318,12 +302,8 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 </button>
               </div>
             )}
-            {scope.assumptions.length > 0 && (
-              <details style={{ color: "var(--ink-2)" }}>
-                <summary style={{ cursor: "pointer", fontSize: 14 }}>Worth a check ({scope.assumptions.length})</summary>
-                <ul style={{ margin: "6px 0 0", paddingLeft: 18, display: "grid", gap: 4 }}>{scope.assumptions.map((a, i) => <li key={`a${i}`}>{a.replace(/\s*Source:\s*(house|own|company)\.?/gi, "")}</li>)}</ul>
-              </details>
-            )}
+            {(scope.attention ?? []).map((a, i) => <div key={`a${i}`} style={{ color: "var(--ink-2)" }}>• {a}</div>)}
+            {scope.assumptions.length > 0 && <Link href={`/site/${quote.id}/overview`} className="sub" style={{ marginTop: 0, fontSize: 13, textDecoration: "underline" }}>Everything quoteout assumed is in the job overview</Link>}
           </section>
         )}
 

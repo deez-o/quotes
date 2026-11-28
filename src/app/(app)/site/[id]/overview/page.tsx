@@ -7,6 +7,8 @@ import type { RfqSummary } from "@/lib/rfq/split";
 import type { SiteScope } from "@/lib/site/price";
 import { AreaMap } from "./area-map";
 import { tidyItems } from "@/lib/site/tidy";
+import { fillAddedMixes } from "@/lib/site/fill-mixes";
+import type { CostItem } from "@/lib/site/price";
 import { BuildOverviewButton, StreetViews } from "./parts";
 
 export default async function JobOverviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -38,13 +40,14 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
     if (data?.signedUrl) photos.push(data.signedUrl);
   }
   // What's being quoted, straight from the quote, so the overview is never blank.
-  const ids = (scope.items ?? []).map((i) => i.cost_item_id).filter((x): x is string => Boolean(x));
-  const { data: costs } = ids.length ? await db.from("cost_items").select("id, name, density_t_per_m3").eq("tenant_id", ctx.tenant.id).in("id", ids) : { data: [] };
+  // Their mixes, so a mix they've added since the RFQ was read (e.g. EME2) shows as the product.
+  const { data: costs } = await db.from("cost_items").select("id, name, category, material_kind, unit, rate, density_t_per_m3, active").eq("tenant_id", ctx.tenant.id).eq("active", true);
+  const filled = fillAddedMixes({ ...scope, items: scope.items ?? [], crew: scope.crew ?? [], questions: scope.questions ?? [] }, (costs ?? []) as CostItem[]);
   const costOf = new Map((costs ?? []).map((c) => [c.id as string, c as { name: string; density_t_per_m3: number | null }]));
-  const quoted = tidyItems(scope.items ?? []).map((i) => {
+  const quoted = tidyItems(filled.items).map((i) => {
     const c = i.cost_item_id ? costOf.get(i.cost_item_id) : undefined;
     const d = c?.density_t_per_m3 ?? (i.kind === "asphalt" ? 2.4 : null);
-    const t = d && i.area_m2 && i.depth_mm ? i.area_m2 * (i.depth_mm / 1000) * d : null;
+    const t = (i.kind === "asphalt" || i.kind === "base") && d && i.area_m2 && i.depth_mm ? i.area_m2 * (i.depth_mm / 1000) * d : null;
     return { key: i.key, what: i.description || i.kind, product: c?.name ?? null, depth: i.depth_mm, area: i.area_m2, qty: i.quantity, tonnes: t };
   });
   const notes = ((scope as { assumptions?: string[] }).assumptions ?? []).filter(Boolean);
@@ -93,7 +96,10 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
           </div>
         )}
         {notes.length > 0 && (
-          <ul style={{ margin: "12px 0 0", paddingLeft: 18 }}>{notes.map((a, i) => <li key={i}>{a}</li>)}</ul>
+          <details open style={{ marginTop: 12 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 600 }}>What quoteout assumed ({notes.length})</summary>
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18, display: "grid", gap: 4 }}>{notes.map((a, i) => <li key={i}>{a.replace(/\s*Source:\s*(house|own|company)\.?/gi, "")}</li>)}</ul>
+          </details>
         )}
       </section>
 
