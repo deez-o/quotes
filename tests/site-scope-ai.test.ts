@@ -105,7 +105,7 @@ describe("mix names", () => {
     const lib = [mk("a14", "AC14"), mk("a20", "AC20")];
     const item = (description: string, depth: number | null) => ({ key: "x", kind: "asphalt" as const, description, area_m2: 100, depth_mm: depth, cost_item_id: null, quantity: null, binder: null });
     expect(fixMixName(item("Supply and lay AC15", 50), lib)).toMatchObject({ description: "Supply and lay AC14", cost_item_id: "a14" });
-    expect(fixMixName(item("EME2 base, 170 mm", 170), lib)).toMatchObject({ cost_item_id: "a20", binder: "EME2" });
-    expect(fixMixName(item("EME2 50 mm", 50), lib)).toMatchObject({ cost_item_id: "a14", binder: "EME2" });
+    expect(fixMixName(item("EME2 base, 170 mm", 170), lib)).toMatchObject({ cost_item_id: null, binder: null }); // no EME2 mix: they get asked to add it
+    expect(fixMixName(item("EME2 50 mm", 50), [...lib, mk("e2", "EME2")])).toMatchObject({ cost_item_id: "e2", binder: null });
   });
 });

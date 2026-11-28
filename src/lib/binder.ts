@@ -28,7 +28,7 @@ export const BINDERS: { code: string; label: string }[] = [
 const LABEL = new Map(BINDERS.map((b) => [b.code, b.label]));
 
 /** The usual extras, offered first; anything else can be typed in. */
-export const COMMON_EXTRAS = ["C600", "M1000", "EME2", "A15E", "CRUMB"];
+export const COMMON_EXTRAS = ["C600", "M1000", "A15E", "CRUMB"]; // EME2 is a mix of its own, priced in the plant's mixes
 /** What plants usually base their mix prices on. */
 export const COMMON_BASES = ["C320", "C170", "C450", "C600"];
 

@@ -78,8 +78,8 @@ function HeadRow({ category, kinds, plantId }: { category: string; kinds?: [stri
   );
 }
 
-function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, sliding = false }: {
-  item?: Item; category: string; canEdit: boolean; plantId?: string; kinds?: [string, string][]; unitDefault?: string; sliding?: boolean;
+function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, sliding = false, defaultName }: {
+  item?: Item; category: string; canEdit: boolean; plantId?: string; kinds?: [string, string][]; unitDefault?: string; sliding?: boolean; defaultName?: string;
 }) {
   const isMaterial = category === "material";
   const hourly = category === "crew" || category === "plant";
@@ -98,7 +98,7 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
         {plantId && <input type="hidden" name="supply_plant_id" value={plantId} />}
         {plantId && <input type="hidden" name="material_kind" value="asphalt" />}
         <div className="cost-row" style={{ "--cols": c.template } as React.CSSProperties}>
-          <Cell label="Name" wide><input type="text" name="name" aria-label="Name" defaultValue={item?.name ?? ""} required placeholder={item ? "" : plantId ? "Add a mix, e.g. AC10 C320" : "Add a new one"} /></Cell>
+          <Cell label="Name" wide><input type="text" name="name" aria-label="Name" defaultValue={item?.name ?? defaultName ?? ""} autoFocus={Boolean(defaultName)} required placeholder={item ? "" : plantId ? "Add a mix, e.g. AC10 C320" : "Add a new one"} /></Cell>
           <Cell label="Rate (ex GST)"><input type="text" inputMode="decimal" name="rate" aria-label={`${n} rate (ex GST)`} defaultValue={item?.rate ?? ""} required placeholder="$" /></Cell>
           <Cell label="Per"><select name="unit" aria-label={`${n} per`} defaultValue={item?.unit ?? unitDefault ?? (isMaterial ? "t" : category === "float" || category === "establishment" ? "each" : "h")} style={sel}>
             {UNITS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -187,8 +187,9 @@ function CostSection({ s, items, canEdit }: { s: Section; items: Item[]; canEdit
   );
 }
 
-export default async function CostsPage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string }> }) {
-  const { saved, error } = await searchParams;
+export default async function CostsPage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string; mix?: string }> }) {
+  const { saved, error, mix } = await searchParams;
+  const addMix = mix && /^[\w .()-]{2,30}$/.test(mix) ? mix : null;
   const ctx = await requireTenant();
   const canEdit = ctx.role === "admin";
   const supabase = await createClient();
@@ -234,7 +235,8 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
               .map((i) => <ItemForm key={i.id} item={i} category="material" canEdit={canEdit} kinds={[["asphalt", "Asphalt"], ["base", "Base"], ["other", "Other"]]} />)}
           </div>
         )}
-        {((plants ?? []) as Plant[]).map((p) => {
+        {addMix && <p id="add-mix" className="sub" style={{ margin: 0, padding: "10px 12px", borderRadius: 8, background: "var(--warn-bg)", color: "var(--ink)" }}>Add <strong>{addMix}</strong> with its price per tonne at the plant you buy it from (it&apos;s filled in on the new row below), then go back to the quote: it picks the new price up by itself.</p>}
+        {((plants ?? []) as Plant[]).map((p, pi) => {
           const mixes = ((items ?? []) as Item[]).filter((i) => i.supply_plant_id === p.id);
           const expired = p.prices_valid_until && p.prices_valid_until < today;
           const plantExtras = (extras ?? []).filter((e) => e.supply_plant_id === p.id).map((e) => ({ binder: e.binder as string, extra_per_t: Number(e.extra_per_t) }));
@@ -256,7 +258,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
                 <div className="cost-table">
                   <HeadRow category="material" plantId={p.id} />
                   {mixes.map((i) => <ItemForm key={i.id} item={i} category="material" canEdit={canEdit} plantId={p.id} />)}
-                  {canEdit && <ItemForm key={`new-${mixes.map((m) => m.id).join()}`} category="material" canEdit={canEdit} plantId={p.id} />}
+                  {canEdit && <ItemForm key={`new-${mixes.map((m) => m.id).join()}-${pi === 0 ? addMix ?? "" : ""}`} category="material" canEdit={canEdit} plantId={p.id} defaultName={pi === 0 ? addMix ?? undefined : undefined} />}
                 </div>
               </div>
               <h4 style={{ margin: "8px 0 0", fontSize: 15 }}>Binders</h4>

@@ -1,4 +1,5 @@
 import { tidyItems } from "./tidy";
+import { ADD_MIX, hasMix, knownMix } from "@/lib/mixes";
 import { isKnownBinder, normaliseBinder } from "@/lib/binder";
 /**
  * Talk-to-quote: what the contractor said on site (plus photos) -> a scope.
@@ -92,7 +93,7 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `6e. Use the mix the RFQ or drawings specify, even if it seems unusual for the layer depth; if it looks wrong for the thickness (layer under about 3 times the stone size), keep it and add a short question.`,
     `6f. job_type: a carpark if the drawings or RFQ show parking bays, line marking, or concrete/kerbed islands within the asphalt (several islands = carpark), even if it isn't called one. A road is a long strip with kerb and channel; a driveway is one entry.`,
     `6g. Crew and plant: one line per crew or plant item for the whole job, with the total days across all areas and stages (e.g. 6 days, not 4 + 2), unless they work different hours a day.`,
-    `6n. EME2 is a hard-binder asphalt, not its own mix: unless the library has a mix named EME2, price it as AC20 (layers 60 mm and over) or AC14 (thinner) with binder "EME2". AC13 and AC15 aren't real mixes: always use AC14 (and say AC14 in the description).`,
+    `6n. EME2 is a mix of its own: use the library's EME2 mix (binder null). If there isn't one, leave cost_item_id null: the app asks them to add it. AC13 and AC15 aren't real mixes: always use AC14 (and say AC14 in the description).`,
     `6h. Interstate or unusual binders (e.g. NSW AR450, R-series): set binder to what's written; the app prices it at the company's default (C320) and flags it. Don't swap the mix for it.`,
     `6c. Never add the float (category float) as an item or plant line: the app adds float moves itself. Set float_moves to the number of asphalt establishments when there's more than one.`,
     `6i. Crew shifts are for laying asphalt (and base) only. Prime, tack coat and seal are m2 rates with their crew built in: never add crew days for a prime or seal establishment. E.g. prime + two EME2 layers + AC14 = 3 asphalt establishments = 3 crew days (unless a layer needs more than a day).`,
@@ -202,11 +203,9 @@ export function fixMixName(i: SiteScope["items"][number], library: CostItem[]): 
     return { ...i, description: i.description.replace(/\bAC\s?1[35]\b/gi, "AC14"), cost_item_id: ac14?.id ?? i.cost_item_id };
   }
   if (/\bEME\s?2\b/i.test(text) && !/\bEME\s?2\b/i.test(chosen?.name ?? "")) {
+    // EME2 is its own mix: use the company's EME2 price, or leave it for them to add (never a binder extra-over).
     const own = library.find((c) => c.active && c.category === "material" && c.material_kind === "asphalt" && /\bEME\s?2\b/i.test(c.name));
-    if (own) return { ...i, cost_item_id: own.id };
-    const thin = i.depth_mm != null && i.depth_mm < 60;
-    const mix = mixBySize(library, thin ? "AC\\s?14" : "AC\\s?20") ?? mixBySize(library, "AC\\s?14");
-    return { ...i, cost_item_id: chosen?.id ?? mix?.id ?? null, binder: "EME2" };
+    return { ...i, cost_item_id: own?.id ?? null, binder: null };
   }
   return i;
 }
@@ -216,6 +215,7 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
   const ids = new Set(library.filter((c) => c.active).map((c) => c.id));
   const fixes: string[] = [];
   const binderNotes: string[] = [];
+  const mixAsks: string[] = [];
   const seen = new Set<string>();
   const uniqueKey = (k: string, prefix: string) => {
     let key = (k || prefix).replace(/[^\w-]/g, "").slice(0, 24) || prefix;
@@ -237,6 +237,12 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
     if (binder && !isKnownBinder(binder)) {
       binderNotes.push(`"${i.description}" asks for ${binder} binder, which isn't one you use: quoted with your default binder (C320 unless you've set another). Confirm with the customer.`);
       binder = null;
+    }
+    // A real mix they have no price for: ask them to add it (the quote shows a button to Your costs).
+    const mix = i.kind === "asphalt" && !cost ? knownMix(i.description) : null;
+    if (mix && !hasMix(library.filter((c) => c.active && c.material_kind === "asphalt").map((c) => c.name), mix)) {
+      const ask = `${ADD_MIX} ${mix}`;
+      if (!mixAsks.includes(ask)) mixAsks.push(ask);
     }
     return { ...i, key: uniqueKey(i.key, `i${n + 1}`), cost_item_id: cost, area_m2: pos(i.area_m2), depth_mm: pos(i.depth_mm), quantity: pos(i.quantity), binder };
   });
@@ -280,7 +286,7 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
       float_moves: raw.float_moves != null && Number.isFinite(raw.float_moves) && raw.float_moves > 0 ? Math.min(50, Math.round(raw.float_moves)) : null,
       optional_rates: (raw.optional_rates ?? []).filter((o) => o && ids.has(o.cost_item_id)).slice(0, 10)
         .map((o, n) => ({ key: uniqueKey(o.key, `o${n + 1}`), cost_item_id: o.cost_item_id, description: String(o.description ?? "").slice(0, 120), quantity: o.quantity != null && Number.isFinite(o.quantity) && o.quantity > 0 ? o.quantity : null })),
-      questions: [...raw.questions, ...binderNotes, ...fixes.map((f) => `${f} Pick the right one.`)],
+      questions: [...mixAsks, ...raw.questions.filter((q) => !mixAsks.some((a) => q.includes(a.slice(ADD_MIX.length + 1)) && /library|costs|not in|isn't in/i.test(q))), ...binderNotes, ...fixes.map((f) => `${f} Pick the right one.`)],
     },
     fixes,
   };

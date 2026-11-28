@@ -1,6 +1,23 @@
 "use client";
 
 import { tidyItems } from "@/lib/site/tidy";
+import { ADD_MIX, hasMix, knownMix } from "@/lib/mixes";
+
+/** A mix the quote asked them to add, now in their costs: price the lines with it and drop the ask. */
+function fillAddedMixes(scope: SiteScope, library: CostItem[]): SiteScope {
+  const mixes = library.filter((c) => c.active && c.category === "material" && c.material_kind === "asphalt");
+  const added = new Set<string>();
+  const items = scope.items.map((i) => {
+    if (i.kind !== "asphalt" || i.cost_item_id) return i;
+    const m = knownMix(i.description);
+    const hit = m ? mixes.find((c) => hasMix([c.name], m)) : undefined;
+    if (!hit) return i;
+    added.add(m!);
+    return { ...i, cost_item_id: hit.id };
+  });
+  if (!added.size) return scope;
+  return { ...scope, items, questions: scope.questions.filter((q) => !(q.startsWith(ADD_MIX) && added.has(q.slice(ADD_MIX.length).trim()))) };
+}
 import { COMMON_BASES, COMMON_EXTRAS, binderLabel } from "@/lib/binder";
 import Link from "next/link";
 import { PlanViewer } from "./plan-viewer";
@@ -48,7 +65,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
 }) {
   const router = useRouter();
   const [moveSite, setMoveSite] = useState(false);
-  const [scope, setScope] = useState<SiteScope>(() => ({ ...quote.scope, items: tidyItems(quote.scope.items ?? []) }));
+  const [scope, setScope] = useState<SiteScope>(() => fillAddedMixes({ ...quote.scope, items: tidyItems(quote.scope.items ?? []) }, library));
   const [margin, setMargin] = useState(quote.margin_percent);
   const [customer, setCustomer] = useState(quote.customer_name ?? "");
   const [email, setEmail] = useState(quote.customer_email ?? "");
@@ -259,7 +276,12 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             <strong>To confirm</strong>
             {scope.questions.map((q, i) => (
               <div key={`q${i}`} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <span style={{ fontWeight: 600 }}>{q}</span>
+                {q.startsWith(ADD_MIX) ? (
+                  <span style={{ fontWeight: 600, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    {q.slice(ADD_MIX.length).trim()} isn&apos;t in your mix prices yet.
+                    <Link href={`/costs?mix=${encodeURIComponent(q.slice(ADD_MIX.length).trim())}#add-mix`} className="btn primary" style={{ padding: "6px 12px" }}>Add {q.slice(ADD_MIX.length).trim()} to your costs</Link>
+                  </span>
+                ) : <span style={{ fontWeight: 600 }}>{q}</span>}
                 {hasAi && (
                   <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
                     <input type="text" aria-label={q} value={answerFor(i)} placeholder="Your answer"
