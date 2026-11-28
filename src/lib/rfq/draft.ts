@@ -276,7 +276,8 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
       continue;
     }
     const bytes = await download(db, path);
-    const read = await readFile(f.filename, f.mime, bytes);
+    // A copy for reading the text: the PDF reader hands its buffer to a worker, which empties it.
+    const read = await readFile(f.filename, f.mime, bytes.slice());
     let imageUrl: string | null = null;
     let pdfUrl: string | null = null;
     // The AI reads JPG and PNG pictures; a GIF is nearly always a logo or animation.
