@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "video.other", url: "/promo", siteName: "quoteout", title: TITLE, description: DESC, locale: "en_AU",
     images: [{ url: "/promo/og.jpg", width: 1200, height: 630, alt: "quoteout: asphalt quotes out the door in minutes, not hours" }],
-    videos: [{ url: "/promo/quoteout-promo.mp4", secureUrl: "https://quoteout.app/promo/quoteout-promo.mp4", type: "video/mp4", width: 1080, height: 1920 }],
+    videos: [{ url: "https://quoteout.app/promo/quoteout-promo.mp4", secureUrl: "https://quoteout.app/promo/quoteout-promo.mp4", type: "video/mp4", width: 1080, height: 1920 }],
   },
   twitter: { card: "summary_large_image", title: TITLE, description: DESC, images: ["/promo/og.jpg"] },
 };
