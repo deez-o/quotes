@@ -360,7 +360,10 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           <h2>What&apos;s in the job</h2>
           {scope.items.map((i) => {
             const ci = active.find((c) => c.id === i.cost_item_id);
-            const tonnesOf = (x: ScopeItem) => (x.kind === "asphalt" || x.kind === "base") && ci?.density_t_per_m3 && x.area_m2 && x.depth_mm ? x.area_m2 * (x.depth_mm / 1000) * ci.density_t_per_m3 : null;
+            // Tonnes from the mix's density, or the usual 2.4 t/m³ for asphalt until a mix is picked (shown with ≈).
+            const density = ci?.density_t_per_m3 ?? (i.kind === "asphalt" ? 2.4 : null);
+            const tonnesOf = (x: ScopeItem) => (x.kind === "asphalt" || x.kind === "base") && density && x.area_m2 && x.depth_mm ? x.area_m2 * (x.depth_mm / 1000) * density : null;
+            const approx = !ci?.density_t_per_m3;
             const byArea = ["asphalt", "base", "prime", "tack", "seal"].includes(i.kind) || ci?.unit === "m2";
             const needsDepth = i.kind === "asphalt" || i.kind === "base" || ci?.unit === "m3";
             return (
@@ -371,7 +374,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                     ci?.name ?? null,
                     i.depth_mm ? `${i.depth_mm} mm` : null,
                     i.area_m2 ? `${i.area_m2.toLocaleString("en-AU", { maximumFractionDigits: 0 })} m²` : null,
-                    tonnesOf(i) != null ? `${tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: 1 })} t` : null,
+                    tonnesOf(i) != null ? `${approx ? "≈ " : ""}${tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: approx ? 0 : 1 })} t` : null,
                     i.kind === "asphalt" ? binderLabel(i.binder || settings.binders?.defaultBinder || "C320") : null,
                     !byArea && i.quantity ? `${i.quantity.toLocaleString("en-AU")} ${ci ? UNIT[ci.unit] : ""}`.trim() : null,
                   ].filter(Boolean).map((t) => <span key={t} className="job-item-sum">{t}</span>)}

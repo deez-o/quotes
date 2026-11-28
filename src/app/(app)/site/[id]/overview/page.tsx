@@ -43,7 +43,8 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
   const costOf = new Map((costs ?? []).map((c) => [c.id as string, c as { name: string; density_t_per_m3: number | null }]));
   const quoted = tidyItems(scope.items ?? []).map((i) => {
     const c = i.cost_item_id ? costOf.get(i.cost_item_id) : undefined;
-    const t = c?.density_t_per_m3 && i.area_m2 && i.depth_mm ? i.area_m2 * (i.depth_mm / 1000) * c.density_t_per_m3 : null;
+    const d = c?.density_t_per_m3 ?? (i.kind === "asphalt" ? 2.4 : null);
+    const t = d && i.area_m2 && i.depth_mm ? i.area_m2 * (i.depth_mm / 1000) * d : null;
     return { key: i.key, what: i.description || i.kind, product: c?.name ?? null, depth: i.depth_mm, area: i.area_m2, qty: i.quantity, tonnes: t };
   });
   const notes = ((scope as { assumptions?: string[] }).assumptions ?? []).filter(Boolean);
