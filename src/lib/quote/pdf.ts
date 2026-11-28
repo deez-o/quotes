@@ -235,18 +235,23 @@ export async function quotePdf(d: QuotePdfData): Promise<Uint8Array> {
   }
 
   if (d.acceptUrl) {
-    need(40);
-    page.drawRectangle({ x: M, y: y - 24, width: W - 2 * M, height: 34, color: hex("#f3f4f6") });
-    text(many ? "To go ahead, choose your option and accept online:" : "To go ahead, accept online:", M + 10, y - 4, 10, bold);
+    // A real button in the company's colour, the whole of it clickable, with the address under it for a printed copy.
+    need(70);
+    text(many ? "To go ahead, choose your option and accept online:" : "To go ahead, accept online:", M, y - 4, 10, bold);
+    const label = "View and accept quote";
+    const bw = bold.widthOfTextAtSize(label, 12) + 36, bh = 30, by = y - 14 - bh;
+    page.drawRectangle({ x: M, y: by, width: bw, height: bh, color: brandC });
+    text(label, M + 18, by + 10, 12, bold, onBrand);
     const linkText = pdfSafe(d.acceptUrl);
-    text(linkText, M + 10, y - 17, 9, font, accent);
-    const lw = font.widthOfTextAtSize(linkText, 9);
-    const annot = doc.context.register(doc.context.obj({
-      Type: "Annot", Subtype: "Link", Rect: [M + 8, y - 20, M + 12 + lw, y - 8], Border: [0, 0, 0],
-      A: { Type: "Action", S: "URI", URI: PDFString.of(d.acceptUrl) },
-    }));
-    page.node.addAnnot(annot);
-    y -= 44;
+    text(linkText, M, by - 12, 8, font, hex("#6b7280"));
+    const lw = font.widthOfTextAtSize(linkText, 8);
+    for (const rect of [[M, by, M + bw, by + bh], [M, by - 15, M + lw, by - 4]]) {
+      page.node.addAnnot(doc.context.register(doc.context.obj({
+        Type: "Annot", Subtype: "Link", Rect: rect, Border: [0, 0, 0],
+        A: { Type: "Action", S: "URI", URI: PDFString.of(d.acceptUrl) },
+      })));
+    }
+    y = by - 28;
   }
 
   // Terms.

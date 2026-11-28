@@ -1,7 +1,7 @@
 import type { ScopeItem } from "./price";
 
 /** The order a crew does the work: dig out, base, prime, asphalt, then seal and the rest. */
-const ORDER: Record<ScopeItem["kind"], number> = { excavation: 0, base: 1, prime: 2, asphalt: 3, seal: 4, other: 5 };
+export const WORK_ORDER: Record<ScopeItem["kind"], number> = { excavation: 0, base: 1, prime: 2, asphalt: 3, seal: 4, other: 5 };
 
 /**
  * One prime (or seal) line per product over the whole area it covers, and the lines in
@@ -17,5 +17,5 @@ export function tidyItems(items: ScopeItem[]): ScopeItem[] {
       if (i.description && same.description !== i.description) same.description = i.kind === "prime" ? "Prime" : "Seal";
     } else out.push({ ...i });
   }
-  return out.map((i, n) => ({ i, n })).sort((a, b) => ORDER[a.i.kind] - ORDER[b.i.kind] || a.n - b.n).map((x) => x.i);
+  return out.map((i, n) => ({ i, n })).sort((a, b) => WORK_ORDER[a.i.kind] - WORK_ORDER[b.i.kind] || a.n - b.n).map((x) => x.i);
 }

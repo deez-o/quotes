@@ -1,3 +1,4 @@
+import { WORK_ORDER } from "./tidy";
 /**
  * Site-quote pricing: plain code, never the AI. Turns a scope (what was said
  * on site, as checked by the user) plus the customer's costs library into
@@ -445,6 +446,9 @@ export function priceSiteQuote(input: {
       for (const r of rest) customerLines.splice(customerLines.indexOf(r), 1);
     }
   }
+  // The order the work is done, whatever order the lines were added in: prime always above the asphalt.
+  const kindOf = new Map(scope.items.map((i, n) => [i.key, { k: WORK_ORDER[i.kind] ?? 9, n }]));
+  customerLines.sort((a, b) => (kindOf.get(a.key)?.k ?? 9) - (kindOf.get(b.key)?.k ?? 9) || (kindOf.get(a.key)?.n ?? 0) - (kindOf.get(b.key)?.n ?? 0));
   if (customerLines.length) {
     const diff = priceExGst - customerLines.reduce((s, l) => s + l.total, 0);
     const biggest = customerLines.reduce((a, b) => (b.total > a.total ? b : a));
