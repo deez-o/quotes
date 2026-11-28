@@ -20,8 +20,8 @@ export type Plan = {
 export const PLANS: Record<PlanId, Plan> = {
   trial: { id: "trial", name: "Trial", priceMonthly: 0, aiQuotes: 15, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "14 days, everything in Business, 15 AI quotes." },
   // Every plan has everything; they differ only in how many quotes a month. (Plan id "site" is Starter.)
-  site: { id: "site", name: "Starter", priceMonthly: 299, aiQuotes: 50, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "Everything quoteout does, 50 quotes a month." },
-  pro: { id: "pro", name: "Pro", priceMonthly: 449, aiQuotes: 100, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "Everything quoteout does, 100 quotes a month." },
+  site: { id: "site", name: "Starter", priceMonthly: 299, aiQuotes: 30, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "Everything quoteout does, 30 quotes a month." },
+  pro: { id: "pro", name: "Pro", priceMonthly: 499, aiQuotes: 100, emailAutoQuote: true, connectedMailbox: true, maxDevices: 3, blurb: "Everything quoteout does, 100 quotes a month." },
   business: { id: "business", name: "Business", priceMonthly: 799, aiQuotes: 200, emailAutoQuote: true, connectedMailbox: true, maxDevices: null, blurb: "Everything quoteout does, 200 quotes a month." },
   pilot: { id: "pilot", name: "Pilot (free)", priceMonthly: 0, aiQuotes: null, emailAutoQuote: true, connectedMailbox: true, maxDevices: null, blurb: "Free, everything on, no limits. For partners and testing." },
 };
@@ -57,7 +57,7 @@ const inbox = (t: string) => (MAILBOX_READY ? t : `${t} (coming soon)`);
 const ALL = [inbox("quoteout watches your inbox and drafts every RFQ"), "Forward or upload RFQs, drawings and BOQs", "Quote on site by voice and photos", "Send from your own Outlook; customers accept online", "PDF and Xero, with your branding", "Unlimited users"];
 export const PLAN_FEATURES: Record<"trial" | "site" | "pro" | "business", string[]> = {
   trial: ["Everything quoteout does, for 14 days", "15 quotes", "No card needed"],
-  site: ["50 quotes a month", ...ALL],
+  site: ["30 quotes a month", ...ALL],
   pro: ["100 quotes a month", ...ALL],
   business: ["200 quotes a month", ...ALL],
 };

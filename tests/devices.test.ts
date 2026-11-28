@@ -51,8 +51,8 @@ describe("devices", () => {
 
 describe("plans", () => {
   it("uses the founding prices, every plan with everything", () => {
-    expect([PLANS.site.priceMonthly, PLANS.pro.priceMonthly, PLANS.business.priceMonthly]).toEqual([299, 449, 799]);
-    expect([PLANS.site.aiQuotes, PLANS.pro.aiQuotes, PLANS.business.aiQuotes]).toEqual([50, 100, 200]);
+    expect([PLANS.site.priceMonthly, PLANS.pro.priceMonthly, PLANS.business.priceMonthly]).toEqual([299, 499, 799]);
+    expect([PLANS.site.aiQuotes, PLANS.pro.aiQuotes, PLANS.business.aiQuotes]).toEqual([30, 100, 200]);
     expect(PLANS.site.emailAutoQuote && PLANS.site.connectedMailbox).toBe(true);
   });
   it("lets a company's own limits override its plan", () => {
