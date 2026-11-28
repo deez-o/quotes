@@ -128,3 +128,25 @@ export function acceptedHtml(a: {
 ${poweredBy()}
 </body></html>`;
 }
+
+/** A quoteout notice to the contractor (ready to check, new email, documents needed): the same look as "Quote accepted". */
+export function noticeHtml(n: {
+  badge: string; tone: "good" | "info" | "warn"; title: string; subtitle?: string | null; big?: string | null;
+  lines?: string[]; button: { label: string; url: string }; second?: { label: string; url: string } | null; footnote?: string | null;
+}): string {
+  const tones = { good: ["#e7f6ec", "#166534"], info: ["#e8f0fe", "#1e40af"], warn: ["#fff4e5", "#9a3412"] }[n.tone];
+  return `<!doctype html><html><body style="margin:0;padding:24px 12px;background:#f5f6f7;font-family:Arial,Helvetica,sans-serif;color:#1c1f23;font-size:15px;line-height:1.5">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e1e4e8">
+<div style="background:#16181B;padding:16px 24px;color:#fff;font-size:18px;font-weight:bold;letter-spacing:-0.3px">quote<span style="color:#FF6A13">out</span></div>
+<div style="padding:24px">
+<div style="display:inline-block;background:${tones[0]};color:${tones[1]};font-weight:bold;font-size:13px;padding:5px 12px;border-radius:999px">${esc(n.badge)}</div>
+<h1 style="margin:14px 0 4px;font-size:21px;line-height:1.3">${esc(n.title)}</h1>
+${n.subtitle ? `<div style="color:#6b7280;font-size:14px">${esc(n.subtitle)}</div>` : ""}
+${n.big ? `<div style="margin:18px 0 0;font-size:28px;font-weight:bold;letter-spacing:-0.5px">${esc(n.big)}</div>` : ""}
+${(n.lines ?? []).filter(Boolean).map((l) => `<p style="margin:14px 0 0">${esc(l)}</p>`).join("")}
+<p style="margin:22px 0 0"><a href="${esc(n.button.url)}" style="display:inline-block;background:#FF6A13;color:#fff;text-decoration:none;font-weight:bold;padding:13px 24px;border-radius:8px">${esc(n.button.label)}</a>${n.second ? ` &nbsp; <a href="${esc(n.second.url)}" style="color:#1c1f23;font-weight:bold">${esc(n.second.label)}</a>` : ""}</p>
+</div></div>
+${n.footnote ? `<p style="max-width:560px;margin:12px auto 0;font-size:11px;color:#9aa0a8;text-align:center">${esc(n.footnote)}</p>` : ""}
+${poweredBy()}
+</body></html>`;
+}

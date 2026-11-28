@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/mail/send";
 import { appUrl } from "@/lib/app-url";
 import { quoteLabel } from "@/lib/quote/numbering";
+import { noticeHtml } from "@/lib/quote/email";
 
 /**
  * Tell the company a forwarded RFQ has been drafted and is ready to check. Goes to the
@@ -33,11 +34,16 @@ export async function notifyDrafted(db: SupabaseClient, tenantId: string, siteQu
       ? [`quoteout has drafted ${label}: ${q.title ?? "RFQ"}${q.customer_name ? ` for ${q.customer_name}` : ""}.`, total ? `Draft price: ${total}.` : "", questions ? `${questions} thing${questions === 1 ? "" : "s"} to confirm before it goes out.` : "Nothing flagged to confirm.", "", `Check it: ${link}`]
       : [`Another email came in on ${label}: ${q.title ?? "RFQ"}. Check whether it changes the quote.`, "", `Open it: ${link}`];
     const text = lines.filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n");
+    const who = [label, q.customer_name].filter(Boolean).join(" · ");
+    const html = kind === "portal_login"
+      ? noticeHtml({ badge: "Documents needed", tone: "warn", title: q.title ?? "A tender", subtitle: who, lines: ["It's on a tender portal, and quoteout couldn't download the documents.", detail, "Add your portal login once and quoteout fetches them for you from now on."], button: { label: "Add your portal login", url: `${appUrl()}/setup#portals` }, second: { label: "Add the documents by hand", url: link }, footnote: "Turn these emails off in Your costs → Pricing settings." })
+      : kind === "drafted"
+      ? noticeHtml({ badge: "Ready to check", tone: "good", title: q.title ?? "RFQ", subtitle: who, big: total, lines: [questions ? `${questions} thing${questions === 1 ? "" : "s"} to confirm before it goes out.` : "Nothing flagged to confirm."], button: { label: "Check the quote", url: link }, footnote: "Turn these emails off in Your costs → Pricing settings." })
+      : noticeHtml({ badge: "New email", tone: "info", title: q.title ?? "RFQ", subtitle: who, lines: ["Another email came in on this RFQ. Check whether it changes the quote."], button: { label: "Open the quote", url: link }, footnote: "Turn these emails off in Your costs → Pricing settings." });
     await sendEmail({
       fromName: "quoteout", replyTo: null, to, cc: [],
       subject: kind === "portal_login" ? `Documents needed: ${label} ${q.title ?? ""}`.trim() : kind === "drafted" ? `Ready to check: ${label} ${q.title ?? ""}`.trim() : `New email on ${label}`,
-      text, html: `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5">${text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>").replace(link, `<a href="${link}">${link}</a>`)}</div>
-<p style="font-size:12px;color:#7a8089">Turn these emails off in Setup → Costs → pricing settings.</p>`,
+      text, html,
       attachments: [],
     });
   } catch {
