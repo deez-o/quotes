@@ -318,7 +318,12 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 </button>
               </div>
             )}
-            {scope.assumptions.map((a, i) => <div key={`a${i}`} style={{ color: "var(--ink-2)" }}>• Assumed: {a}</div>)}
+            {scope.assumptions.length > 0 && (
+              <details style={{ color: "var(--ink-2)" }}>
+                <summary style={{ cursor: "pointer", fontSize: 14 }}>Worth a check ({scope.assumptions.length})</summary>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18, display: "grid", gap: 4 }}>{scope.assumptions.map((a, i) => <li key={`a${i}`}>{a.replace(/\s*Source:\s*(house|own|company)\.?/gi, "")}</li>)}</ul>
+              </details>
+            )}
           </section>
         )}
 

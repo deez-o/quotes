@@ -310,7 +310,14 @@ export async function locateAndPrice(pc: Awaited<ReturnType<typeof loadPricingCo
   const haul = haulFor(scope, site, pc.plants, pc.settings, routes);
   // Crew shifts from the m² laid a day (job type, haul), with the 12-hour stretch.
   if (pc.settings.crewOutput) {
-    const planned = planCrew(scope, haul?.minutes ?? null, pc.settings.crewOutput, (id) => pc.library.find((c) => c.id === id)?.unit === "h");
+    // Travel from their yard or depot if they've set one; otherwise the haul from the plant.
+    let travel = haul?.minutes ?? null;
+    const base = pc.settings.base;
+    if (base && site.lat != null) {
+      const r = await routesToPlants(site, [{ id: "base", name: "Base", lat: base.lat, lng: base.lng } as never]).catch(() => null);
+      if (r?.base?.minutes != null) travel = r.base.minutes;
+    }
+    const planned = planCrew(scope, travel, pc.settings.crewOutput, (id) => pc.library.find((c) => c.id === id)?.unit === "h");
     if (planned) scope = { ...planned.scope, assumptions: [...planned.scope.assumptions.filter((a) => !/^Crew days estimated|^Hours on site each day/i.test(a)), planned.note] };
   }
   const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul, marginPercent: pc.defaultMargin });

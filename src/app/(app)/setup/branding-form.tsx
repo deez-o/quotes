@@ -95,7 +95,7 @@ export function BrandingForm({ tenantId, initial, fallbackName, canEdit }: { ten
             <label style={field}>Phone<input type="tel" name="business_phone" defaultValue={initial.business_phone ?? ""} /></label>
             <label style={field}>Email<input type="email" name="business_email" defaultValue={initial.business_email ?? ""} /></label>
             <label style={field}>Website<input type="text" name="business_website" defaultValue={initial.business_website ?? ""} /></label>
-            <label style={field}>Address<input type="text" name="business_address" defaultValue={initial.business_address ?? ""} /></label>
+            <label style={field}>Address (your yard or depot)<input type="text" name="business_address" title="Crew travel time to each job is worked out from here" defaultValue={initial.business_address ?? ""} /></label>
             <label style={field}>State you work in
               <select name="state" defaultValue={initial.state ?? "QLD"} style={{ font: "inherit", padding: 10, borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff" }}>
                 {["QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"].map((x) => <option key={x} value={x}>{x}</option>)}

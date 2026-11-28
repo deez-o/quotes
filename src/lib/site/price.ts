@@ -100,6 +100,8 @@ export type PricingSettings = {
   binders?: BinderSetup;
   /** m² a crew lays in a day by job type and haul (sets crew shifts on drafts). */
   crewOutput?: import("./crew-days").CrewOutput;
+  /** Their yard or depot: crew travel time to the job is worked out from here. */
+  base?: { lat: number; lng: number } | null;
 };
 
 export type Haul = { km: number; minutes: number; source: "gps" | "entered" | "road" };

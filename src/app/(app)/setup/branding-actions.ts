@@ -21,7 +21,18 @@ export async function saveBranding(formData: FormData): Promise<{ ok: boolean; m
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { ok: false, message: "Check the email address." };
 
   const db = await createClient();
+  // The address is their yard or depot: crew travel time to each job is worked out from it.
+  const address = t(formData, "business_address", 300);
+  const { data: before } = await db.from("tenant_settings").select("business_address, base_lat").eq("tenant_id", ctx.tenant.id).maybeSingle();
+  let base: { base_lat: number | null; base_lng: number | null } | Record<string, never> = {};
+  if (!address) base = { base_lat: null, base_lng: null };
+  else if (address !== before?.business_address || before?.base_lat == null) {
+    const { searchPlaces } = await import("@/lib/maps");
+    const [hit] = await searchPlaces(address, { apiKey: process.env.GOOGLE_MAPS_API_KEY || null }).catch(() => []);
+    base = hit ? { base_lat: hit.lat, base_lng: hit.lng } : { base_lat: null, base_lng: null };
+  }
   const { error } = await db.from("tenant_settings").upsert({
+    ...base,
     tenant_id: ctx.tenant.id,
     logo_path: logo || null,
     brand_color: color ? color.toUpperCase() : null,
@@ -30,7 +41,7 @@ export async function saveBranding(formData: FormData): Promise<{ ok: boolean; m
     state: ["QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"].includes(String(formData.get("state"))) ? String(formData.get("state")) : null,
     business_phone: t(formData, "business_phone", 40),
     business_email: email,
-    business_address: t(formData, "business_address", 300),
+    business_address: address,
     business_website: t(formData, "business_website", 120),
     updated_at: new Date().toISOString(),
   }, { onConflict: "tenant_id" });
