@@ -110,7 +110,7 @@ export async function processMessage(
   const files: { name: string; type: string; bytes: Uint8Array; hash: string }[] = [];
   let total = 0;
   for (const a of msg.attachments) {
-    if (isSignatureImage(a)) {
+    if (isSignatureImage(a, msg.bodyText)) {
       skipped.push(`${a.name} (signature image)`);
       continue;
     }

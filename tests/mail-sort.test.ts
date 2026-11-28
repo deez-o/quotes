@@ -55,3 +55,13 @@ describe("helpers", () => {
     expect(isUnsafeLink("https://app.estimateone.example/tender/12345/decline")).toBe(true);
   });
 });
+
+describe("pictures pasted into the email", () => {
+  const pic = (name: string, size: number) => ({ id: name, name, contentType: "image/png", size, isInline: true });
+  it("keeps a small picture the text points at, drops the signature logo", () => {
+    const body = "Could you please quote.\n2. Areas =\n[cid:image001.png@01DD7CC5.11BB6C00]\n\nThanks\n[cid:image002.gif@01DD7CC5.11BB6C00]\nAna Franco";
+    expect(isSignatureImage(pic("image001.png", 9_000), body)).toBe(false);
+    expect(isSignatureImage({ ...pic("image002.gif", 9_000), contentType: "image/gif" }, body)).toBe(true);
+    expect(isSignatureImage(pic("image009.png", 6_000), "Kind regards\n[cid:image009.png@x]")).toBe(true);
+  });
+});

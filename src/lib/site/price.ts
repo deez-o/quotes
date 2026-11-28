@@ -405,7 +405,10 @@ export function priceSiteQuote(input: {
   }
 
   const cost = round2(costLines.reduce((s, l) => s + l.cost, 0));
-  const priceExGst = Math.round(cost / (1 - marginPercent / 100));
+  // Job lines listed but none of them priced (no areas, no matching mix): nothing to quote yet.
+  // Don't turn a float or a crew day into a "1 lot" price that looks like a real quote.
+  const unpriced = scope.items.length > 0 && ![...direct.values()].some((v) => v > 0);
+  const priceExGst = unpriced ? 0 : Math.round(cost / (1 - marginPercent / 100));
   const gst = round2((priceExGst * settings.gst_percent) / 100);
 
   // Customer lines: one per scope item. Shared costs (trucks, crew, plant) are spread over the

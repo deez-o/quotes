@@ -36,9 +36,24 @@ export function normaliseSubject(subject: string): string {
   return s.replace(/\s+/g, " ").toLowerCase();
 }
 
-/** Signature logos and similar: small inline images. Pictures pasted into the body (quantity tables) are kept. */
-export function isSignatureImage(a: IncomingAttachment): boolean {
-  return a.isInline && a.contentType.startsWith("image/") && a.size < 20_000;
+/**
+ * Signature logos and similar: small inline images. A picture pasted into the body is kept when
+ * the words just before it point at it ("Areas =", "quantities below:", "see table"), however small:
+ * that's where builders paste the areas. Bigger inline pictures are always kept.
+ */
+export function isSignatureImage(a: IncomingAttachment, body = ""): boolean {
+  if (!a.isInline || !a.contentType.startsWith("image/") || a.size >= 20_000) return false;
+  return !pointedAt(a.name, body);
+}
+
+/** True when the text just before "[cid:NAME@" (or "[NAME]") introduces it as content. */
+export function pointedAt(name: string, body: string): boolean {
+  if (!name || !body) return false;
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const m = new RegExp(`\\[(?:cid:)?${esc}[@\\]]`, "i").exec(body);
+  if (!m) return false;
+  const before = body.slice(Math.max(0, m.index - 120), m.index).replace(/\s+/g, " ").trim().toLowerCase();
+  return /[=:]$/.test(before) || /\b(areas?|quantit(y|ies)|schedule|table|takeoff|take-off|m2|m²|tonnes?|depths?|below|as follows|see (the )?(image|picture|attached))\b[^.]{0,40}$/.test(before);
 }
 
 /** Second duplicate key: sender + subject + attachment hashes (or the start of the body if none). */
