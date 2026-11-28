@@ -8,6 +8,8 @@ import { loadAccess } from "@/lib/access-load";
 import { loadSheet } from "@/lib/sheet/store";
 import { planFor } from "@/lib/plans";
 import { OutlookCard } from "./outlook";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { PortalLogins } from "./portals";
 
 type Step = { title: string; detail: string; done: boolean; optional?: boolean; action?: { label: string; href?: string; external?: boolean } };
 
@@ -152,6 +154,8 @@ export default async function SetupPage({ searchParams }: { searchParams: Promis
       <BrandingForm tenantId={ctx.tenant.id} initial={branding} fallbackName={ctx.tenant.name} canEdit={ctx.role === "admin"} />
 
       <OutlookCard tenantId={ctx.tenant.id} plan={billing.plan} isAdmin={ctx.role === "admin"} />
+      <PortalLogins isAdmin={ctx.role === "admin"} rows={((await createAdminClient().from("connections").select("provider, account_email, status, last_error, last_ok_at").eq("tenant_id", ctx.tenant.id).eq("purpose", "portal")).data ?? [])
+        .map((c) => ({ provider: c.provider as string, username: c.account_email as string | null, status: c.status as string, lastError: c.last_error as string | null, lastOk: c.last_ok_at as string | null }))} />
 
       {setupError && <p className="error" role="alert">{setupError}</p>}
       {connected && <p style={{ color: "var(--good)", fontWeight: 600 }}>Connected {connected}. New emails will now be picked up.</p>}

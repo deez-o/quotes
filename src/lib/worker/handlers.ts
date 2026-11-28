@@ -1,3 +1,4 @@
+import { runPortalFetch } from "@/lib/portal/run";
 import { notifyDrafted } from "@/lib/rfq/notify";
 import { syncXeroQuotes } from "@/lib/xero-conn";
 /**
@@ -108,10 +109,15 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
       await syncXeroQuotes(db, job.tenant_id);
     },
 
+    async portal_fetch(job: QueueJob) {
+      // Download a tender's documents from its portal with the saved login, then read it again.
+      await runPortalFetch(db, job.tenant_id, String(job.payload.job_id));
+    },
+
     async draft_quote(job: QueueJob) {
       // Read the RFQ and its files, and turn it into a priced draft quote for the estimator to check.
       const redo = job.payload.redo === true;
-      const out = await draftRfqQuote(db, job.tenant_id, String(job.payload.job_id), { redo });
+      const out = await draftRfqQuote(db, job.tenant_id, String(job.payload.job_id), { redo, portalFetch: (job.payload.portal_fetch as Record<string, unknown> | undefined) ?? null });
       if (redo) return; // they asked for it in the app: no email
       if (out.kind === "drafted") await notifyDrafted(db, job.tenant_id, out.siteQuoteId, "drafted", out.questions);
       else if (out.kind === "follow_up") await notifyDrafted(db, job.tenant_id, out.siteQuoteId, "follow_up");

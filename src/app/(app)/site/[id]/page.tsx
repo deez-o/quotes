@@ -1,4 +1,5 @@
-import { RfqFiles } from "./rfq-files";
+import { RfqFiles, type PortalFetch } from "./rfq-files";
+import { providerFor } from "@/lib/portal/providers";
 import { RereadButton } from "../../quotes/reread";
 import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
@@ -24,7 +25,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
   const ctx = await requireTenant();
   const db = await createClient();
   const { data: q } = await db.from("site_quotes")
-    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst, overview, option_group, option_label, revision, superseded_at, sent_at, accepted_at, accepted_name, accepted_po, accepted_note, inclusions, exclusions, show_map, outcome_note, xero_quote_id")
+    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst, overview, option_group, option_label, revision, superseded_at, sent_at, accepted_at, accepted_name, accepted_po, accepted_note, inclusions, exclusions, show_map, outcome_note, xero_quote_id, portal_fetch")
     .eq("id", id).eq("tenant_id", ctx.tenant.id).maybeSingle();
   if (!q) notFound();
 
@@ -154,7 +155,9 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
         </div>
       )}
       {q.job_id && !q.sent_at && !q.option_group && !(Number(q.revision) > 0) && (
-        <RfqFiles quoteId={q.id} tenantId={ctx.tenant.id} portal={(q.rfq_summary as RfqSummary | null)?.portal ?? null} canEdit={ctx.role !== "viewer"} />
+        <RfqFiles quoteId={q.id} tenantId={ctx.tenant.id} portal={(q.rfq_summary as RfqSummary | null)?.portal ?? null} canEdit={ctx.role !== "viewer"}
+          fetched={(q.portal_fetch as PortalFetch) ?? null}
+          hasLogin={Boolean((await createAdminClient().from("connections").select("id").eq("tenant_id", ctx.tenant.id).eq("purpose", "portal").eq("provider", providerFor((q.rfq_summary as RfqSummary | null)?.portal?.portal ?? "") ?? "none").maybeSingle()).data)} />
       )}
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
         hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} hasSheet

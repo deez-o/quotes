@@ -47,7 +47,7 @@ async function download(db: SupabaseClient, path: string) {
  * (it may have been edited); it's flagged on the quote instead.
  * Runs in the worker with the service role, so every query names the tenant.
  */
-export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId: string, opts: { call?: ScopeCall | null; readsPdfs?: boolean; redo?: boolean } = {}): Promise<DraftOutcome> {
+export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId: string, opts: { call?: ScopeCall | null; readsPdfs?: boolean; redo?: boolean; portalFetch?: Record<string, unknown> | null } = {}): Promise<DraftOutcome> {
   const { data: job } = await db.from("jobs").select("id, quote_no, status, source, site").eq("tenant_id", tenantId).eq("id", jobId).maybeSingle();
   if (!job) return { kind: "skipped", reason: "job not found" };
 
@@ -149,10 +149,17 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     site_address: site.address || null, site_lat: site.lat, site_lng: site.lng, haul_routes: routes,
     transcript: null, photos: [], scope, costing: priced, margin_percent: pc.defaultMargin, total_ex_gst: priced.priceExGst,
     created_by: null, rfq_summary: { ...summary, model: opts.call === undefined ? mainModel : null },
-    overview, exclusions: (overview?.exclusions ?? []).slice(0, 30),
+    overview, exclusions: (overview?.exclusions ?? []).slice(0, 30), portal_fetch: opts.portalFetch ?? null,
   }).select("id").single();
   if (error || !made) throw new Error(`Couldn't save the draft quote: ${error?.message}`);
 
+  // A tender portal invite: fetch the documents with the saved login (once per RFQ automatically).
+  if (summary.portal?.docsUrl && !opts.portalFetch && opts.call === undefined) {
+    await db.from("queue_jobs").upsert(
+      { tenant_id: tenantId, kind: "portal_fetch", payload: { job_id: jobId }, dedupe_key: `portal:${jobId}` },
+      { onConflict: "tenant_id,dedupe_key", ignoreDuplicates: true },
+    );
+  }
   const unread = summaryFiles.filter((f) => f.read === "no").length;
   await db.from("jobs").update({
     status: "drafted", customer_name: scope.customer_name ?? null, site: scope.title.slice(0, 200),

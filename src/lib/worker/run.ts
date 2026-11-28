@@ -7,7 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type QueueJob = {
   id: number;
   tenant_id: string;
-  kind: "mail_notification" | "process_message" | "renew_watch" | "catch_up" | "draft_quote" | "process_upload" | "process_inbound" | "xero_sync";
+  kind: "mail_notification" | "process_message" | "renew_watch" | "catch_up" | "draft_quote" | "process_upload" | "process_inbound" | "xero_sync" | "portal_fetch";
   payload: Record<string, unknown>;
   attempts: number;
 };

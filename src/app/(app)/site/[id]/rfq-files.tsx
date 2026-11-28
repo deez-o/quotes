@@ -4,13 +4,16 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { PortalInvite } from "@/lib/rfq/portal";
-import { addRfqFiles } from "./files-actions";
+import { addRfqFiles, fetchPortalNow } from "./files-actions";
+import Link from "next/link";
 
 const MAX_MB = 50;
 const safeName = (n: string) => n.replace(/[\\/:*?"<>|#%{}^~[\]`]+/g, "_").replace(/\s+/g, " ").trim().slice(0, 100) || "file";
 
 /** Tender portal card and "add the documents" for an RFQ quote. */
-export function RfqFiles({ quoteId, tenantId, portal, canEdit }: { quoteId: string; tenantId: string; portal: PortalInvite | null; canEdit: boolean }) {
+export type PortalFetch = { ok: boolean | null; at: string; message?: string; note?: string; reason?: string; added?: number } | null;
+
+export function RfqFiles({ quoteId, tenantId, portal, canEdit, fetched, hasLogin }: { quoteId: string; tenantId: string; portal: PortalInvite | null; canEdit: boolean; fetched: PortalFetch; hasLogin: boolean }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -60,6 +63,21 @@ export function RfqFiles({ quoteId, tenantId, portal, canEdit }: { quoteId: stri
           {(portal.contactName || portal.contactEmail || portal.contactPhone) && (
             <p className="sub" style={{ marginTop: 0 }}>Contact: {[portal.contactName, portal.contactEmail, portal.contactPhone].filter(Boolean).join(" · ")}</p>
           )}
+          {fetched?.ok === true && <p style={{ margin: 0, color: "var(--good)", fontWeight: 600 }}>✓ quoteout downloaded {fetched.added ?? 0} document{fetched.added === 1 ? "" : "s"} from {portal.portal} and read them.</p>}
+          {fetched?.ok === null && <p style={{ margin: 0, fontWeight: 600 }}>Fetching the documents from {portal.portal}... refresh in a minute or two.</p>}
+          {fetched?.ok === false && (
+            <p style={{ margin: 0, background: "var(--warn-bg)", padding: "8px 10px", borderRadius: 8 }}>
+              Couldn&apos;t download the documents automatically: {fetched.message}{" "}
+              {!hasLogin || fetched.reason === "login_needed" || fetched.reason === "login_failed" ? <Link href="/setup#portals" style={{ textDecoration: "underline", fontWeight: 600 }}>Add your {portal.portal} login</Link> : null}
+            </p>
+          )}
+          {canEdit && portal.docsUrl && fetched?.ok !== null && (
+            <div><button type="button" className="btn" disabled={busy} onClick={async () => {
+              setBusy(true); const r = await fetchPortalNow({ id: quoteId }); setBusy(false);
+              setMsg(r.ok ? { ok: true, text: `Fetching from ${portal.portal}. Refresh in a minute or two.` } : { ok: false, text: r.message }); router.refresh();
+            }}>{hasLogin ? `Fetch the documents from ${portal.portal} now` : `Try fetching from ${portal.portal}`}</button></div>
+          )}
+          <p className="sub" style={{ margin: 0 }}>Or by hand:</p>
           <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 4 }}>
             <li>{portal.docsUrl ? <a href={portal.docsUrl} target="_blank" rel="noreferrer" style={{ textDecoration: "underline", fontWeight: 600 }}>Open the documents on {portal.portal}</a> : `Open the invitation on ${portal.portal}`} and download them (the zip is fine).</li>
             <li>Drop them below. quoteout reads them and fills in the quote.</li>
