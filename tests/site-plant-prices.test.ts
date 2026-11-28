@@ -54,7 +54,8 @@ describe("mix prices per plant", () => {
 
   it("when the AI picks one plant but another plant's mix, the mix is swapped to match", () => {
     const { scope: s } = cleanScope({ ...scope(), supply_plant_id: "brendale" }, lib, plants);
-    expect(s.items[0].cost_item_id).toBe("ac10-b");
+    expect(s.items.map((i) => i.kind)).toEqual(["prime", "asphalt", "asphalt"]); // prime goes above the asphalt
+    expect(s.items[1].cost_item_id).toBe("ac10-b");
   });
 });
 

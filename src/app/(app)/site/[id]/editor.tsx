@@ -1,11 +1,11 @@
 "use client";
 
+import { tidyItems } from "@/lib/site/tidy";
 import { COMMON_BASES, COMMON_EXTRAS, binderLabel } from "@/lib/binder";
 import Link from "next/link";
 import { PlanViewer } from "./plan-viewer";
 import { AreaMap } from "./overview/area-map";
 import { SendQuoteDialog } from "./send";
-import { RiseAndFall } from "./rise-fall";
 import { clearBackup, looksOffline, readBackup, writeBackup, type Backup } from "./offline";
 import type { BitumenIndex } from "@/lib/bitumen";
 import type { DrawnArea, PlanOverlay } from "@/lib/rfq/overview";
@@ -42,12 +42,12 @@ const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8
 let keySeq = 0;
 const newKey = (p: string) => `${p}${Date.now().toString(36)}${keySeq++}`;
 
-export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null, hasSheet = false, customers = [], bitumen = null }: {
+export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEdit, hasXero, rfq = null, compare = null, hasSheet = false, customers = [] }: {
   quote: QuoteView; library: CostItem[]; plants: SupplyPlant[]; settings: PricingSettings; hasAi: boolean; canEdit: boolean; hasXero: boolean; rfq?: RfqView | null; compare?: CompareView | null; hasSheet?: boolean; customers?: { name: string; email: string | null }[];
   bitumen?: { indexes: BitumenIndex[]; binderPercent: number; quotedAt: string } | null;
 }) {
   const router = useRouter();
-  const [scope, setScope] = useState<SiteScope>(quote.scope);
+  const [scope, setScope] = useState<SiteScope>(() => ({ ...quote.scope, items: tidyItems(quote.scope.items ?? []) }));
   const [margin, setMargin] = useState(quote.margin_percent);
   const [customer, setCustomer] = useState(quote.customer_name ?? "");
   const [email, setEmail] = useState(quote.customer_email ?? "");
@@ -337,26 +337,28 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           <h2>What&apos;s in the job</h2>
           {scope.items.map((i) => {
             const ci = active.find((c) => c.id === i.cost_item_id);
+            const tonnesOf = (x: ScopeItem) => (x.kind === "asphalt" || x.kind === "base") && ci?.density_t_per_m3 && x.area_m2 && x.depth_mm ? x.area_m2 * (x.depth_mm / 1000) * ci.density_t_per_m3 : null;
             const byArea = ["asphalt", "base", "prime", "seal"].includes(i.kind) || ci?.unit === "m2";
             const needsDepth = i.kind === "asphalt" || i.kind === "base" || ci?.unit === "m3";
             return (
-              <div key={i.key} style={{ borderTop: "1px solid var(--line-soft)", padding: "12px 0", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 8, alignItems: "end" }}>
-                <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, alignItems: "end" }}>
-                  <label style={{ ...small, flex: 1, minWidth: 0 }}>{KIND_LABEL[i.kind]}
-                    <input type="text" value={i.description} onChange={(e) => setItem(i.key, { description: e.target.value })} />
-                  </label>
-                  <button type="button" aria-label={`Remove ${i.description || KIND_LABEL[i.kind]}`} title="Remove this item"
-                    onClick={() => update({ ...scope, items: scope.items.filter((x) => x.key !== i.key) })}
-                    style={{ flex: "none", height: 44, padding: "0 14px", borderRadius: 8, border: "1px solid #f0b8a8", background: "#fdf1ed", color: "#9a3412", font: "inherit", fontWeight: 600, cursor: "pointer" }}>
-                    ✕ Remove
+              <div key={i.key} className="job-item" data-kind={i.kind}>
+                <div className="job-item-head">
+                  <span className="job-item-kind">{KIND_LABEL[i.kind]}</span>
+                  {tonnesOf(i) != null && <span className="job-item-sum">{tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: 1 })} t</span>}
+                  <button type="button" className="job-item-remove" aria-label={`Remove ${i.description || KIND_LABEL[i.kind]}`} title="Remove this item"
+                    onClick={() => update({ ...scope, items: scope.items.filter((x) => x.key !== i.key) })}>
+                    Remove
                   </button>
                 </div>
+                <label style={{ ...small, gridColumn: "1 / -1" }}>Description
+                  <input type="text" value={i.description} onChange={(e) => setItem(i.key, { description: e.target.value })} />
+                </label>
                 <label style={small}>Type
                   <select style={sel} value={i.kind} onChange={(e) => setItem(i.key, { kind: e.target.value as ScopeItem["kind"] })}>
                     {Object.entries(KIND_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                 </label>
-                <label style={{ ...small, gridColumn: "span 2" }}>From your costs
+                <label style={{ ...small, gridColumn: "span 2" }} className="job-item-cost">From your costs
                   <select style={sel} value={i.cost_item_id ?? ""} onChange={(e) => setItem(i.key, { cost_item_id: e.target.value || null })}>
                     <option value="">Choose...</option>
                     {optionsFor(i.kind).map((c) => <option key={c.id} value={c.id}>{c.name}{c.supply_plant_id ? ` · ${plantName(c.supply_plant_id) ?? "other plant"}` : ""}</option>)}
@@ -407,13 +409,6 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
             Put the site map with the traced areas on the PDF{quote.areas.length ? "" : " (trace an area below first)"}
           </label>
         </section>
-
-        {bitumen && (priced.perTonne?.tonnes ?? 0) > 0 && (
-          <details className="card">
-            <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 17 }}>Bitumen rise and fall</summary>
-            <div style={{ marginTop: 10 }}><RiseAndFall tonnes={priced.perTonne!.tonnes} indexes={bitumen.indexes} binderPercent={bitumen.binderPercent} quotedAt={bitumen.quotedAt} /></div>
-          </details>
-        )}
 
         <details className="card" onToggle={(e) => setMapOpen((e.currentTarget as HTMLDetailsElement).open)}>
           <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 17 }}>

@@ -6,6 +6,7 @@ import type { Overview } from "@/lib/rfq/overview";
 import type { RfqSummary } from "@/lib/rfq/split";
 import type { SiteScope } from "@/lib/site/price";
 import { AreaMap } from "./area-map";
+import { tidyItems } from "@/lib/site/tidy";
 import { BuildOverviewButton, StreetViews } from "./parts";
 
 export default async function JobOverviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,6 +37,17 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
     const { data } = await db.storage.from("job-files").createSignedUrl(p, 3600);
     if (data?.signedUrl) photos.push(data.signedUrl);
   }
+  // What's being quoted, straight from the quote, so the overview is never blank.
+  const ids = (scope.items ?? []).map((i) => i.cost_item_id).filter((x): x is string => Boolean(x));
+  const { data: costs } = ids.length ? await db.from("cost_items").select("id, name, density_t_per_m3").eq("tenant_id", ctx.tenant.id).in("id", ids) : { data: [] };
+  const costOf = new Map((costs ?? []).map((c) => [c.id as string, c as { name: string; density_t_per_m3: number | null }]));
+  const quoted = tidyItems(scope.items ?? []).map((i) => {
+    const c = i.cost_item_id ? costOf.get(i.cost_item_id) : undefined;
+    const t = c?.density_t_per_m3 && i.area_m2 && i.depth_mm ? i.area_m2 * (i.depth_mm / 1000) * c.density_t_per_m3 : null;
+    return { key: i.key, what: i.description || i.kind, product: c?.name ?? null, depth: i.depth_mm, area: i.area_m2, qty: i.quantity, tonnes: t };
+  });
+  const notes = ((scope as { assumptions?: string[] }).assumptions ?? []).filter(Boolean);
+  const n0 = (v: number) => v.toLocaleString("en-AU", { maximumFractionDigits: 0 });
   const about = new Map((ov?.documents ?? []).map((d) => [d.name.toLowerCase(), d.about]));
   const located = q.site_lat != null && q.site_lng != null;
 
@@ -60,7 +72,28 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
           {canEdit && hasSource && <BuildOverviewButton quoteId={q.id} again={Boolean(ov?.summary)} />}
         </div>
         {ov?.summary ? <p style={{ margin: "8px 0 0" }}>{ov.summary}</p>
-          : <p className="sub" style={{ margin: "8px 0 0" }}>{hasSource ? "The specs haven't been read for this quote yet." : "This quote has no RFQ or site talk to read specs from. You can still measure areas on the map."}</p>}
+          : <p className="sub" style={{ margin: "8px 0 0" }}>{hasSource ? "The documents haven't been read for this quote yet. Below is what's on the quote." : "No RFQ documents on this quote. Below is what's on the quote."}</p>}
+        {quoted.length > 0 && (
+          <div style={{ overflowX: "auto", marginTop: 12 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead><tr style={{ textAlign: "left" }} className="sub"><th style={{ padding: "6px 8px" }}>Work</th><th style={{ padding: "6px 8px" }}>Product</th><th style={{ padding: "6px 8px", textAlign: "right" }}>Depth</th><th style={{ padding: "6px 8px", textAlign: "right" }}>Area</th><th style={{ padding: "6px 8px", textAlign: "right" }}>Tonnes</th></tr></thead>
+              <tbody>
+                {quoted.map((r) => (
+                  <tr key={r.key} style={{ borderTop: "1px solid var(--line, #e1e4e8)" }}>
+                    <td style={{ padding: "8px", fontWeight: 600 }}>{r.what}</td>
+                    <td style={{ padding: "8px" }}>{r.product ?? "—"}</td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>{r.depth ? `${r.depth} mm` : "—"}</td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>{r.area ? `${n0(r.area)} m²` : r.qty ? n0(r.qty) : "—"}</td>
+                    <td style={{ padding: "8px", textAlign: "right" }}>{r.tonnes ? `${n0(r.tonnes)} t` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {notes.length > 0 && (
+          <ul style={{ margin: "12px 0 0", paddingLeft: 18 }}>{notes.map((a, i) => <li key={i}>{a}</li>)}</ul>
+        )}
       </section>
 
       {located ? (

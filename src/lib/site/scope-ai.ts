@@ -1,3 +1,4 @@
+import { tidyItems } from "./tidy";
 import { isKnownBinder, normaliseBinder } from "@/lib/binder";
 /**
  * Talk-to-quote: what the contractor said on site (plus photos) -> a scope.
@@ -228,7 +229,7 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
   return {
     scope: {
       ...raw,
-      items: aligned,
+      items: tidyItems(aligned),
       crew: lines(raw.crew, "c"),
       plant: lines(raw.plant, "p"),
       supply_plant_id: plantId,

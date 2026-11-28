@@ -58,8 +58,9 @@ describe("talk-to-quote prompt", () => {
 describe("cleaning the AI's scope", () => {
   it("drops unknown or inactive costs, fixes duplicate keys and asks the user", () => {
     const { scope, fixes } = cleanScope(aiScope(), lib, plants);
-    expect(scope.items.map((i) => i.key)).toEqual(["i1", "i1x"]);
-    expect(scope.items[1].cost_item_id).toBeNull();
+    // Base sorts above the asphalt (the order the work is done); its duplicate key was fixed.
+    expect(scope.items.map((i) => i.key)).toEqual(["i1x", "i1"]);
+    expect(scope.items[0].cost_item_id).toBeNull();
     expect(scope.plant).toHaveLength(0);
     expect(fixes).toHaveLength(2);
     expect(scope.questions.length).toBe(2);

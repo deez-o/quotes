@@ -89,7 +89,7 @@ import { DEFAULT_TERMS, renderTerms } from "@/lib/site/terms";
 describe("quote terms", () => {
   it("default terms carry rise and fall and the bitumen month the quote was done", () => {
     expect(DEFAULT_TERMS).toMatch(/subject to rise and fall/);
-    expect(renderTerms(null, "2026-11-27T05:00:00Z")).toContain("bitumen price for November 2026");
+    expect(renderTerms(null, "2026-11-27T05:00:00Z")).toContain("index for November 2026");
     expect(renderTerms("Our terms, bitumen {bitumen_month}.", "2026-12-31T20:00:00Z")).toBe("Our terms, bitumen January 2027."); // Brisbane time
   });
 });
