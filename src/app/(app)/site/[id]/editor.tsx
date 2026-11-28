@@ -8,7 +8,7 @@ import { SendQuoteDialog } from "./send";
 import { RiseAndFall } from "./rise-fall";
 import { clearBackup, looksOffline, readBackup, writeBackup, type Backup } from "./offline";
 import type { BitumenIndex } from "@/lib/bitumen";
-import type { DrawnArea } from "@/lib/rfq/overview";
+import type { DrawnArea, PlanOverlay } from "@/lib/rfq/overview";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -30,7 +30,7 @@ export type QuoteView = {
   id: string; quote_no: string | null; status: "draft" | "sent" | "won" | "lost";
   customer_name: string | null; customer_email: string | null; site_address: string | null;
   site_lat: number | null; site_lng: number | null; haul_routes: HaulRoutes | null; xero_quote_number: string | null; transcript: string | null; photoUrls: string[];
-  scope: SiteScope; margin_percent: number; areas: DrawnArea[];
+  scope: SiteScope; margin_percent: number; areas: DrawnArea[]; planOverlay: PlanOverlay | null;
   inclusions: string[]; exclusions: string[]; show_map: boolean; rfqExclusions: string[]; rfqConditions: string[];
 };
 
@@ -424,6 +424,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
               <AreaMap key={`${site.lat},${site.lng}`} bare quoteId={quote.id} center={{ lat: site.lat, lng: site.lng }} initial={quote.areas} canEdit={canEdit}
                 browserKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_BROWSER_KEY ?? null}
                 items={scope.items.map((i) => ({ key: i.key, label: i.description || KIND_LABEL[i.kind], area: i.area_m2 }))}
+                plans={rfq?.files ?? []} initialOverlay={quote.planOverlay}
                 onUse={(key, m2) => setItem(key, { area_m2: m2 })} />
             ) : null}
           </div>

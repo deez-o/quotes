@@ -60,6 +60,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
     site_address: q.site_address, site_lat: q.site_lat, site_lng: q.site_lng, haul_routes: routes, transcript: q.transcript, photoUrls,
     scope, margin_percent: Number(q.margin_percent), xero_quote_number: q.xero_quote_number ?? null,
     areas: ((q.overview as Overview | null)?.areas) ?? [],
+    planOverlay: ((q.overview as Overview | null)?.plan_overlay) ?? null,
     inclusions: (q.inclusions as string[] | null) ?? [], exclusions: (q.exclusions as string[] | null) ?? [], show_map: q.show_map !== false,
     rfqExclusions: ((q.overview as Overview | null)?.exclusions) ?? [], rfqConditions: ((q.overview as Overview | null)?.conditions) ?? [],
   };

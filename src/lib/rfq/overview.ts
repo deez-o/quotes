@@ -5,7 +5,11 @@
 import type { ChatMessage, ChatPart } from "@/lib/quote/provider";
 
 export type OverviewSpec = { label: string; value: string; source: string };
-export type DrawnArea = { id: string; name: string; path: [number, number][]; m2: number; color: string };
+/** An area traced on the map, or (kind "line") a measured distance: a width, a length. */
+export type DrawnArea = { id: string; name: string; path: [number, number][]; m2: number; color: string; kind?: "area" | "line"; length_m?: number };
+
+/** A drawing laid on the satellite map at true size: where, how big, which way round. */
+export type PlanOverlay = { file: string; page: number; lat: number; lng: number; rotation: number; widthM: number; opacity: number; ratio: number | null; sheet: string | null };
 
 export type Overview = {
   summary: string;
@@ -15,6 +19,7 @@ export type Overview = {
   exclusions: string[];
   documents: { name: string; about: string }[];
   areas?: DrawnArea[];
+  plan_overlay?: PlanOverlay | null;
   made_at?: string;
 };
 
@@ -89,10 +94,41 @@ export function cleanAreas(raw: unknown): DrawnArea[] {
     const o = (a ?? {}) as Record<string, unknown>;
     const path = arr(o.path).map((p) => [Number((p as unknown[])[0]), Number((p as unknown[])[1])] as [number, number])
       .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180).slice(0, 200);
-    if (path.length < 3) return [];
+    const line = o.kind === "line";
+    if (path.length < (line ? 2 : 3)) return [];
     const color = typeof o.color === "string" && /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : "#FF6A13";
-    return [{ id: str(o.id, 40) || `a${i + 1}`, name: str(o.name, 60) || `Area ${i + 1}`, path, m2: Math.round(polygonArea(path)), color }];
+    const base = { id: str(o.id, 40) || `a${i + 1}`, path, color };
+    return line
+      ? [{ ...base, kind: "line" as const, name: str(o.name, 60) || `Measure ${i + 1}`, m2: 0, length_m: Math.round(lineLength(path) * 10) / 10 }]
+      : [{ ...base, name: str(o.name, 60) || `Area ${i + 1}`, m2: Math.round(polygonArea(path)) }];
   });
+}
+
+/** Length of a line on the earth, in metres. */
+export function lineLength(path: [number, number][]): number {
+  const R = 6371008.8;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  let total = 0;
+  for (let i = 1; i < path.length; i++) {
+    const [a1, b1] = path[i - 1];
+    const [a2, b2] = path[i];
+    const h = Math.sin(rad(a2 - a1) / 2) ** 2 + Math.cos(rad(a1)) * Math.cos(rad(a2)) * Math.sin(rad(b2 - b1) / 2) ** 2;
+    total += 2 * R * Math.asin(Math.sqrt(h));
+  }
+  return total;
+}
+
+export function cleanOverlay(raw: unknown): PlanOverlay | null {
+  const o = (raw ?? null) as Record<string, unknown> | null;
+  if (!o || typeof o.file !== "string") return null;
+  const n = (v: unknown, lo: number, hi: number, d: number) => { const x = Number(v); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d; };
+  const lat = Number(o.lat), lng = Number(o.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return {
+    file: o.file.slice(0, 200), page: Math.round(n(o.page, 1, 500, 1)), lat, lng,
+    rotation: n(o.rotation, -360, 360, 0), widthM: n(o.widthM, 5, 20000, 200), opacity: n(o.opacity, 0.1, 1, 0.6),
+    ratio: o.ratio == null ? null : n(o.ratio, 1, 100000, 500), sheet: typeof o.sheet === "string" ? o.sheet.slice(0, 4) : null,
+  };
 }
 
 /** Area of a small polygon on the earth, in m² (spherical excess; accurate for job-sized areas). */

@@ -20,6 +20,7 @@
     "jszip": "^3.10.2",
     "next": "16.4.6",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.7.284",
     "playwright-core": "^1.65.1",
     "postal-mime": "^4.2.1",
     "react": "19.3.0",

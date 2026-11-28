@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { cleanAreas, type DrawnArea, type Overview } from "@/lib/rfq/overview";
+import { cleanAreas, cleanOverlay, type DrawnArea, type Overview, type PlanOverlay } from "@/lib/rfq/overview";
 import { gatherRfq, makeOverview } from "@/lib/rfq/draft";
 import { emptyScope, haulFor, loadPricingContext } from "@/lib/site/load";
 import { priceSiteQuote, type HaulRoutes, type SiteScope } from "@/lib/site/price";
@@ -19,14 +19,15 @@ async function writer() {
 }
 
 /** Save the areas drawn on the map (their m² are worked out again on the server). */
-export async function saveAreas(input: { id: string; areas: DrawnArea[] }): Promise<Result<{ areas: DrawnArea[] }>> {
+export async function saveAreas(input: { id: string; areas: DrawnArea[]; overlay?: PlanOverlay | null }): Promise<Result<{ areas: DrawnArea[] }>> {
   try {
     const { ctx, db } = await writer();
     if (!UUID.test(input.id)) return { ok: false, message: "Quote not found." };
     const { data: q } = await db.from("site_quotes").select("overview").eq("tenant_id", ctx.tenant.id).eq("id", input.id).maybeSingle();
     if (!q) return { ok: false, message: "Quote not found." };
     const areas = cleanAreas(input.areas);
-    const overview = { ...((q.overview as Overview | null) ?? { summary: "", specs: [], key_dates: [], conditions: [], exclusions: [], documents: [] }), areas };
+    const prev = (q.overview as Overview | null) ?? { summary: "", specs: [], key_dates: [], conditions: [], exclusions: [], documents: [] };
+    const overview = { ...prev, areas, ...(input.overlay !== undefined ? { plan_overlay: cleanOverlay(input.overlay) } : {}) };
     const { error } = await db.from("site_quotes").update({ overview, updated_at: new Date().toISOString() }).eq("tenant_id", ctx.tenant.id).eq("id", input.id);
     if (error) return { ok: false, message: error.message };
     revalidatePath(`/site/${input.id}/overview`);
