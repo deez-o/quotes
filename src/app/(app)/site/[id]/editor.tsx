@@ -374,7 +374,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                   <span className="job-item-kind">{KIND_LABEL[i.kind]}</span>
                   {([
                     [ci?.name ?? null, "mix"],
-                    [i.depth_mm ? `${i.depth_mm} mm` : null, ""],
+                    [i.depth_mm ? (i.kind === "seal" ? `${i.depth_mm} mm stone` : `${i.depth_mm} mm`) : null, ""],
                     [i.area_m2 ? `${i.area_m2.toLocaleString("en-AU", { maximumFractionDigits: 0 })} m²` : null, ""],
                     [tonnesOf(i) != null ? `${approx ? "≈ " : ""}${tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: approx ? 0 : 1 })} t` : null, "tonnes"],
                     [i.kind === "asphalt" ? `${own ?? binderLabel(i.binder || settings.binders?.defaultBinder || "C320")} binder` : null, "binder"],
@@ -401,6 +401,9 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 </label>
                 {byArea && (
                   <label style={small}>Area (m²)<input type="text" inputMode="decimal" value={i.area_m2 ?? ""} onChange={(e) => setItem(i.key, { area_m2: toNum(e.target.value) })} /></label>
+                )}
+                {i.kind === "seal" && (
+                  <label style={small}>Stone (mm)<input type="text" inputMode="decimal" value={i.depth_mm ?? ""} placeholder="7, 10 or 14" onChange={(e) => setItem(i.key, { depth_mm: toNum(e.target.value) })} /></label>
                 )}
                 {needsDepth && (
                   <label style={small}>Depth (mm)<input type="text" inputMode="decimal" value={i.depth_mm ?? ""} onChange={(e) => setItem(i.key, { depth_mm: toNum(e.target.value) })} /></label>
