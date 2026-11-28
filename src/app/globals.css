@@ -124,3 +124,6 @@ label { font-weight: 600; }
 /* The RFQ drawings shown on the quote: desktops only (phones open the file instead). */
 .plan-viewer { display: none; }
 @media (min-width: 1000px) { .plan-viewer { display: flex; } }
+
+/* The quote title grows to fit (two lines on a phone) instead of being cut off. */
+.title-box { field-sizing: content; min-height: 1.25em; width: 100%; }

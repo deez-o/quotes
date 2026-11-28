@@ -248,8 +248,10 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           </section>
         )}
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-        <input type="text" aria-label="Quote title" value={scope.title} onChange={(e) => update({ ...scope, title: e.target.value })}
-          style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 600, border: "1px solid transparent", background: "transparent", padding: "4px 0" }} />
+        {/* Wraps on a phone instead of cutting long titles off. */}
+        <textarea aria-label="Quote title" value={scope.title} rows={1} onChange={(e) => update({ ...scope, title: e.target.value.replace(/\n/g, " ") })}
+          className="title-box"
+          style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 600, border: "1px solid transparent", background: "transparent", padding: "4px 0", resize: "none", overflow: "hidden", lineHeight: 1.25 }} />
 
         {(scope.questions.length > 0 || scope.assumptions.length > 0) && (
           <section className="card" style={{ background: "var(--warn-bg)", borderColor: "#f0dba5", display: "flex", flexDirection: "column", gap: 6 }}>
