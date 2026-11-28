@@ -21,7 +21,7 @@ type Section = { key: string; category: string; title: string; hint: string; kin
 
 const SECTIONS: Section[] = [
   { key: "crew", category: "crew", title: "Crew", hint: "Per hour, with overtime. Normal hrs at the rate, then OT hrs at OT × the rate, then the rest at Then ×. E.g. $1,200 an hour, 8 normal hours, 2 at 1.5×, then 2×.", match: (i) => i.category === "crew" },
-  { key: "material", category: "material", title: "Materials", hint: "Base, crushed rock and other materials. Sold by the tonne? Add a density so tonnes are worked out from area and depth.", kinds: [["base", "Base"], ["other", "Other"]],
+  { key: "material", category: "material", title: "Materials", hint: "Base, crushed rock and other materials. Bought by the tonne? Put its weight per m³ (t/m³, e.g. 2.2 for crushed rock) so quoteout can work out tonnes from area and depth.", kinds: [["base", "Base"], ["other", "Other"]],
     match: (i) => i.category === "material" && !i.supply_plant_id && !["asphalt", "seal", "prime"].includes(i.material_kind ?? "") },
   { key: "seal", category: "material", title: "Seal and prime", hint: "Per m². Use a sliding scale when the rate depends on job size.", kinds: [["seal", "Seal"], ["prime", "Prime"]],
     match: (i) => i.category === "material" && !i.supply_plant_id && ["seal", "prime"].includes(i.material_kind ?? "") },
@@ -48,7 +48,8 @@ function columns(category: string, kinds?: [string, string][], plantId?: string)
     t.push("78px", "64px", "64px", "64px");
   } else if (category === "material") {
     if (kinds && !plantId) { base.push("Type"); t.push("110px"); }
-    base.push("t/m³"); t.push("72px");
+    // Seal and prime are per m² or litre: no density.
+    if (!kinds?.some(([v]) => v === "seal")) { base.push("t/m³"); t.push("72px"); }
   } else if (category === "truck") {
     base.push("Carries (t)"); t.push("84px");
   }
@@ -104,8 +105,8 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
               {kinds.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select></Cell>
           )}
-          {isMaterial && (
-            <Cell label="t/m³"><input type="text" inputMode="decimal" name="density_t_per_m3" aria-label={`${n} density (t/m³)`} defaultValue={item?.density_t_per_m3 ?? (plantId && !item ? 2.4 : "")} placeholder={plantId ? "2.4" : "if by tonne"} /></Cell>
+          {isMaterial && !kinds?.some(([v]) => v === "seal") && (
+            <Cell label="Weight (t/m³)"><input type="text" inputMode="decimal" name="density_t_per_m3" aria-label={`${n} density (t/m³)`} defaultValue={item?.density_t_per_m3 ?? (plantId && !item ? 2.4 : "")} placeholder={plantId ? "2.4" : "per tonne only"} /></Cell>
           )}
           {category === "truck" && (
             <Cell label="Carries (t)"><input type="text" inputMode="decimal" name="truck_capacity_t" aria-label={`${n} carries (t)`} defaultValue={item?.truck_capacity_t ?? 12} /></Cell>
