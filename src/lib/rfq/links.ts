@@ -56,6 +56,7 @@ export async function fetchMicrosoftShare(rawUrl: string, token: string, fetchIm
       throw new Error(r.status === 403 || r.status === 401 || /accessDenied|unauthenticated/i.test(detail)
         ? "the connected Microsoft account doesn't have access to that folder (it was probably shared only with the inbox it was sent to)"
         : r.status === 404 ? "that link has expired or was removed"
+        : r.status >= 300 && r.status < 400 ? "Microsoft wouldn't open a company SharePoint folder for this account (a personal Outlook can't; connect the work inbox it was shared with)"
         : `Microsoft said ${r.status}${/"message":"([^"]{1,140})/.exec(detail)?.[1] ? `: ${/"message":"([^"]{1,140})/.exec(detail)![1]}` : ""}`);
     }
     return r.json() as Promise<Record<string, unknown>>;
