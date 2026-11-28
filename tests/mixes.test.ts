@@ -6,6 +6,9 @@ describe("known mixes", () => {
     expect(knownMix("Supply and lay EME2, first layer")).toBe("EME2");
     expect(knownMix("Fischer Road 60mm AC14H (A15E)")).toBe("AC14");
     expect(knownMix("SMA 10 wearing course")).toBe("SMA10");
+    expect(knownMix("AC7M")).toBe("AC7");
+    expect(knownMix("OG14 open graded")).toBe("OG14");
+    expect(knownMix("AC5")).toBeNull();
     expect(knownMix("Supply and spray prime")).toBeNull();
   });
   it("matches library names with extras on them", () => {
