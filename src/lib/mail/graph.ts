@@ -104,7 +104,10 @@ export class GraphMailbox {
       `/${this.mailbox}/messages/${encodeURIComponent(id)}?$select=id,conversationId,subject,from,toRecipients,receivedDateTime,body,hasAttachments`,
       { headers: { Prefer: 'outlook.body-content-type="text"' } },
     );
-    const attachments = m.hasAttachments ? await this.listAttachments(id) : [];
+    // hasAttachments is false when the only attachments are pictures pasted into the body (an areas
+    // table, say), so it can't be trusted: list them whenever the body shows a picture, or Graph says so.
+    const pictures = /\[cid:/i.test(m.body?.content ?? "");
+    const attachments = m.hasAttachments || pictures ? await this.listAttachments(id) : [];
     return toIncomingMessage(m, attachments);
   }
 
