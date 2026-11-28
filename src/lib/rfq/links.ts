@@ -11,7 +11,7 @@ export function findDocLinks(body: string): DocLink[] {
   const out: DocLink[] = [];
   const seen = new Set<string>();
   for (const m of body.matchAll(/https?:\/\/[^\s<>"')\]]+/g)) {
-    const url = unwrapLink(m[0].replace(/[.,;]+$/, ""));
+    let url = unwrapLink(m[0].replace(/[.,;]+$/, ""));
     let host = "";
     try { host = new URL(url).hostname.toLowerCase(); } catch { continue; }
     const kind: DocLink["kind"] | null =
