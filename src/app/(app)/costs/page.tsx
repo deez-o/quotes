@@ -19,6 +19,7 @@ type Item = {
   ordinary_hours: number | null; ot1_hours: number | null; ot1_multiplier: number | null; ot2_multiplier: number | null;
   rate_tiers: { up_to: number; rate: number }[] | null;
   min_hours?: number | null;
+  sell_rate?: number | null;
 };
 type Plant = { id: string; name: string; address: string | null; lat: number | null; lng: number | null; prices_valid_until: string | null; prices_note: string | null; base_binder: string | null };
 
@@ -27,9 +28,9 @@ type Section = { key: string; category: string; title: string; hint: string; kin
 const SECTIONS: Section[] = [
   { key: "crew", category: "crew", title: "Crew", hint: "Per hour, with overtime. Normal hrs at the rate, then OT hrs at OT × the rate, then the rest at Then ×. E.g. $1,200 an hour, 8 normal hours, 2 at 1.5×, then 2×.", match: (i) => i.category === "crew" },
   { key: "material", category: "material", title: "Materials", hint: "Base, crushed rock and other materials. Bought by the tonne? Put its weight per m³ (t/m³, e.g. 2.2 for crushed rock) so quoteout can work out tonnes from area and depth.", kinds: [["base", "Base"], ["other", "Other"]],
-    match: (i) => i.category === "material" && !i.supply_plant_id && !["asphalt", "seal", "prime"].includes(i.material_kind ?? "") },
-  { key: "seal", category: "material", title: "Seal and prime", hint: "Per m². Use a sliding scale when the rate depends on job size.", kinds: [["seal", "Seal"], ["prime", "Prime"]],
-    match: (i) => i.category === "material" && !i.supply_plant_id && ["seal", "prime"].includes(i.material_kind ?? "") },
+    match: (i) => i.category === "material" && !i.supply_plant_id && !["asphalt", "seal", "prime", "tack"].includes(i.material_kind ?? "") },
+  { key: "seal", category: "material", title: "Prime, tack coat and seal", hint: "Per m². Use a sliding scale when the rate depends on job size. Sell at: a fixed price per m² for the quote (e.g. tack coat costs $2, always quoted at $3); leave it blank to put your margin on like everything else.", kinds: [["prime", "Prime"], ["tack", "Tack coat"], ["seal", "Seal"]],
+    match: (i) => i.category === "material" && !i.supply_plant_id && ["seal", "prime", "tack"].includes(i.material_kind ?? "") },
 ];
 const AFTER_ASPHALT: Section[] = [
   { key: "plant", category: "plant", title: "Plant and hire", hint: "Bobcat, profiler, MTV / shuttle buggy and so on. Min hrs: the least you pay for in a day (e.g. 6 for a bobcat with a 6-hour minimum). Leave it blank if there's no minimum. Call the MTV \"MTV\" or \"shuttle buggy\" so RFQs that ask for one pick it up.", match: (i) => i.category === "plant" },
@@ -56,6 +57,7 @@ function columns(category: string, kinds?: [string, string][], plantId?: string)
     if (kinds && !plantId) { base.push("Type"); t.push("110px"); }
     // Seal and prime are per m² or litre: no density.
     if (!kinds?.some(([v]) => v === "seal")) { base.push("t/m³"); t.push("72px"); }
+    else { base.push("Sell at"); t.push("90px"); }
   } else if (category === "truck") {
     base.push("Carries (t)", "Min hrs"); t.push("84px", "64px");
   }
@@ -116,6 +118,9 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
           )}
           {isMaterial && !kinds?.some(([v]) => v === "seal") && (
             <Cell label="Weight (t/m³)"><input type="text" inputMode="decimal" name="density_t_per_m3" aria-label={`${n} density (t/m³)`} defaultValue={item?.density_t_per_m3 ?? (plantId && !item ? 2.4 : "")} placeholder={plantId ? "2.4" : "per tonne only"} /></Cell>
+          )}
+          {isMaterial && kinds?.some(([v]) => v === "seal") && (
+            <Cell label="Sell at"><input type="text" inputMode="decimal" name="sell_rate" aria-label={`${n} sell at (fixed price on the quote)`} title="A fixed price on the quote, instead of your margin" defaultValue={item?.sell_rate ?? ""} placeholder="margin" /></Cell>
           )}
           {category === "truck" && (
             <Cell label="Carries (t)"><input type="text" inputMode="decimal" name="truck_capacity_t" aria-label={`${n} carries (t)`} defaultValue={item?.truck_capacity_t ?? 12} /></Cell>
@@ -188,7 +193,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
   const canEdit = ctx.role === "admin";
   const supabase = await createClient();
   const [{ data: items }, { data: plants }, { data: s }, { data: extras }] = await Promise.all([
-    supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours")
+    supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours, sell_rate")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note, base_binder").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts")

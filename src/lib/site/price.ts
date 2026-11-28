@@ -11,7 +11,9 @@ import { binderExtraFor, binderLabel, type BinderSetup } from "@/lib/binder";
 export type CostItem = {
   id: string;
   category: "crew" | "material" | "plant" | "truck" | "float" | "establishment" | "other";
-  material_kind: "asphalt" | "base" | "prime" | "seal" | "other" | null;
+  material_kind: "asphalt" | "base" | "prime" | "tack" | "seal" | "other" | null;
+  /** A fixed price per unit on the quote (no margin spread), e.g. tack coat always at $3/m². */
+  sell_rate?: number | null;
   name: string;
   unit: "shift" | "day" | "h" | "t" | "m2" | "m3" | "each" | "km";
   rate: number;
@@ -34,7 +36,7 @@ export type CostItem = {
 
 export type SupplyPlant = { id: string; name: string; lat: number | null; lng: number | null };
 
-export type ScopeItemKind = "asphalt" | "base" | "prime" | "seal" | "excavation" | "other";
+export type ScopeItemKind = "asphalt" | "base" | "prime" | "tack" | "seal" | "excavation" | "other";
 
 export type ScopeItem = {
   key: string;
@@ -426,19 +428,30 @@ export function priceSiteQuote(input: {
   // Job lines listed but none of them priced (no areas, no matching mix): nothing to quote yet.
   // Don't turn a float or a crew day into a "1 lot" price that looks like a real quote.
   const unpriced = scope.items.length > 0 && ![...direct.values()].some((v) => v > 0);
-  const priceExGst = unpriced ? 0 : Math.round(cost / (1 - marginPercent / 100));
+  // Items with a fixed sell price (e.g. tack coat at $3/m²) go on at that price; the margin goes on the rest.
+  const fixed = new Map<string, number>();
+  for (const item of scope.items) {
+    const ci = item.cost_item_id ? byId.get(item.cost_item_id) : undefined;
+    if (ci?.sell_rate == null || !((direct.get(item.key) ?? 0) > 0)) continue;
+    const q = itemTonnes.get(item.key) ?? (ci.unit === "m2" ? item.area_m2 : item.quantity) ?? 0;
+    if (q > 0) fixed.set(item.key, Math.round(ci.sell_rate * q));
+  }
+  const fixedCost = [...fixed.keys()].reduce((s, k) => s + (direct.get(k) ?? 0), 0);
+  const fixedSell = [...fixed.values()].reduce((s, v) => s + v, 0);
+  const priceExGst = unpriced ? 0 : Math.round((cost - fixedCost) / (1 - marginPercent / 100)) + fixedSell;
   const gst = round2((priceExGst * settings.gst_percent) / 100);
 
   // Customer lines: one per scope item. Shared costs (trucks, crew, plant) are spread over the
   // items by their share of direct cost, then the margin. Rounded to dollars; the largest line
   // absorbs rounding so the lines add up to the price exactly.
   const shared = cost - estCost - [...direct.values()].reduce((s, v) => s + v, 0);
-  const directTotal = [...direct.values()].reduce((s, v) => s + v, 0);
+  const directTotal = [...direct.entries()].reduce((s, [k, v]) => s + (fixed.has(k) ? 0 : v), 0);
   const priced = scope.items.filter((i) => (direct.get(i.key) ?? 0) > 0);
+  const spreadOver = priced.filter((i) => !fixed.has(i.key)).length || 1;
   const customerLines: CustomerLine[] = priced.map((item) => {
     const d = direct.get(item.key) ?? 0;
-    const share = directTotal > 0 ? d / directTotal : 1 / priced.length;
-    const total = Math.round((d + shared * share) / (1 - marginPercent / 100));
+    const share = fixed.has(item.key) ? 0 : directTotal > 0 ? d / directTotal : 1 / spreadOver;
+    const total = fixed.get(item.key) ?? Math.round((d + shared * share) / (1 - marginPercent / 100));
     const ci = byId.get(item.cost_item_id!)!;
     // Asphalt and base sold by the tonne go on the quote per tonne (supply and lay $/t).
     const t = itemTonnes.get(item.key);
@@ -453,7 +466,7 @@ export function priceSiteQuote(input: {
     customerLines.push({ key: "establishment", description: estCount > 1 ? `${estItem.name} (${estCount} set-ups)` : estItem.name, quantity: estCount, unit: "each", rate: round2(total / estCount), total });
   }
   // Prime and seal go on the quote as one line over the whole area (same product), not one per layer.
-  for (const kind of ["prime", "seal"] as const) {
+  for (const kind of ["prime", "tack", "seal"] as const) {
     const keys = scope.items.filter((i) => i.kind === kind).map((i) => i.key);
     const lines = customerLines.filter((l) => keys.includes(l.key) && l.unit === "m²");
     const byCost = new Map<string, CustomerLine[]>();
@@ -476,7 +489,8 @@ export function priceSiteQuote(input: {
   customerLines.sort((a, b) => (kindOf.get(a.key)?.k ?? 9) - (kindOf.get(b.key)?.k ?? 9) || (kindOf.get(a.key)?.n ?? 0) - (kindOf.get(b.key)?.n ?? 0));
   if (customerLines.length) {
     const diff = priceExGst - customerLines.reduce((s, l) => s + l.total, 0);
-    const biggest = customerLines.reduce((a, b) => (b.total > a.total ? b : a));
+    const flex = customerLines.filter((l) => !fixed.has(l.key));
+    const biggest = (flex.length ? flex : customerLines).reduce((a, b) => (b.total > a.total ? b : a));
     biggest.total += diff;
     biggest.rate = round2(biggest.total / biggest.quantity);
   } else if (priceExGst > 0) {

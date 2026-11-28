@@ -9,7 +9,7 @@ import { importPriceList, readPriceListFile, type ImportLine } from "./price-lis
 
 const MAX_MB = 20;
 const UNITS: [string, string][] = [["t", "tonne"], ["m2", "m²"], ["m3", "m³"], ["each", "each"], ["h", "hour"], ["day", "day"], ["km", "km"]];
-const KINDS: [string, string][] = [["asphalt", "Asphalt"], ["base", "Base"], ["prime", "Prime"], ["seal", "Seal"], ["other", "Other"]];
+const KINDS: [string, string][] = [["asphalt", "Asphalt"], ["base", "Base"], ["prime", "Prime"], ["tack", "Tack coat"], ["seal", "Seal"], ["other", "Other"]];
 const sel: React.CSSProperties = { font: "inherit", padding: 8, borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff" };
 
 type Row = ImportLine & { use: boolean; notes: string | null };

@@ -35,7 +35,7 @@ export type QuoteView = {
 };
 
 const UNIT: Record<string, string> = { shift: "shifts", day: "days", h: "hours", t: "t", m2: "m²", m3: "m³", each: "each", km: "km" };
-const KIND_LABEL: Record<ScopeItem["kind"], string> = { asphalt: "Asphalt", base: "Base", prime: "Prime", seal: "Seal", excavation: "Excavation", other: "Other" };
+const KIND_LABEL: Record<ScopeItem["kind"], string> = { asphalt: "Asphalt", base: "Base", prime: "Prime", tack: "Tack coat", seal: "Seal", excavation: "Excavation", other: "Other" };
 const toNum = (s: string) => (s.trim() === "" ? null : Number(s.replace(/[,\s]/g, "")));
 const small: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12, fontWeight: 600 };
 const sel: React.CSSProperties = { font: "inherit", padding: 10, borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff", width: "100%" };
@@ -111,7 +111,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   // Mixes from the chosen plant (and general costs) first, then other plants' mixes.
   const plantOrder = (c: CostItem) => (!c.supply_plant_id || c.supply_plant_id === scope.supply_plant_id ? 0 : 1);
   const optionsFor = (kind: ScopeItem["kind"]) =>
-    active.toSorted((a, b) => plantOrder(a) - plantOrder(b)).filter((c) => (["asphalt", "base", "prime", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck" && c.category !== "float" && c.category !== "establishment"));
+    active.toSorted((a, b) => plantOrder(a) - plantOrder(b)).filter((c) => (["asphalt", "base", "prime", "tack", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck" && c.category !== "float" && c.category !== "establishment"));
 
   const [xeroNo, setXeroNo] = useState<string | null>(quote.xero_quote_number);
   async function toXero() {
@@ -339,7 +339,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           {scope.items.map((i) => {
             const ci = active.find((c) => c.id === i.cost_item_id);
             const tonnesOf = (x: ScopeItem) => (x.kind === "asphalt" || x.kind === "base") && ci?.density_t_per_m3 && x.area_m2 && x.depth_mm ? x.area_m2 * (x.depth_mm / 1000) * ci.density_t_per_m3 : null;
-            const byArea = ["asphalt", "base", "prime", "seal"].includes(i.kind) || ci?.unit === "m2";
+            const byArea = ["asphalt", "base", "prime", "tack", "seal"].includes(i.kind) || ci?.unit === "m2";
             const needsDepth = i.kind === "asphalt" || i.kind === "base" || ci?.unit === "m3";
             return (
               <div key={i.key} className="job-item" data-kind={i.kind}>

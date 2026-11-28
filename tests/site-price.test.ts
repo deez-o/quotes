@@ -129,3 +129,14 @@ describe("establishments and rates", () => {
     expect(p.priceExGst).toBe(base.priceExGst);
   });
 });
+
+describe("fixed sell price", () => {
+  it("puts tack coat on at its sell price and the margin on the rest", () => {
+    const tack: CostItem = { id: "tack", category: "material", material_kind: "tack", name: "Tack coat", unit: "m2", rate: 2, sell_rate: 3, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true };
+    const scope = { ...carpark(), items: [...carpark().items.filter((i) => i.kind !== "prime"), { key: "t1", kind: "tack" as const, description: "Tack coat", area_m2: 2000, depth_mm: null, cost_item_id: "tack", quantity: null }] };
+    const p = priceSiteQuote({ scope, library: [...lib, tack], settings, haul: { km: 38, minutes: 42, source: "entered" }, marginPercent: 15 });
+    expect(p.customerLines.find((l) => l.key === "t1")).toMatchObject({ quantity: 2000, unit: "m²", rate: 3, total: 6000 });
+    expect(p.customerLines.reduce((s, l) => s + l.total, 0)).toBe(p.priceExGst);
+    expect(p.customerLines.map((l) => l.key).indexOf("t1")).toBeLessThan(p.customerLines.map((l) => l.key).indexOf("i1")); // tack coat above the asphalt
+  });
+});

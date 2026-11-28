@@ -61,7 +61,7 @@ export async function readPriceListFile(input: { plantId: string; paths: string[
 export type ImportLine = { name: string; unit: string; rate: number; kind: string; density: number | null; existingId: string | null };
 
 const UNITS = new Set(["t", "m2", "m3", "each", "h", "day", "km"]);
-const KINDS = new Set(["asphalt", "base", "prime", "seal", "other"]);
+const KINDS = new Set(["asphalt", "base", "prime", "tack", "seal", "other"]);
 
 /** Save the rows the user ticked: update prices that exist at this plant, add the rest. */
 export async function importPriceList(input: { plantId: string; lines: ImportLine[]; validUntil: string | null; supplier: string | null; baseBinder?: string | null; binderExtras?: { binder: string; extra_per_t: number }[] }): Promise<{ ok: true; updated: number; added: number; binders: number } | Fail> {

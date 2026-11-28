@@ -11,7 +11,7 @@ export type PriceListLine = {
   /** As printed, mapped to our units where it's clear. */
   unit: "t" | "m2" | "m3" | "each" | "h" | "day" | "km" | "other";
   rate: number;
-  kind: "asphalt" | "base" | "prime" | "seal" | "other";
+  kind: "asphalt" | "base" | "prime" | "tack" | "seal" | "other";
   notes: string | null;
 };
 
@@ -50,7 +50,7 @@ export const PRICE_LIST_SCHEMA = {
             name: { type: "string" },
             unit: { type: "string", enum: ["t", "m2", "m3", "each", "h", "day", "km", "other"] },
             rate: { type: "number" },
-            kind: { type: "string", enum: ["asphalt", "base", "prime", "seal", "other"] },
+            kind: { type: "string", enum: ["asphalt", "base", "prime", "tack", "seal", "other"] },
             notes: { type: ["string", "null"] },
           },
         },
@@ -105,7 +105,7 @@ export function buildPriceListMessages(input: { plantName: string; text: string 
 }
 
 const UNITS = new Set(["t", "m2", "m3", "each", "h", "day", "km", "other"]);
-const KINDS = new Set(["asphalt", "base", "prime", "seal", "other"]);
+const KINDS = new Set(["asphalt", "base", "prime", "tack", "seal", "other"]);
 
 /** Drop anything unusable; tidy names; flag inc-GST prices. */
 export function cleanPriceList(raw: unknown): PriceListRead {

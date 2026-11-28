@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { searchPlaces } from "@/lib/maps";
 
 const CATEGORIES = ["crew", "material", "plant", "truck", "float", "establishment", "other"] as const;
-const KINDS = ["asphalt", "base", "prime", "seal", "other"] as const;
+const KINDS = ["asphalt", "base", "prime", "tack", "seal", "other"] as const;
 const UNITS = ["shift", "day", "h", "t", "m2", "m3", "each", "km"] as const;
 
 function num(v: FormDataEntryValue | null): number | null {
@@ -42,6 +42,8 @@ export async function saveCostItem(formData: FormData) {
   const ot1m = num(formData.get("ot1_multiplier"));
   const ot2m = num(formData.get("ot2_multiplier"));
   const minHours = num(formData.get("min_hours"));
+  const sellRate = num(formData.get("sell_rate"));
+  if (Number.isNaN(sellRate) || (sellRate != null && sellRate < 0)) back("Sell at is a price per unit (numbers only), or leave it blank.");
   if (Number.isNaN(minHours) || (minHours != null && (minHours <= 0 || minHours > 24))) back("Minimum hire is hours a day, between 0 and 24.");
   const hourly = (category === "crew" || category === "plant") && unit === "h";
   if (hourly && ordinary != null) {
@@ -79,6 +81,7 @@ export async function saveCostItem(formData: FormData) {
     tenant_id: ctx.tenant.id, name, category, unit, rate, material_kind,
     density_t_per_m3: density, includes_delivery: formData.get("includes_delivery") === "on",
     min_hours: ["crew", "plant", "truck"].includes(category) ? minHours : null,
+    sell_rate: category === "material" ? sellRate : null,
     truck_capacity_t: category === "truck" ? capacity ?? 12 : null, supply_plant_id, active: true, rate_tiers: tiers.length ? tiers : null,
     ordinary_hours: hourly ? ordinary : null, ot1_hours: hourly && ordinary ? ot1h ?? 2 : null,
     ot1_multiplier: hourly && ordinary ? ot1m ?? 1.5 : null, ot2_multiplier: hourly && ordinary ? ot2m ?? 2 : null, updated_at: new Date().toISOString(),

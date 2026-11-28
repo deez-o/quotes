@@ -8,12 +8,12 @@ export const DEFAULT_PRICING: PricingSettings = {
 
 const optNum = (v: unknown) => (v == null ? null : Number(v));
 const tiers = (v: unknown) => (Array.isArray(v) ? v.map((t) => ({ up_to: Number(t?.up_to), rate: Number(t?.rate) })).filter((t) => t.up_to > 0 && Number.isFinite(t.rate)) : null);
-const nums = (c: CostItem) => ({ min_hours: optNum(c.min_hours), rate_tiers: tiers(c.rate_tiers), ordinary_hours: optNum(c.ordinary_hours), ot1_hours: optNum(c.ot1_hours), ot1_multiplier: optNum(c.ot1_multiplier), ot2_multiplier: optNum(c.ot2_multiplier) });
+const nums = (c: CostItem) => ({ min_hours: optNum(c.min_hours), sell_rate: optNum(c.sell_rate), rate_tiers: tiers(c.rate_tiers), ordinary_hours: optNum(c.ordinary_hours), ot1_hours: optNum(c.ot1_hours), ot1_multiplier: optNum(c.ot1_multiplier), ot2_multiplier: optNum(c.ot2_multiplier) });
 
 /** Everything a site quote is priced from, for one tenant (RLS applies). */
 export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
   const [{ data: items }, { data: plants }, { data: s }, { data: extras }] = await Promise.all([
-    db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours")
+    db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours, sell_rate")
       .eq("tenant_id", tenantId).order("name"),
     db.from("supply_plants").select("id, name, lat, lng, base_binder").eq("tenant_id", tenantId).eq("active", true).order("name"),
     db.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, default_binder")
