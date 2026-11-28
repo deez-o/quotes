@@ -156,3 +156,14 @@ describe("profiling", () => {
     expect(at({ charge: "lump", lump_qty: 8 })).toMatchObject({ unit: "lump sum", rate: 4000, cost: 3200, quantity: 8 });
   });
 });
+
+describe("mill and fill", () => {
+  it("prices profiling from the area and depth at the profiler's hourly rate, first on the quote", () => {
+    const prof: CostItem = { id: "prof", category: "plant", material_kind: null, name: "Profiler", unit: "h", rate: 450, min_hours: 6, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true };
+    const scope = { ...carpark(), items: [{ key: "m1", kind: "profile" as const, description: "Profile", area_m2: 2000, depth_mm: 40, cost_item_id: "prof", quantity: null }, ...carpark().items] };
+    const p = priceSiteQuote({ scope, library: [...lib, prof], settings, haul: { km: 38, minutes: 42, source: "entered" }, marginPercent: 15 });
+    // 250 m²/h at 50 mm -> 312 m²/h at 40 mm; 2,000 ÷ 312 = 6.4 -> 6.5 h
+    expect(p.costLines.find((l) => l.key === "m1")).toMatchObject({ cost: 2925 });
+    expect(p.customerLines[0]).toMatchObject({ key: "m1", description: "Profile 40 mm", quantity: 2000, unit: "m²" });
+  });
+});

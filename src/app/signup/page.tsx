@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/track";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -30,6 +31,7 @@ export default function SignUpPage() {
     setError(null);
     const r = await signUp({ company, email, password, plan, website });
     if (!r.ok) { setBusy(false); setError(r.message); return; }
+    track("signup", { plan });
     const { error } = await createClient().auth.signInWithPassword({ email: email.trim(), password });
     if (error) { setBusy(false); setError("Your account is made. Sign in to carry on."); return; }
     window.location.assign(r.next);

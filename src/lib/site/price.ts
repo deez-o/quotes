@@ -1,4 +1,5 @@
 import { planTrucks } from "./trucks";
+import { DEFAULT_CREW_OUTPUT, profilingHours } from "./crew-days";
 import { WORK_ORDER } from "./tidy";
 /**
  * Site-quote pricing: plain code, never the AI. Turns a scope (what was said
@@ -38,7 +39,7 @@ export type CostItem = {
 
 export type SupplyPlant = { id: string; name: string; lat: number | null; lng: number | null };
 
-export type ScopeItemKind = "asphalt" | "base" | "prime" | "tack" | "seal" | "excavation" | "other";
+export type ScopeItemKind = "profile" | "asphalt" | "base" | "prime" | "tack" | "seal" | "excavation" | "other";
 
 export type ScopeItem = {
   key: string;
@@ -341,6 +342,15 @@ export function priceSiteQuote(input: {
         calc = { kind: "tonnes", area_m2: item.area_m2, depth_mm: item.depth_mm, density: ci.density_t_per_m3, tonnes, rate, unit: "t", band: r.band, delivered: ci.includes_delivery };
         if (!ci.includes_delivery) truckTonnes += tonnes;
       }
+    } else if (item.kind === "profile" && ci.unit === "h") {
+      // Mill and fill: the profiler's hours from the area and depth (Costs: m² an hour at 50 mm).
+      if (!item.area_m2) warnings.push(`"${item.description}" needs an area.`);
+      const ph = profilingHours(item.area_m2 ?? 0, item.depth_mm, settings.crewOutput ?? DEFAULT_CREW_OUTPUT);
+      qty = Math.max(ph.hours, ci.min_hours ?? 0);
+      const r = rateFor(ci, qty);
+      rate = r.rate;
+      working = `${fmtN(item.area_m2 ?? 0, 0)} m² at ${item.depth_mm ?? 50} mm ÷ ${fmtN(ph.perHour, 0)} m²/h = ${fmtN(ph.hours, 1)} h${qty > ph.hours ? `, ${fmtN(qty)} h minimum` : ""} × ${money(rate)}/h`;
+      calc = { kind: "qty", qty, rate, unit: "h", band: r.band };
     } else if (ci.unit === "m3") {
       const m3 = item.quantity ?? (item.area_m2 && item.depth_mm ? round2(item.area_m2 * (item.depth_mm / 1000)) : 0);
       qty = m3;
@@ -528,6 +538,7 @@ export function priceSiteQuote(input: {
       item = { ...item, description: `Prime (${ci.name})` };
     }
     const isArea = item.area_m2 && (item.kind !== "other" || ci.unit === "m2");
+    if (item.kind === "profile" && /^\s*profil(e|ing)\s*$/i.test(item.description)) item = { ...item, description: `Profile${item.depth_mm ? ` ${item.depth_mm} mm` : ""}` };
     const quantity = isArea ? item.area_m2! : item.quantity ?? 1;
     const unit = isArea ? "m²" : UNIT_LABEL[ci.unit];
     return { key: item.key, description: item.description, quantity, unit, rate: round2(total / quantity), total };

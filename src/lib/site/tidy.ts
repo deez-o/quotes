@@ -1,7 +1,7 @@
 import type { ScopeItem } from "./price";
 
-/** The order on the quote: dig out, base, the seal work (prime and seal), tack coat, asphalt, then the rest. */
-export const WORK_ORDER: Record<ScopeItem["kind"], number> = { excavation: 0, base: 1, prime: 2, seal: 3, tack: 4, asphalt: 5, other: 6 };
+/** The order on the quote: profile (mill and fill), dig out, base, the seal work (prime and seal), tack coat, asphalt, then the rest. */
+export const WORK_ORDER: Record<ScopeItem["kind"], number> = { profile: 0, excavation: 1, base: 2, prime: 3, seal: 4, tack: 5, asphalt: 6, other: 7 };
 
 /**
  * One prime (or seal) line per product over the whole area it covers, and the lines in

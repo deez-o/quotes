@@ -8,11 +8,13 @@ import type { SiteScope } from "./price";
 export type CrewOutput = {
   subdivisionNear: number; subdivisionFar: number; carpark: number; near: number; far: number;
   farMinutes: number; stretchPercent: number; hours: number; longHours: number;
+  /** m² a profiler takes off an hour at 50 mm (deeper is slower in proportion). */
+  profileM2PerHour: number;
 };
 
 export const DEFAULT_CREW_OUTPUT: CrewOutput = {
   subdivisionNear: 5000, subdivisionFar: 4500, carpark: 2500, near: 4500, far: 3700,
-  farMinutes: 60, stretchPercent: 15, hours: 10, longHours: 12,
+  farMinutes: 60, stretchPercent: 15, hours: 10, longHours: 12, profileM2PerHour: 250,
 };
 
 export function cleanCrewOutput(raw: unknown): CrewOutput {
@@ -24,7 +26,7 @@ export function cleanCrewOutput(raw: unknown): CrewOutput {
   return {
     subdivisionNear: n("subdivisionNear", 100, 50000), subdivisionFar: n("subdivisionFar", 100, 50000), carpark: n("carpark", 100, 50000),
     near: n("near", 100, 50000), far: n("far", 100, 50000), farMinutes: n("farMinutes", 5, 600), stretchPercent: n("stretchPercent", 0, 50),
-    hours: n("hours", 1, 24), longHours: n("longHours", 1, 24),
+    hours: n("hours", 1, 24), longHours: n("longHours", 1, 24), profileM2PerHour: n("profileM2PerHour", 10, 5000),
   };
 }
 
@@ -75,4 +77,14 @@ export function planCrew(scope: SiteScope, haulMinutes: number | null, o: CrewOu
     : plan.hours === o.longHours ? `just over ${plan.shifts} shift${plan.shifts === 1 ? "" : "s"}, so ${o.longHours}-hour days instead of another shift` : `${o.hours}-hour days`;
   const note = `Crew: ${Math.round(m2).toLocaleString("en-AU")} m² of asphalt at about ${day.toLocaleString("en-AU")} m² a shift${haulMinutes != null && haulMinutes > o.farMinutes ? " (long haul)" : ""}${factor !== 1 ? ` (${Math.round(factor * 100)}% of a normal day, from the plans)` : ""} = ${shifts} shift${shifts === 1 ? "" : "s"}, ${why}.`;
   return { scope: { ...scope, crew }, note };
+}
+
+/**
+ * Profiler hours for mill and fill: m² an hour at 50 mm, slower in proportion when deeper
+ * (100 mm takes twice as long), to the half hour.
+ */
+export function profilingHours(m2: number, depthMm: number | null, o: CrewOutput): { hours: number; perHour: number } {
+  const depth = depthMm && depthMm > 0 ? depthMm : 50;
+  const perHour = Math.round(o.profileM2PerHour * Math.min(2, 50 / Math.max(25, depth)));
+  return { hours: Math.max(0.5, Math.ceil((m2 / perHour) * 2) / 2), perHour };
 }

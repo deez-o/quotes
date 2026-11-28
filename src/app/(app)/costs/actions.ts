@@ -243,7 +243,7 @@ export async function removeBinderExtra(input: { plantId: string; binder: string
 export async function saveCrewOutput(formData: FormData) {
   const ctx = await adminCtx();
   const raw: Record<string, number> = {};
-  for (const k of ["subdivisionNear", "subdivisionFar", "near", "far", "carpark", "farMinutes", "stretchPercent", "hours", "longHours"]) {
+  for (const k of ["subdivisionNear", "subdivisionFar", "near", "far", "carpark", "farMinutes", "stretchPercent", "hours", "longHours", "profileM2PerHour"]) {
     const n = num(formData.get(k));
     if (n == null || Number.isNaN(n) || n < 0) back("Crew output must be numbers.");
     raw[k] = n as number;

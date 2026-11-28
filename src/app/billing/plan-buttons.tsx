@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { buyTopup, choosePlan, manageBilling } from "./actions";
+import { track } from "@/lib/track";
 
 export function PlanButton({ plan, label, primary, confirmText, autoStart }: { plan: string; label: string; primary?: boolean; confirmText?: string; autoStart?: boolean }) {
   const [pending, start] = useTransition();
@@ -11,7 +12,7 @@ export function PlanButton({ plan, label, primary, confirmText, autoStart }: { p
 
   const go = () => start(async () => {
     const r = await choosePlan(plan);
-    if (r.ok && r.url) { window.location.assign(r.url); return; }
+    if (r.ok && r.url) { track("checkout", { plan }); window.location.assign(r.url); return; }
     setMsg(r.ok ? { ok: true, text: r.message ?? "Done." } : { ok: false, text: r.message });
     setConfirming(false);
   });
@@ -58,7 +59,7 @@ export function TopupButton({ quotes, price }: { quotes: number; price: number }
       </select>
       <button type="button" className="btn primary" disabled={pending} onClick={() => start(async () => {
         const r = await buyTopup(packs);
-        if (r.ok && r.url) window.location.assign(r.url); else if (!r.ok) setErr(r.message);
+        if (r.ok && r.url) { track("checkout", { topup_quotes: packs * quotes, value: packs * price }); window.location.assign(r.url); } else if (!r.ok) setErr(r.message);
       })}>{pending ? "Opening..." : "Buy quotes"}</button>
       {err && <span className="error" role="status" style={{ fontSize: 13 }}>{err}</span>}
     </div>

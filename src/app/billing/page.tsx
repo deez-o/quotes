@@ -1,3 +1,4 @@
+import { TrackOnce } from "@/app/tracker";
 import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { loadAccess } from "@/lib/access-load";
@@ -65,6 +66,8 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
               )}
             </section>
           )}
+          {q.paid && <TrackOnce kind="purchase" details={{ plan: current.id, value: current.priceMonthly ?? null }} />}
+          {q.topped && <TrackOnce kind="purchase" details={{ topup_quotes: Number(q.topped) || null }} />}
           {q.paid && <p className="card" style={{ background: "var(--good-bg)", borderColor: "var(--good)", margin: 0 }}>Thanks, payment received. Your plan switches on within a minute. <Link href="/setup" style={{ fontWeight: 600, textDecoration: "underline" }}>Go to Setup</Link></p>}
           {q.cancelled && <p className="card" style={{ margin: 0 }}>Payment wasn&apos;t finished. Pick a plan below whenever you&apos;re ready.</p>}
           {access.state === "locked" && !q.paid && (

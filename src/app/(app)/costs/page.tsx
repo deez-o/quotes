@@ -304,6 +304,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
               {f("stretchPercent", "Go over by up to", co.stretchPercent, "%")}
               {f("hours", "Normal day", co.hours, "h")}
               {f("longHours", "Long day", co.longHours, "h")}
+              {f("profileM2PerHour", "Profiler, m² an hour at 50 mm", co.profileM2PerHour, "m²/h")}
             </fieldset>
           </form>
         );
