@@ -552,18 +552,27 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         {(priced.optionalRates.length > 0 || canEdit) && (
           <div style={{ marginTop: 14, borderTop: "1px solid var(--line-soft)", paddingTop: 10 }}>
             <strong style={{ fontSize: 14 }}>Rates, not in the total</strong>
-            <p className="sub" style={{ margin: "2px 0 6px", fontSize: 12 }}>Extras the customer asked for a rate on (extra establishment, optional MTV). Shown on the quote with your margin on.</p>
+            <p className="sub" style={{ margin: "2px 0 6px", fontSize: 12 }}>Extra-overs the customer asked for (extra establishment, MTV, profiling): a rate, or a lump sum if you put a quantity. Shown on the quote with your margin on.</p>
             {priced.optionalRates.map((o) => (
               <div key={o.key} className="row" style={{ gap: 10, padding: "4px 0", alignItems: "center" }}>
-                <span className="grow">{o.description}</span><span style={{ fontWeight: 600 }}>{money(o.rate)} per {o.unit}</span>
+                <span className="grow">{o.description}</span>
+                {canEdit && (
+                  <label className="sub" style={{ marginTop: 0, fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }} title="Leave blank for a rate; put a quantity for a lump sum">
+                    Lump sum for
+                    <input type="text" inputMode="decimal" placeholder="–" value={(scope.optional_rates ?? []).find((x) => x.key === o.key)?.quantity ?? ""} style={{ width: 80, padding: "6px 8px" }}
+                      onChange={(e) => update({ ...scope, optional_rates: (scope.optional_rates ?? []).map((x) => x.key === o.key ? { ...x, quantity: toNum(e.target.value) } : x) })} />
+                    {o.unit}
+                  </label>
+                )}
+                <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{o.total ? `${money(o.total)} lump sum` : `${money(o.rate)} per ${o.unit}`}</span>
                 {canEdit && <button type="button" className="job-item-remove" style={{ marginLeft: 0 }} onClick={() => update({ ...scope, optional_rates: (scope.optional_rates ?? []).filter((x) => x.key !== o.key) })}>Remove</button>}
               </div>
             ))}
             {canEdit && (
               <select style={{ ...sel, maxWidth: 320, marginTop: 6 }} value="" aria-label="Add a rate"
-                onChange={(e) => { const c = active.find((x) => x.id === e.target.value); if (c) update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: c.id, description: c.category === "establishment" ? "Extra establishment (each)" : `${c.name} (optional)` }] }); }}>
+                onChange={(e) => { const c = active.find((x) => x.id === e.target.value); if (c) update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: c.id, description: c.category === "establishment" ? "Extra establishment (each)" : `${c.name} (extra over)` }] }); }}>
                 <option value="">+ Add a rate...</option>
-                {active.filter((c) => ["establishment", "plant", "crew", "other"].includes(c.category)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {active.filter((c) => ["establishment", "plant", "crew", "other", "material"].includes(c.category) && !c.supply_plant_id).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             )}
           </div>

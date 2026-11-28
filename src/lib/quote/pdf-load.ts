@@ -45,7 +45,7 @@ export async function loadQuotePdf(db: SupabaseClient, tenantId: string, id: str
       id: g.id, label: group.length > 1 ? g.option_label : null, title: g.title || "Quote",
       lines: (c?.customerLines ?? []).map((l) => ({ description: l.description, quantity: l.quantity, unit: l.unit, rate: l.rate, total: l.total })),
       totals: { exGst: c?.priceExGst ?? 0, gst: c?.gst ?? 0, incGst: c?.priceIncGst ?? 0 },
-      rates: (c?.optionalRates ?? []).map((r) => ({ description: r.description, unit: r.unit, rate: r.rate })),
+      rates: (c?.optionalRates ?? []).map((r) => ({ description: r.description, unit: r.unit, rate: r.rate, quantity: r.quantity ?? null, total: r.total ?? null })),
     };
   });
   const areas = lead.overview?.areas ?? [];

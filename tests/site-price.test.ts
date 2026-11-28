@@ -125,7 +125,7 @@ describe("establishments and rates", () => {
   it("shows asked-for rates with the margin on, outside the total", () => {
     const base = priceSiteQuote({ scope: carpark(), library: [...lib, est, mtv], settings, haul, marginPercent: 20 });
     const p = priceSiteQuote({ scope: { ...carpark(), optional_rates: [{ key: "o1", cost_item_id: "est", description: "Extra establishment (each)" }, { key: "o2", cost_item_id: "mtv", description: "MTV (optional)" }] }, library: [...lib, est, mtv], settings, haul, marginPercent: 20 });
-    expect(p.optionalRates).toEqual([{ key: "o1", description: "Extra establishment (each)", unit: "each", rate: 1250 }, { key: "o2", description: "MTV (optional)", unit: "h", rate: 500 }]);
+    expect(p.optionalRates).toEqual([{ key: "o1", description: "Extra establishment (each)", unit: "each", rate: 1250, quantity: null, total: null }, { key: "o2", description: "MTV (optional)", unit: "h", rate: 500, quantity: null, total: null }]);
     expect(p.priceExGst).toBe(base.priceExGst);
   });
 });
@@ -138,5 +138,13 @@ describe("fixed sell price", () => {
     expect(p.customerLines.find((l) => l.key === "t1")).toMatchObject({ quantity: 2000, unit: "m²", rate: 3, total: 6000 });
     expect(p.customerLines.reduce((s, l) => s + l.total, 0)).toBe(p.priceExGst);
     expect(p.customerLines.map((l) => l.key).indexOf("t1")).toBeLessThan(p.customerLines.map((l) => l.key).indexOf("i1")); // tack coat above the asphalt
+  });
+});
+
+describe("lump sums", () => {
+  it("turns a rate with a quantity into a lump sum", () => {
+    const prof: CostItem = { id: "prof", category: "plant", material_kind: null, name: "Profiling", unit: "m2", rate: 4, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true };
+    const p = priceSiteQuote({ scope: { ...carpark(), optional_rates: [{ key: "o1", cost_item_id: "prof", description: "Profiling (extra over)", quantity: 7002 }] }, library: [...lib, prof], settings, haul: { km: 38, minutes: 42, source: "entered" }, marginPercent: 20 });
+    expect(p.optionalRates[0]).toMatchObject({ rate: 5, quantity: 7002, total: 35010, unit: "m²" });
   });
 });

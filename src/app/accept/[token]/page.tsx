@@ -102,7 +102,7 @@ export default async function AcceptPage({ params }: { params: Promise<{ token: 
               <div style={{ padding: "4px 14px 14px", fontSize: 14 }}>
                 <strong>Rates, if needed</strong> <span style={{ color: "#6b7280" }}>(not included in the total, ex GST)</span>
                 {(c?.optionalRates ?? []).map((r) => (
-                  <div key={r.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0", borderTop: "1px solid #eef0f2" }}><span>{r.description}</span><span style={{ whiteSpace: "nowrap" }}>{money(r.rate)} per {r.unit}</span></div>
+                  <div key={r.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "4px 0", borderTop: "1px solid #eef0f2" }}><span>{r.description}</span><span style={{ whiteSpace: "nowrap" }}>{r.total ? `${money(r.total)} lump sum (${r.quantity?.toLocaleString("en-AU")} ${r.unit} @ ${money(r.rate)})` : `${money(r.rate)} per ${r.unit}`}</span></div>
                 ))}
               </div>
             )}

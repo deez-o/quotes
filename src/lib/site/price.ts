@@ -72,7 +72,7 @@ export type SiteScope = {
   /** Set-ups on site the job needs (e.g. one for the prime and one per asphalt layer). Null = 1 when there's work. */
   establishments?: number | null;
   /** Rates the customer asked for that aren't in the price (extra establishment, MTV if needed). */
-  optional_rates?: { key: string; cost_item_id: string; description: string }[];
+  optional_rates?: { key: string; cost_item_id: string; description: string; quantity?: number | null }[];
   /** The job's address or suburb as they said it (the AI hears it); used instead of the phone's location. */
   site_location?: string | null;
   /** True when the plant was picked as the nearest one (re-picked if the site moves); false once the user chooses. */
@@ -136,7 +136,7 @@ export type Priced = {
   shifts: number;
   profitPerShift: number | null;
   /** Rate-only lines shown on the quote, not added to the total: the cost rate with the margin on. */
-  optionalRates: { key: string; description: string; unit: string; rate: number }[];
+  optionalRates: { key: string; description: string; unit: string; rate: number; quantity?: number | null; total?: number | null }[];
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -520,7 +520,11 @@ export function priceSiteQuote(input: {
   // Rates asked for but not in the price: the cost rate with the same margin on.
   const optionalRates = (scope.optional_rates ?? []).flatMap((o) => {
     const ci = byId.get(o.cost_item_id);
-    return ci && ci.active ? [{ key: o.key, description: o.description || ci.name, unit: UNIT_LABEL[ci.unit], rate: Math.round(ci.rate / (1 - marginPercent / 100)) }] : [];
+    if (!ci || !ci.active) return [];
+    const rate = ci.sell_rate ?? (ci.rate < 50 ? round2(ci.rate / (1 - marginPercent / 100)) : Math.round(ci.rate / (1 - marginPercent / 100)));
+    // A quantity makes it a lump sum (e.g. profiling 7,002 m² at the m² rate).
+    const q = o.quantity != null && o.quantity > 0 ? o.quantity : null;
+    return [{ key: o.key, description: o.description || ci.name, unit: UNIT_LABEL[ci.unit], rate, quantity: q, total: q ? Math.round(rate * q) : null }];
   });
 
   return {
