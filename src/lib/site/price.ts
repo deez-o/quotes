@@ -475,7 +475,8 @@ export function priceSiteQuote(input: {
   const directTotal = [...direct.entries()].reduce((s, [k, v]) => s + (fixed.has(k) ? 0 : v), 0);
   const priced = scope.items.filter((i) => (direct.get(i.key) ?? 0) > 0);
   const spreadOver = priced.filter((i) => !fixed.has(i.key)).length || 1;
-  const customerLines: CustomerLine[] = priced.map((item) => {
+  const customerLines: CustomerLine[] = priced.map((it) => {
+    let item = it;
     const d = direct.get(item.key) ?? 0;
     const share = fixed.has(item.key) ? 0 : directTotal > 0 ? d / directTotal : 1 / spreadOver;
     const total = fixed.get(item.key) ?? Math.round((d + shared * share) / (1 - marginPercent / 100));
@@ -483,6 +484,12 @@ export function priceSiteQuote(input: {
     // Asphalt and base sold by the tonne go on the quote per tonne (supply and lay $/t).
     const t = itemTonnes.get(item.key);
     if (t) return { key: item.key, description: item.description, quantity: t, unit: "t", rate: round2(total / t), total };
+    // A bare "Seal" or "Prime" says what it is on the quote: "C170 seal, 10 mm stone", "Prime (K2)".
+    if (item.kind === "seal" && /^\s*(spray\s*)?seal\s*$/i.test(item.description)) {
+      item = { ...item, description: `${ci.name} seal${item.depth_mm ? `, ${item.depth_mm} mm stone` : ""}` };
+    } else if (item.kind === "prime" && /^\s*prime\s*$/i.test(item.description) && !/^\s*prime\s*$/i.test(ci.name)) {
+      item = { ...item, description: `Prime (${ci.name})` };
+    }
     const isArea = item.area_m2 && (item.kind !== "other" || ci.unit === "m2");
     const quantity = isArea ? item.area_m2! : item.quantity ?? 1;
     const unit = isArea ? "m²" : UNIT_LABEL[ci.unit];
