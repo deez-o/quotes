@@ -130,7 +130,7 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
           if (!/code|verif|sign|log ?in|access/i.test(m.subject ?? "")) continue;
           const full = await g.getMessage(m.id);
           if (!isPortalCodeEmail(full.from, full.subject, full.bodyText)) continue;
-          const code = codeFromEmail(full.subject, full.bodyText.replace(/^.*?(one[- ]time|verification)/is, "$1"));
+          const code = codeFromEmail(full.subject, full.bodyText.replace(/^[\s\S]*?(one[- ]time|verification)/i, "$1"));
           if (code) return code;
         }
         return null;
