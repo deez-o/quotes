@@ -19,6 +19,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/ai">AI model</Link>
           <Link href="/admin/errors">Errors</Link>
           <Link href="/admin/support">Help requests</Link>
+          <Link href="/admin/help-chats">Help chats</Link>
           <Link href="/admin/bitumen">Bitumen index</Link>
         </nav>
         <span style={{ marginLeft: "auto", fontSize: 13, color: "#b6bcc4" }}>{me.email}</span>

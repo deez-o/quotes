@@ -2,6 +2,8 @@ import { requireTenant } from "@/lib/tenant";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CloseForm, HelpForm } from "./forms";
 import { undoClose } from "./actions";
+import { HelpChat } from "./chat";
+import { latestChat } from "./chat-actions";
 
 const FAQ: [string, string][] = [
   ["How do I quote an RFQ?", "Forward the RFQ email (attachments and all) to your quoteout address, shown under New Quote → Import an RFQ. You can also drag the email in or paste it there. quoteout reads it and drafts the quote, usually in a minute or two. It shows in Quotes as ready to check."],
@@ -19,9 +21,15 @@ export default async function HelpPage() {
   const admin = createAdminClient();
   const { data: t } = await admin.from("tenants").select("close_requested_at").eq("id", ctx.tenant.id).single();
   const isAdmin = ctx.role === "admin";
+  const recent = await latestChat();
   return (
     <div className="page" style={{ maxWidth: 860 }}>
-      <div><h1>Help</h1><p className="sub">Answers to common questions, and a way to reach us.</p></div>
+      <div><h1>Help</h1><p className="sub">Ask the assistant how to do anything, or send a question to the quoteout team.</p></div>
+
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Ask the assistant</h2>
+        <HelpChat initial={recent} />
+      </section>
 
       <section className="card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <h2 style={{ marginTop: 0 }}>Common questions</h2>
@@ -34,7 +42,7 @@ export default async function HelpPage() {
       </section>
 
       <section className="card">
-        <h2 style={{ marginTop: 0 }}>Ask us</h2>
+        <h2 style={{ marginTop: 0 }}>Ask the quoteout team</h2>
         <p className="sub" style={{ marginTop: 0 }}>Questions, problems or ideas. We reply by email to {ctx.email ?? "you"}.</p>
         <HelpForm />
       </section>
