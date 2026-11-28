@@ -46,3 +46,22 @@ describe("quote PDF", () => {
     expect(bytes.length).toBeGreaterThan(3000);
   });
 });
+
+import { dashboard, onePerQuote } from "@/lib/dashboard";
+
+describe("dashboard", () => {
+  const now = new Date(2026, 10, 28);
+  const row = (id: string, status: string, total: number, extra: Partial<Parameters<typeof onePerQuote>[0][number]> = {}) =>
+    ({ id, option_group: null, status, total_ex_gst: total, created_at: new Date(2026, 10, 5).toISOString(), sent_at: null, accepted_at: null, customer_name: "Acme", job_id: null, ...extra });
+  it("counts a quote with options once, at the option that won", () => {
+    const rows = [row("a", "lost", 100, { option_group: "a" }), row("b", "won", 150, { option_group: "a" }), row("c", "sent", 50), row("d", "lost", 70)];
+    expect(onePerQuote(rows)).toHaveLength(3);
+    const d = dashboard(rows, new Date(2026, 10, 1), now);
+    expect(d.quotes).toBe(3);
+    expect(d.wonValue).toBe(150);
+    expect(d.winRate).toBe(0.5);
+    expect(d.waitingValue).toBe(50);
+    expect(d.months.at(-1)).toMatchObject({ key: "2026-11", quoted: 270, won: 150, count: 3 });
+    expect(d.topCustomers[0]).toMatchObject({ name: "Acme", won: 150 });
+  });
+});
