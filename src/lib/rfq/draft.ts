@@ -114,14 +114,26 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     };
     // The job overview (specs, dates, conditions) is read alongside the scope.
     overviewPromise = opts.call === undefined ? makeOverview(tenantId, rfqInput) : Promise.resolve(null);
+    const ctxAi = { tradingName: tenant?.name ?? "the contractor", library: pc.library, plants: pc.plants, rules };
     try {
-      const out = await scopeFromRfq(call, { tradingName: tenant?.name ?? "the contractor", library: pc.library, plants: pc.plants, rules }, rfqInput);
+      const out = await scopeFromRfq(call, ctxAi, rfqInput);
       scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
     } catch (e) {
-      scope.questions.push(`The AI couldn't read this RFQ (${e instanceof Error ? e.message : "error"}). Add the items yourself from the email and files below.`);
+      // A picture the AI won't take (an odd format, a broken file) shouldn't sink the whole read: try the words alone.
+      const pics = rfqInput.attachments.filter((a) => a.imageUrl || a.pdfUrl).map((a) => a.name);
+      let ok = false;
+      if (pics.length && e instanceof Error && /\b400\b/.test(e.message)) {
+        try {
+          const out = await scopeFromRfq(call, ctxAi, { ...rfqInput, attachments: rfqInput.attachments.map((a) => ({ ...a, imageUrl: null, pdfUrl: null })) });
+          scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
+          scope.questions.unshift(`Read without the pictures and scanned pages (${pics.slice(0, 4).join(", ")}): the AI couldn't open them. Check them by eye.`);
+          ok = true;
+        } catch { /* fall through */ }
+      }
+      if (!ok) scope.questions.push(`The AI couldn't read this RFQ (${e instanceof Error ? e.message : "error"}). Add the items yourself from the email and files below.`);
     }
   }
-  for (const f of summaryFiles.filter((x) => x.read === "no" && !(readsPdfs && x.note?.startsWith("scanned PDF")))) {
+  for (const f of summaryFiles.filter((x) => x.read === "no" && !x.note?.startsWith("GIF") && !(readsPdfs && x.note?.startsWith("scanned PDF")))) {
     scope.questions.push(`"${f.name}" couldn't be read (${f.note ?? "unknown"}). Check it for anything to price.`);
   }
   if (!scope.title) scope.title = fallbackTitle;
@@ -175,7 +187,7 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
       { onConflict: "tenant_id,dedupe_key", ignoreDuplicates: true },
     );
   }
-  const unread = summaryFiles.filter((f) => f.read === "no").length;
+  const unread = summaryFiles.filter((f) => f.read === "no" && !f.note?.startsWith("GIF")).length;
   await db.from("jobs").update({
     status: "drafted", customer_name: scope.customer_name ?? null, site: scope.title.slice(0, 200),
     job_type: scope.job_type || null, confidence: confidenceFor(scope.questions.length, unread), flag_count: scope.questions.length,
@@ -241,6 +253,11 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
     const read = await readFile(f.filename, f.mime, await download(db, path));
     let imageUrl: string | null = null;
     let pdfUrl: string | null = null;
+    // The AI reads JPG and PNG pictures; a GIF is nearly always a logo or animation.
+    if (read.kind === "image" && /\.gif$/i.test(f.filename)) {
+      summaryFiles.push({ name: f.filename, path, read: "no", note: "GIF picture (usually a logo): not read" });
+      continue;
+    }
     if (read.kind === "image" || (read.kind === "pdf" && !read.text)) {
       const { data } = await db.storage.from(BUCKET).createSignedUrl(path, 3600);
       if (read.kind === "image") imageUrl = data?.signedUrl ?? null;
