@@ -1,4 +1,5 @@
 import "server-only";
+import { planCrew } from "@/lib/site/crew-days";
 import { missingPictures } from "@/lib/mail/sort";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { aiCaller, compareModels, liveModel, liveModelReadsPdfs } from "@/lib/ai/call";
@@ -306,7 +307,13 @@ export async function locateAndPrice(pc: Awaited<ReturnType<typeof loadPricingCo
 
   const routes = await routesToPlants(site, pc.plants).catch(() => null);
   if (!scope.supply_plant_id && site.lat != null) scope = choosePlant({ scope, library: pc.library, plants: pc.plants, settings: pc.settings, site, routes });
-  const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul: haulFor(scope, site, pc.plants, pc.settings, routes), marginPercent: pc.defaultMargin });
+  const haul = haulFor(scope, site, pc.plants, pc.settings, routes);
+  // Crew shifts from the m² laid a day (job type, haul), with the 12-hour stretch.
+  if (pc.settings.crewOutput) {
+    const planned = planCrew(scope, haul?.minutes ?? null, pc.settings.crewOutput, (id) => pc.library.find((c) => c.id === id)?.unit === "h");
+    if (planned) scope = { ...planned.scope, assumptions: [...planned.scope.assumptions.filter((a) => !/^Crew days estimated|^Hours on site each day/i.test(a)), planned.note] };
+  }
+  const priced = priceSiteQuote({ scope, library: pc.library, settings: pc.settings, haul, marginPercent: pc.defaultMargin });
 
   return { scope, site, routes, priced };
 }

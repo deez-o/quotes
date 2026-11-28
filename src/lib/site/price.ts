@@ -96,6 +96,8 @@ export type PricingSettings = {
   gst_percent: number;
   /** Plant base binders and extra-overs. Absent = no binder extras. */
   binders?: BinderSetup;
+  /** m² a crew lays in a day by job type and haul (sets crew shifts on drafts). */
+  crewOutput?: import("./crew-days").CrewOutput;
 };
 
 export type Haul = { km: number; minutes: number; source: "gps" | "entered" | "road" };
