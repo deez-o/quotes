@@ -36,18 +36,24 @@ export async function GET(request: NextRequest) {
     const db = createAdminClient();
     const tenantId = ctx.tenant.id;
 
-    // Reconnecting (e.g. to allow a new permission): replace the old connection, its tokens and inbox watch.
-    await db.from("connections").delete().eq("tenant_id", tenantId).eq("provider", "microsoft").eq("purpose", "mailbox");
-    const { data: conn, error: connErr } = await db.from("connections").insert({
-      tenant_id: tenantId, provider: "microsoft", purpose: "mailbox", account_email: me.email,
-      scopes: [...MS_SCOPES], status: "ok", last_ok_at: new Date().toISOString(),
-    }).select("id").single();
+    // Reconnecting the same inbox (e.g. to allow a new permission): keep the connection, so emails
+    // already picked up stay linked; swap its tokens and inbox watch. A different inbox replaces it.
+    const { data: existing } = await db.from("connections").select("id, account_email").eq("tenant_id", tenantId).eq("provider", "microsoft").eq("purpose", "mailbox").maybeSingle();
+    if (existing && String(existing.account_email ?? "").toLowerCase() !== me.email.toLowerCase()) {
+      await db.from("connections").delete().eq("id", existing.id).eq("tenant_id", tenantId);
+    }
+    const same = existing && String(existing.account_email ?? "").toLowerCase() === me.email.toLowerCase();
+    const row = { account_email: me.email, scopes: [...MS_SCOPES], status: "ok", last_ok_at: new Date().toISOString(), last_error: null };
+    const { data: conn, error: connErr } = same
+      ? await db.from("connections").update(row).eq("id", existing.id).eq("tenant_id", tenantId).select("id").single()
+      : await db.from("connections").insert({ ...row, tenant_id: tenantId, provider: "microsoft", purpose: "mailbox" }).select("id").single();
     if (connErr || !conn) throw new Error(connErr?.message ?? "Could not save the connection.");
+    if (same) await db.from("mail_watches").delete().eq("connection_id", conn.id).eq("tenant_id", tenantId);
 
-    const { error: secretErr } = await db.from("connection_secrets").insert({
+    const { error: secretErr } = await db.from("connection_secrets").upsert({
       connection_id: conn.id, tenant_id: tenantId,
       token_ciphertext: encryptToken(tenantId, JSON.stringify(tokens)),
-      expires_at: new Date(tokens.expires_at).toISOString(),
+      expires_at: new Date(tokens.expires_at).toISOString(), updated_at: new Date().toISOString(),
     });
     if (secretErr) throw new Error(secretErr.message);
 
