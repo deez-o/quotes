@@ -1,3 +1,4 @@
+import { RfqFiles } from "./rfq-files";
 import { RereadButton } from "../../quotes/reread";
 import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
@@ -151,6 +152,9 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
           <span className="sub" style={{ marginTop: 0 }}>If it was read before your costs were set up, read it again now and quoteout fills in the items from the RFQ.</span>
           <RereadButton siteQuoteId={q.id} label="Read it again with your costs" />
         </div>
+      )}
+      {q.job_id && !q.sent_at && !q.option_group && !(Number(q.revision) > 0) && (
+        <RfqFiles quoteId={q.id} tenantId={ctx.tenant.id} portal={(q.rfq_summary as RfqSummary | null)?.portal ?? null} canEdit={ctx.role !== "viewer"} />
       )}
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}
         hasAi={Boolean(keyFor(await liveModel()))} canEdit={ctx.role !== "viewer"} hasXero={!!xero} rfq={rfq} compare={compare} hasSheet

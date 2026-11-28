@@ -13,6 +13,7 @@ import { choosePlant, priceSiteQuote, type SiteScope } from "@/lib/site/price";
 import { SITE_SCOPE_SCHEMA, scopeFromRfq, type RfqAttachment, type ScopeCall } from "@/lib/site/scope-ai";
 import { readFile } from "./read";
 import { cleanSubject, forwardedFrom, splitSavedEmail, type RfqSummary } from "./split";
+import { detectPortal } from "./portal";
 export { splitSavedEmail, type RfqSummary };
 
 const BUCKET = "job-files";
@@ -120,8 +121,18 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     scope.questions.push(`"${f.name}" couldn't be read (${f.note ?? "unknown"}). Check it for anything to price.`);
   }
   if (!scope.title) scope.title = fallbackTitle;
+  // A portal invite: the customer is the builder inviting, not the portal's mail address.
+  const portal = summary.portal;
+  if (portal) {
+    const fromPortal = (e: string | null | undefined) => !e || /estimateone|tenderlink|buildingconnected|procore|aconex|noreply|no-reply|docs@/i.test(e);
+    if (portal.builder && (!scope.customer_name || /estimateone|tenderlink|procore|aconex/i.test(scope.customer_name))) scope.customer_name = portal.builder;
+    if (fromPortal(scope.customer_email)) scope.customer_email = portal.contactEmail;
+    if (portal.project && (!scope.title || /invitation to tender/i.test(scope.title))) scope.title = `${portal.builder ? `${portal.builder}, ` : ""}${portal.project}`.slice(0, 120);
+    const ask = `The drawings and specs are on ${portal.portal}${portal.due ? ` (due ${portal.due})` : ""}. Open the documents, download them, and add them to this quote so they can be read.`;
+    if (!scope.questions.includes(ask)) scope.questions.unshift(ask);
+  }
   // Who to quote: the original sender of a forwarded RFQ, unless the AI found better.
-  const orig = summary.original;
+  const orig = portal ? null : summary.original;
   if (orig) {
     if (!scope.customer_email && orig.email) scope.customer_email = orig.email;
     if (!scope.customer_name) scope.customer_name = orig.name ?? companyFromEmail(orig.email);
@@ -227,6 +238,7 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
     received: fwd?.date ?? rfq.date ?? first?.received_at ?? null,
     forwardedBy: fwdFrom ? (rfq.from ?? first?.from_address ?? null) : null,
     original: fwd,
+    portal: detectPortal(rfq.body, fwd?.email ?? rfq.from),
     files: summaryFiles,
     followUps: Math.max(0, (messages?.length ?? 1) - 1),
   };

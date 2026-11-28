@@ -6,6 +6,8 @@ export type RfqSummary = {
   /** Set when the RFQ was forwarded: who forwarded it (summary.from is the original sender). */
   forwardedBy?: string | null;
   original?: OriginalSender | null;
+  /** A tender portal invitation: the documents are behind its link. */
+  portal?: import("./portal").PortalInvite | null;
   /** The AI model that drafted it. */
   model?: string | null;
 };
