@@ -4,7 +4,8 @@ import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
-import { archiveCostItem, saveCostItem, savePricingSettings } from "./actions";
+import { archiveCostItem, saveCostItem, saveCrewOutput, savePricingSettings } from "./actions";
+import { cleanCrewOutput } from "@/lib/site/crew-days";
 import { PlantForm } from "./plant-form";
 import { BinderExtras } from "./binders";
 import { AutoSave } from "../auto-save";
@@ -197,7 +198,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
     supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours, sell_rate")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note, base_binder").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
-    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts")
+    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts, crew_output")
       .eq("tenant_id", ctx.tenant.id).maybeSingle(),
     supabase.from("binder_extras").select("supply_plant_id, binder, extra_per_t").eq("tenant_id", ctx.tenant.id).order("binder"),
   ]);
@@ -275,6 +276,37 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
       </section>
 
       {AFTER_ASPHALT.map((sec) => <CostSection key={sec.key} s={sec} items={(items ?? []) as Item[]} canEdit={canEdit} />)}
+
+      {(() => {
+        const co = cleanCrewOutput(s?.crew_output ?? null);
+        const f = (name: string, label: string, v: number, unit = "m²") => (
+          <label style={field}>{label}<span style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="text" inputMode="decimal" name={name} defaultValue={v} style={{ flex: 1, minWidth: 0 }} />{unit}</span></label>
+        );
+        return (
+          <form action={saveCrewOutput} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {canEdit && <AutoSave />}
+            <div>
+              <h2 style={{ margin: 0 }}>How much a crew lays in a day</h2>
+              <p className="sub" style={{ marginTop: 2, marginBottom: 0, fontSize: 13 }}>
+                Sets crew shifts on every quote: total asphalt m² (each layer counts) ÷ what you lay in a {co.hours}-hour day, in whole shifts, at least one per asphalt set-up.
+                If a job is only a little over a whole number of shifts, it stays at that number on {co.longHours}-hour days instead of adding a shift.
+                When there are plans, quoteout also judges how hard the job is (side streets, roundabouts, bays and islands, paver runs) and lowers these for that job.
+              </p>
+            </div>
+            <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, ...grid }}>
+              {f("subdivisionNear", "Subdivision, short haul", co.subdivisionNear)}
+              {f("subdivisionFar", "Subdivision, long haul", co.subdivisionFar)}
+              {f("near", "Roads and other, short haul", co.near)}
+              {f("far", "Roads and other, long haul", co.far)}
+              {f("carpark", "Car park (bays and islands)", co.carpark)}
+              {f("farMinutes", "Long haul is over", co.farMinutes, "min")}
+              {f("stretchPercent", "Go over by up to", co.stretchPercent, "%")}
+              {f("hours", "Normal day", co.hours, "h")}
+              {f("longHours", "Long day", co.longHours, "h")}
+            </fieldset>
+          </form>
+        );
+      })()}
 
       <form action={savePricingSettings} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <h2 style={{ margin: 0 }}>Pricing settings</h2>

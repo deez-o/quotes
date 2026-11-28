@@ -1,6 +1,7 @@
 "use server";
 
 import { STATE_MIXES, type AuState } from "@/lib/mixes";
+import { cleanCrewOutput } from "@/lib/site/crew-days";
 
 import { toCodes } from "@/lib/quote/placeholders";
 
@@ -233,4 +234,21 @@ export async function removeBinderExtra(input: { plantId: string; binder: string
   await got.supabase.from("binder_extras").delete().eq("supply_plant_id", got.plant.id).eq("binder", input.binder).eq("tenant_id", got.ctx.tenant.id);
   revalidatePath("/costs");
   return { ok: true };
+}
+
+/** How much a crew lays in a day (by job type and haul) and the 12-hour stretch. */
+export async function saveCrewOutput(formData: FormData) {
+  const ctx = await adminCtx();
+  const raw: Record<string, number> = {};
+  for (const k of ["subdivisionNear", "subdivisionFar", "near", "far", "carpark", "farMinutes", "stretchPercent", "hours", "longHours"]) {
+    const n = num(formData.get(k));
+    if (n == null || Number.isNaN(n) || n < 0) back("Crew output must be numbers.");
+    raw[k] = n as number;
+  }
+  const crew_output = cleanCrewOutput(raw);
+  const supabase = await createClient();
+  const { error } = await supabase.from("tenant_settings").upsert({ tenant_id: ctx.tenant.id, crew_output, updated_at: new Date().toISOString() });
+  if (error) back(error.message);
+  revalidatePath("/costs");
+  back("Crew output saved.", true);
 }
