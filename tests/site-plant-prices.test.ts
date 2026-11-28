@@ -86,10 +86,10 @@ describe("reading a price list", () => {
       warnings: ["Small load fee under 10 t"],
     });
     expect(r.lines).toEqual([
-      { name: "AC10 C320", unit: "t", rate: 171.6, kind: "asphalt", notes: "ex plant" },
-      { name: "Bad unit", unit: "other", rate: 12, kind: "other", notes: null },
+      { name: "AC10 C320", unit: "t", rate: 171.6, kind: "asphalt", notes: "ex plant", band: "" },
+      { name: "Bad unit", unit: "other", rate: 12, kind: "other", notes: null, band: "" },
     ]);
-    expect(r.warnings[0]).toMatch(/include GST/);
+    expect(r.questions[0]).toMatchObject({ topic: "gst", suggested: 0 });
     expect(r.warnings).toContain('"AC10 C320" was listed twice; kept the first price.');
     expect(r.valid_until).toBe("2027-06-30");
   });

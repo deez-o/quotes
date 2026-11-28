@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { defaultDensity, type PriceListRead } from "@/lib/site/price-list";
+import { applyAnswers, defaultDensity, type PriceListRead } from "@/lib/site/price-list";
 import { BINDERS, binderLabel } from "@/lib/binder";
 import { importPriceList, readPriceListFile, type ImportLine } from "./price-list-actions";
 
@@ -28,6 +28,23 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
   const [busy, setBusy] = useState(false);
   const [base, setBase] = useState<string>("");
   const [extras, setExtras] = useState<{ binder: string; extra: string; use: boolean; note: string | null }[]>([]);
+  const [picks, setPicks] = useState<number[]>([]);
+  const [matchOf, setMatchOf] = useState<Map<string, string | null>>(new Map());
+
+  /** Rows, binder extras and base binder from the read list and the answers to its questions. */
+  function fill(r: PriceListRead, answers: number[], matches: Map<string, string | null>) {
+    const out = applyAnswers(r, answers);
+    setBase(out.base ?? (out.extras.length ? "C320" : ""));
+    setExtras(out.extras.map((e) => ({
+      binder: e.binder, extra: String(e.extra_per_t), use: !e.applies_to,
+      note: [e.applies_to ? `Only for ${e.applies_to}: check before using` : null, e.notes].filter(Boolean).join(". ") || null,
+    })));
+    setRows(out.lines.map((l) => ({
+      name: l.name, unit: l.unit === "other" ? "t" : l.unit, rate: l.rate, kind: l.kind, delivered: l.delivered,
+      density: l.unit === "t" ? defaultDensity(l.kind) : null, existingId: matches.get(l.name.toLowerCase()) ?? null, use: l.unit !== "other",
+      notes: [l.band ? `Band: ${l.band}` : null, l.delivered ? "Delivered price: no cartage added" : null, l.notes].filter(Boolean).join(". ") || null,
+    })));
+  }
 
   async function upload(list: FileList | null) {
     const files = Array.from(list ?? []).slice(0, 6);
@@ -52,15 +69,11 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
       const r = await readPriceListFile({ plantId, paths });
       if (!r.ok) throw new Error(r.message);
       setRead(r.read);
-      setBase(r.read.base_binder ?? (r.read.binder_extras.length ? "C320" : ""));
-      setExtras(r.read.binder_extras.map((e) => ({
-        binder: e.binder, extra: String(e.extra_per_t), use: !e.applies_to,
-        note: [e.applies_to ? `Only for ${e.applies_to}: check before using` : null, e.notes].filter(Boolean).join(". ") || null,
-      })));
-      setRows(r.read.lines.map((l, i) => ({
-        name: l.name, unit: l.unit === "other" ? "t" : l.unit, rate: l.rate, kind: l.kind,
-        density: l.unit === "t" ? defaultDensity(l.kind) : null, existingId: r.matches[i], use: l.unit !== "other", notes: l.notes,
-      })));
+      const m = new Map(r.read.lines.map((l, i) => [l.name.toLowerCase(), r.matches[i]] as [string, string | null]));
+      setMatchOf(m);
+      const answers = r.read.questions.map((q) => q.suggested);
+      setPicks(answers);
+      fill(r.read, answers, m);
       setStatus(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed.");
@@ -79,7 +92,7 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
       plantId, supplier: read?.supplier ?? null, validUntil: read?.valid_until ?? null,
       baseBinder: extras.some((e) => e.use) ? base || "C320" : null,
       binderExtras: extras.filter((e) => e.use).map((e) => ({ binder: e.binder, extra_per_t: Number(e.extra) })),
-      lines: rows.filter((x) => x.use).map(({ name, unit, rate, kind, density, existingId }) => ({ name, unit, rate: Number(rate), kind, density: density == null ? null : Number(density), existingId })),
+      lines: rows.filter((x) => x.use).map(({ name, unit, rate, kind, density, existingId, delivered }) => ({ name, unit, rate: Number(rate), kind, density: density == null ? null : Number(density), existingId, delivered: Boolean(delivered) })),
     });
     setBusy(false);
     if (!r.ok) return setError(r.message);
@@ -114,6 +127,24 @@ export function PriceListUpload({ tenantId, plantId, plantName, hasAi }: { tenan
         <div className="card" style={{ background: "var(--paper, #f7f8fa)", display: "flex", flexDirection: "column", gap: 8 }}>
           <strong>Check these prices{read.supplier ? ` from ${read.supplier}` : ""}{read.valid_until ? `, valid to ${read.valid_until}` : ""}</strong>
           {read.warnings.map((w, i) => <div key={i} style={{ background: "var(--warn-bg)", padding: "6px 10px", borderRadius: 6, fontSize: 13 }}>{w}</div>)}
+          {read.questions.length > 0 && (
+            <div className="card" style={{ display: "flex", flexDirection: "column", gap: 10, background: "#fff" }}>
+              <strong style={{ fontSize: 14 }}>How should this list go in?</strong>
+              <span className="sub" style={{ marginTop: -6, fontSize: 12 }}>This plant prices things its own way. Pick how you want it in your costs: the prices below change to match.</span>
+              {read.questions.map((q, qi) => (
+                <fieldset key={qi} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <legend style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{q.question}</legend>
+                  {q.options.map((o, oi) => (
+                    <label key={oi} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
+                      <input type="radio" name={`plq-${qi}`} checked={(picks[qi] ?? q.suggested) === oi}
+                        onChange={() => { const next = read.questions.map((x, n) => (n === qi ? oi : picks[n] ?? x.suggested)); setPicks(next); fill(read, next, matchOf); }} />
+                      {o}{oi === q.suggested && <span className="sub" style={{ marginTop: 0, fontSize: 12 }}>(suggested)</span>}
+                    </label>
+                  ))}
+                </fieldset>
+              ))}
+            </div>
+          )}
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>

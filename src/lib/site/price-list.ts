@@ -4,7 +4,8 @@
  */
 import type { ChatMessage, ChatPart, ProviderResult } from "@/lib/quote/provider";
 import type { CostItem } from "./price";
-import { normaliseBinder } from "@/lib/binder";
+import { binderInName, normaliseBinder } from "@/lib/binder";
+import { knownMix } from "@/lib/mixes";
 
 export type PriceListLine = {
   name: string;
@@ -13,7 +14,15 @@ export type PriceListLine = {
   rate: number;
   kind: "asphalt" | "base" | "prime" | "tack" | "seal" | "other";
   notes: string | null;
+  /** For a sliding scale: the band this price is for, as printed (e.g. "50-200 t"). "" if none. */
+  band?: string;
 };
+
+/**
+ * Something about how the list is laid out that the contractor decides before it goes in:
+ * prices with GST, a mix priced in several binders, delivered prices, a sliding scale.
+ */
+export type PriceListQuestion = { topic: "gst" | "binders" | "delivered" | "bands" | "other"; question: string; options: string[]; suggested: number };
 
 /** "Extra over" for a binder: added to every asphalt mix's $/t when the job asks for that binder. */
 export type BinderExtraLine = { binder: string; extra_per_t: number; applies_to: string | null; notes: string | null };
@@ -27,6 +36,7 @@ export type PriceListRead = {
   base_binder: string | null;
   binder_extras: BinderExtraLine[];
   warnings: string[];
+  questions: PriceListQuestion[];
 };
 
 export const PRICE_LIST_SCHEMA = {
@@ -35,7 +45,7 @@ export const PRICE_LIST_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["supplier", "valid_until", "gst", "lines", "base_binder", "binder_extras", "warnings"],
+    required: ["supplier", "valid_until", "gst", "lines", "base_binder", "binder_extras", "warnings", "questions"],
     properties: {
       supplier: { type: ["string", "null"] },
       valid_until: { type: ["string", "null"], description: "YYYY-MM-DD if printed" },
@@ -45,9 +55,10 @@ export const PRICE_LIST_SCHEMA = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["name", "unit", "rate", "kind", "notes"],
+          required: ["name", "unit", "rate", "kind", "notes", "band"],
           properties: {
             name: { type: "string" },
+            band: { type: "string", description: "Sliding scale: the quantity band this price is for, as printed (e.g. '0-50 t'). Empty if the list has no bands." },
             unit: { type: "string", enum: ["t", "m2", "m3", "each", "h", "day", "km", "other"] },
             rate: { type: "number" },
             kind: { type: "string", enum: ["asphalt", "base", "prime", "tack", "seal", "other"] },
@@ -71,6 +82,18 @@ export const PRICE_LIST_SCHEMA = {
         },
       },
       warnings: { type: "array", items: { type: "string" } },
+      questions: {
+        type: "array", description: "How should this list go in? Only where the layout isn't a plain price per product: ask the contractor, with the choices and the one you suggest.",
+        items: {
+          type: "object", additionalProperties: false, required: ["topic", "question", "options", "suggested"],
+          properties: {
+            topic: { type: "string", enum: ["gst", "binders", "delivered", "bands", "other"] },
+            question: { type: "string" },
+            options: { type: "array", items: { type: "string" }, description: "2-4 short choices. For gst: ['Take GST off (÷ 1.1)', 'They are already ex GST']. For binders: ['Keep each binder as its own mix', 'One price per mix, other binders as extras']. For delivered: ['We cart it (ex-plant prices)', 'The price includes delivery']. For bands: one per band as printed." },
+            suggested: { type: "number", description: "Index of the option you'd pick" },
+          },
+        },
+      },
     },
   },
 } as const;
@@ -90,6 +113,7 @@ export function buildPriceListMessages(input: { plantName: string; text: string 
     `7. valid_until: the date the prices run to, if printed, as YYYY-MM-DD.`,
     `8. Binders. Plants often price each mix once (at a standard binder, usually C320) and then list extra charges for other binders. These are written many ways: "extra over", "EO", "E/O", "add for", "binder surcharge", "+$12/t", "premium", "upcharge", a "Binder" table with $/t, or a column per binder. Each of those is a binder_extras row: binder as printed (C170, C450, C600, Multigrade or M1000, PMB A10E/A15E/A20E/A25E/A35P, SBS, crumb rubber, EME2, warm mix), extra_per_t as the $ per tonne added. Don't put them in lines.`,
     `9. If a table prices the same mix in several binders (e.g. AC14 C320 $165, AC14 C600 $172), keep each as its own line with the binder in its name, and add no binder_extras for them. If the list gives the extra as a percentage or per litre, leave it out of binder_extras and add a warning saying what it said.`,
+    `11. Plants price in different ways. Where the list isn't a plain price per product, add a question so the contractor decides how it goes in: prices shown inc GST (topic gst); the same mix priced in several binders (topic binders); delivered prices or cartage built in (topic delivered); a sliding scale by quantity (topic bands: one line per band with band set, and one option per band); anything else odd (topic other, e.g. per-load fees, minimums, prices per m² for asphalt). Suggest the usual choice. No questions for a plain list.`,
     `10. base_binder: the binder the plain mix prices include, if the list says so (e.g. "prices based on C320 bitumen"); if mixes are named without a binder and extras are listed for other binders, it's usually C320, so say C320. Null if there's nothing about binders.`,
     ``,
     `# The contractor's existing names`,
@@ -117,7 +141,7 @@ export function cleanPriceList(raw: unknown): PriceListRead {
     const name = String(l?.name ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
     const rate = Number(l?.rate);
     if (!name || !Number.isFinite(rate) || rate <= 0 || rate > 1_000_000) continue;
-    const key = name.toLowerCase();
+    const key = `${name.toLowerCase()}|${typeof l?.band === "string" ? l.band.trim().toLowerCase() : ""}`;
     if (seen.has(key)) { warnings.push(`"${name}" was listed twice; kept the first price.`); continue; }
     seen.add(key);
     lines.push({
@@ -126,10 +150,18 @@ export function cleanPriceList(raw: unknown): PriceListRead {
       rate: Math.round(rate * 100) / 100,
       kind: KINDS.has(l.kind) ? l.kind : "other",
       notes: l.notes ? String(l.notes).slice(0, 300) : null,
+      band: typeof l.band === "string" ? l.band.trim().slice(0, 40) : "",
     });
   }
   const gst = o.gst === "included" || o.gst === "excluded" ? o.gst : "unknown";
-  if (gst === "included") warnings.unshift("These prices include GST. Your costs are ex GST: check and divide by 1.1 before importing.");
+  const questions: PriceListQuestion[] = [];
+  for (const q of Array.isArray(o.questions) ? o.questions : []) {
+    const topic = ["gst", "binders", "delivered", "bands", "other"].includes(q?.topic) ? q.topic : "other";
+    const options = (Array.isArray(q?.options) ? q.options : []).map((x) => String(x).slice(0, 80)).filter(Boolean).slice(0, 6);
+    if (!q?.question || options.length < 2 || questions.some((x) => x.topic === topic && topic !== "other")) continue;
+    questions.push({ topic, question: String(q.question).slice(0, 200), options, suggested: Math.min(options.length - 1, Math.max(0, Math.round(Number(q.suggested) || 0))) });
+  }
+  if (gst === "included" && !questions.some((q) => q.topic === "gst")) questions.unshift({ topic: "gst", question: "These prices include GST. Your costs are ex GST.", options: ["Take GST off (÷ 1.1)", "They are already ex GST"], suggested: 0 });
   const valid = typeof o.valid_until === "string" && /^\d{4}-\d{2}-\d{2}$/.test(o.valid_until) ? o.valid_until : null;
   const extras: BinderExtraLine[] = [];
   const seenB = new Set<string>();
@@ -143,7 +175,7 @@ export function cleanPriceList(raw: unknown): PriceListRead {
     extras.push({ binder, extra_per_t: Math.round(x * 100) / 100, applies_to: e?.applies_to ? String(e.applies_to).slice(0, 120) : null, notes: e?.notes ? String(e.notes).slice(0, 200) : null });
   }
   const base = normaliseBinder(typeof o.base_binder === "string" ? o.base_binder : null);
-  return { supplier: o.supplier ? String(o.supplier).slice(0, 120) : null, valid_until: valid, gst, lines, base_binder: base, binder_extras: extras.filter((e) => e.binder !== base), warnings };
+  return { supplier: o.supplier ? String(o.supplier).slice(0, 120) : null, valid_until: valid, gst, lines, base_binder: base, binder_extras: extras.filter((e) => e.binder !== base), warnings, questions: questions.slice(0, 6) };
 }
 
 export type PriceListCall = (messages: ChatMessage[]) => Promise<ProviderResult>;
@@ -173,4 +205,58 @@ export async function pdfText(bytes: Uint8Array): Promise<string> {
   const { text } = await extractText(pdf, { mergePages: false });
   const pages = (Array.isArray(text) ? text : [String(text ?? "")]).map((t) => String(t ?? "").trim());
   return pages.length > 1 ? pages.map((t, i) => `--- page ${i + 1} ---\n${t}`).join("\n").trim() : (pages[0] ?? "").trim();
+}
+
+/** A line ready to import, after the contractor's answers. */
+export type ChosenLine = PriceListLine & { delivered: boolean };
+
+/**
+ * The list after the contractor's answers (`picks[i]` = the option chosen for questions[i]):
+ * GST taken off; one price per mix with the other binders as extras (worked out from the
+ * difference); delivered prices marked; only the chosen band of a sliding scale.
+ */
+export function applyAnswers(read: PriceListRead, picks: number[]): { lines: ChosenLine[]; extras: BinderExtraLine[]; base: string | null } {
+  let lines: ChosenLine[] = read.lines.map((l) => ({ ...l, delivered: false }));
+  let extras = [...read.binder_extras];
+  let base = read.base_binder;
+  read.questions.forEach((q, i) => {
+    const pick = picks[i] ?? q.suggested;
+    const chosen = (q.options[pick] ?? "").toLowerCase();
+    if (q.topic === "gst" && /off|÷|divide|remove/.test(chosen)) lines = lines.map((l) => ({ ...l, rate: Math.round((l.rate / 1.1) * 100) / 100 }));
+    if (q.topic === "delivered" && /includ|deliver/.test(chosen) && !/we cart|ex.?plant/.test(chosen)) lines = lines.map((l) => (l.kind === "asphalt" || l.kind === "base" ? { ...l, delivered: true } : l));
+    if (q.topic === "bands") {
+      const band = q.options[pick] ?? "";
+      lines = lines.filter((l) => !l.band || l.band.toLowerCase() === band.toLowerCase());
+    }
+    if (q.topic === "binders" && /extra|one price/.test(chosen)) {
+      // Group each mix's binder versions; the base binder (C320 unless said) stays as the mix price.
+      const b = base ?? "C320";
+      const groups = new Map<string, { line: ChosenLine; binder: string | null }[]>();
+      for (const l of lines.filter((x) => x.kind === "asphalt")) {
+        const binder = binderInName(l.name);
+        const mix = (knownMix(l.name) ?? l.name.replace(/\b(C\d{3}|M1000|multigrade|A\d{2}[EP]|PMB|SBS|crumb( rubber)?)\b/gi, "").replace(/\s+/g, " ").trim()).toLowerCase();
+        groups.set(mix, [...(groups.get(mix) ?? []), { line: l, binder }]);
+      }
+      const diffs = new Map<string, number[]>();
+      const drop = new Set<ChosenLine>();
+      for (const g of groups.values()) {
+        const baseLine = g.find((x) => !x.binder || x.binder === b);
+        if (!baseLine || g.length < 2) continue;
+        for (const x of g) {
+          if (x === baseLine || !x.binder) continue;
+          diffs.set(x.binder, [...(diffs.get(x.binder) ?? []), x.line.rate - baseLine.line.rate]);
+          drop.add(x.line);
+        }
+      }
+      lines = lines.filter((l) => !drop.has(l));
+      for (const [binder, ds] of diffs) {
+        if (extras.some((e) => e.binder === binder)) continue;
+        const same = ds.every((d) => Math.abs(d - ds[0]) < 0.01);
+        extras.push({ binder, extra_per_t: Math.round((ds.reduce((s2, d) => s2 + d, 0) / ds.length) * 100) / 100, applies_to: null, notes: same ? null : "Worked out as the average difference: it varies by mix, check it" });
+      }
+      base = b;
+    }
+  });
+  if (base) extras = extras.filter((e) => e.binder !== base);
+  return { lines, extras, base };
 }

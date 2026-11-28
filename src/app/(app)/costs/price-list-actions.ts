@@ -58,7 +58,7 @@ export async function readPriceListFile(input: { plantId: string; paths: string[
   }
 }
 
-export type ImportLine = { name: string; unit: string; rate: number; kind: string; density: number | null; existingId: string | null };
+export type ImportLine = { name: string; unit: string; rate: number; kind: string; density: number | null; existingId: string | null; delivered?: boolean };
 
 const UNITS = new Set(["t", "m2", "m3", "each", "h", "day", "km"]);
 const KINDS = new Set(["asphalt", "base", "prime", "tack", "seal", "other"]);
@@ -88,10 +88,10 @@ export async function importPriceList(input: { plantId: string; lines: ImportLin
       if (l.unit === "t" && (kind === "asphalt" || kind === "base") && !density) return { ok: false, message: `${name} is sold by the tonne, so it needs a density (t/m³).` };
 
       const id = l.existingId && ids.has(l.existingId) ? l.existingId : byName.get(name.toLowerCase()) ?? null;
-      const row = { name, unit: l.unit, rate, material_kind: kind, density_t_per_m3: density, updated_at: now };
+      const row = { name, unit: l.unit, rate, material_kind: kind, density_t_per_m3: density, updated_at: now, ...(l.delivered ? { includes_delivery: true } : {}) };
       const { error } = id
         ? await db.from("cost_items").update(row).eq("id", id).eq("tenant_id", ctx.tenant.id)
-        : await db.from("cost_items").insert({ ...row, tenant_id: ctx.tenant.id, category: "material", supply_plant_id: plant.id, includes_delivery: false, active: true });
+        : await db.from("cost_items").insert({ includes_delivery: false, ...row, tenant_id: ctx.tenant.id, category: "material", supply_plant_id: plant.id, active: true });
       if (error) return { ok: false, message: `${name}: ${error.message}` };
       if (id) updated++; else added++;
     }
