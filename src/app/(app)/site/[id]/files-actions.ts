@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireTenant } from "@/lib/tenant";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { attachToJob, MAX_RFQ_FILES, unpackFiles } from "@/lib/rfq/attach";
+import { findDocLinks } from "@/lib/rfq/links";
+import type { RfqSummary } from "@/lib/rfq/split";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BUCKET = "job-files";
@@ -49,8 +51,22 @@ export async function fetchPortalNow(input: { id: string }): Promise<{ ok: true 
   if (ctx.role === "viewer") return { ok: false, message: "Viewers can't change quotes." };
   if (!UUID.test(input.id)) return { ok: false, message: "Quote not found." };
   const db = createAdminClient();
-  const { data: q } = await db.from("site_quotes").select("id, job_id, sent_at").eq("tenant_id", ctx.tenant.id).eq("id", input.id).maybeSingle();
+  const { data: q } = await db.from("site_quotes").select("id, job_id, sent_at, rfq_summary").eq("tenant_id", ctx.tenant.id).eq("id", input.id).maybeSingle();
   if (!q?.job_id || q.sent_at) return { ok: false, message: "Only unsent RFQ quotes can fetch documents." };
+  // Quotes read before links were picked up: look for them in the saved emails now.
+  const summary = (q.rfq_summary ?? {}) as RfqSummary;
+  if (!summary.portal && !summary.links?.length) {
+    const folder = `${ctx.tenant.id}/${q.job_id}/4. Correspondence`;
+    const { data: files } = await db.storage.from("job-files").list(folder, { limit: 20 });
+    let text = "";
+    for (const f of files ?? []) {
+      const { data } = await db.storage.from("job-files").download(`${folder}/${f.name}`);
+      if (data) text += `\n${await data.text()}`;
+    }
+    const links = findDocLinks(text);
+    if (!links.length) return { ok: false, message: "No SharePoint, OneDrive, Dropbox or Google Drive links found in the emails." };
+    await db.from("site_quotes").update({ rfq_summary: { ...summary, links } }).eq("id", q.id).eq("tenant_id", ctx.tenant.id);
+  }
   await db.from("site_quotes").update({ portal_fetch: { ok: null, at: new Date().toISOString(), message: "Fetching..." } }).eq("id", q.id).eq("tenant_id", ctx.tenant.id);
   const { error } = await db.from("queue_jobs").insert({ tenant_id: ctx.tenant.id, kind: "portal_fetch", payload: { job_id: q.job_id } });
   if (error) return { ok: false, message: error.message };

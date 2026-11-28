@@ -158,7 +158,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
       {q.job_id && !q.sent_at && !q.option_group && !(Number(q.revision) > 0) && (
         <RfqFiles quoteId={q.id} tenantId={ctx.tenant.id} portal={(q.rfq_summary as RfqSummary | null)?.portal ?? null} canEdit={ctx.role !== "viewer"}
           fetched={(q.portal_fetch as PortalFetch) ?? null}
-          linkCount={(q.rfq_summary as RfqSummary | null)?.links?.length ?? 0}
+          linkCount={(q.rfq_summary as RfqSummary | null)?.links?.length ?? (rfq?.emails.some((e) => /sharepoint\.com|1drv\.ms|onedrive\.live|dropbox\.com|drive\.google/i.test(e.body)) ? 1 : 0)}
           hasLogin={Boolean((await createAdminClient().from("connections").select("id").eq("tenant_id", ctx.tenant.id).eq("purpose", "portal").eq("provider", providerFor((q.rfq_summary as RfqSummary | null)?.portal?.portal ?? "") ?? "none").maybeSingle()).data)} />
       )}
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}

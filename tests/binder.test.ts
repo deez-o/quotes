@@ -98,3 +98,19 @@ describe("crew over the whole job", () => {
     expect(scope.crew[0].days).toBe(6);
   });
 });
+
+describe("interstate binders", () => {
+  it("keeps AR450 as written so it's flagged, not read as C450", () => {
+    expect(normaliseBinder("AR450")).toBe("AR450");
+    expect(normaliseBinder("AR 450 binder")).toBe("AR450");
+  });
+  it("prices it at the default and flags it", async () => {
+    const { cleanScope } = await import("@/lib/site/scope-ai");
+    const lib = [{ id: "m", category: "material", material_kind: "asphalt", name: "AC14", unit: "t", rate: 160, density_t_per_m3: 2.4, includes_delivery: true, truck_capacity_t: null, active: true }] as CostItem[];
+    const raw = { title: "t", job_type: "road", crew: [], plant: [], supply_plant_id: null, truck_cost_item_id: null, assumptions: [], questions: [],
+      items: [{ key: "a", kind: "asphalt", description: "AC14 AR450", area_m2: 100, depth_mm: 50, cost_item_id: "m", quantity: null, binder: "AR450" }] } as unknown as SiteScope;
+    const { scope } = cleanScope(raw, lib, []);
+    expect(scope.items[0].binder).toBeNull();
+    expect(scope.questions.join(" ")).toContain("AR450");
+  });
+});

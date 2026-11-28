@@ -1,4 +1,4 @@
-import { normaliseBinder } from "@/lib/binder";
+import { isKnownBinder, normaliseBinder } from "@/lib/binder";
 /**
  * Talk-to-quote: what the contractor said on site (plus photos) -> a scope.
  * The AI only describes the job and picks items from the customer's own costs
@@ -85,6 +85,7 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `6e. Use the mix the RFQ or drawings specify, even if it seems unusual for the layer depth; if it looks wrong for the thickness (layer under about 3 times the stone size), keep it and add a short question.`,
     `6f. job_type: a carpark if the drawings or RFQ show parking bays, line marking, or concrete/kerbed islands within the asphalt (several islands = carpark), even if it isn't called one. A road is a long strip with kerb and channel; a driveway is one entry.`,
     `6g. Crew and plant: one line per crew or plant item for the whole job, with the total days across all areas and stages (e.g. 6 days, not 4 + 2), unless they work different hours a day.`,
+    `6h. Interstate or unusual binders (e.g. NSW AR450, R-series): set binder to what's written; the app prices it at the company's default (C320) and flags it. Don't swap the mix for it.`,
     `6c. Never add the float (category float) as an item or plant line: the app adds float moves itself.`,
     `7. truck_cost_item_id: the truck item from the library if any material must be carted (not delivered by the supplier).`,
     `8. Use short, clear descriptions a customer would understand ("Supply and lay AC10, 40 mm").`,
@@ -172,6 +173,7 @@ export function buildRfqUserMessage(input: { from: string; subject: string; rece
 export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPlant[]): { scope: SiteScope; fixes: string[] } {
   const ids = new Set(library.filter((c) => c.active).map((c) => c.id));
   const fixes: string[] = [];
+  const binderNotes: string[] = [];
   const seen = new Set<string>();
   const uniqueKey = (k: string, prefix: string) => {
     let key = (k || prefix).replace(/[^\w-]/g, "").slice(0, 24) || prefix;
@@ -187,8 +189,13 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
       fixes.push(`"${i.description}" pointed at a cost that isn't in your library.`);
       cost = null;
     }
-    return { ...i, key: uniqueKey(i.key, `i${n + 1}`), cost_item_id: cost, area_m2: pos(i.area_m2), depth_mm: pos(i.depth_mm), quantity: pos(i.quantity),
-      binder: i.kind === "asphalt" ? normaliseBinder(i.binder ?? null) : null };
+    let binder = i.kind === "asphalt" ? normaliseBinder(i.binder ?? null) : null;
+    // A binder we don't use (e.g. NSW AR450): price it at the company default and flag it.
+    if (binder && !isKnownBinder(binder)) {
+      binderNotes.push(`"${i.description}" asks for ${binder} binder, which isn't one you use: quoted with your default binder (C320 unless you've set another). Confirm with the customer.`);
+      binder = null;
+    }
+    return { ...i, key: uniqueKey(i.key, `i${n + 1}`), cost_item_id: cost, area_m2: pos(i.area_m2), depth_mm: pos(i.depth_mm), quantity: pos(i.quantity), binder };
   });
   // One line per crew or plant item over the whole job: "Crew 10 h × 4 days" + "Crew 10 h × 2 days" = 6 days.
   const merge = (arr: SiteScope["crew"]) => {
@@ -226,7 +233,7 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
       plant: lines(raw.plant, "p"),
       supply_plant_id: plantId,
       truck_cost_item_id: truckOk,
-      questions: [...raw.questions, ...fixes.map((f) => `${f} Pick the right one.`)],
+      questions: [...raw.questions, ...binderNotes, ...fixes.map((f) => `${f} Pick the right one.`)],
     },
     fixes,
   };

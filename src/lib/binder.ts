@@ -42,6 +42,9 @@ export function normaliseBinder(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const s = raw.toUpperCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
   if (!s) return null;
+  // Interstate grades (NSW AR450, R-series...): kept as written, so they're flagged and priced at the default.
+  const ar = /\bA\s?R\s?-?(\d{3,4})\b/.exec(s);
+  if (ar) return `AR${ar[1]}`;
   if (/CRUMB|RUBBER|\bCRB\b|\bCRA\b/.test(s)) return "CRUMB";
   if (/\bEME ?2?\b/.test(s)) return "EME2";
   if (/WARM ?MIX|\bWMA\b/.test(s)) return "WARM";
@@ -55,6 +58,11 @@ export function normaliseBinder(raw: string | null | undefined): string | null {
   const cls = /\b(?:C|CLASS|CL\.?) ?-?(170|240|320|450|600)\b/.exec(s) ?? /(?:^|[^\d])(170|240|320|450|600)(?:[^\d]|$)/.exec(s);
   if (cls) return `C${cls[1]}`;
   return raw.replace(/\s+/g, " ").trim().slice(0, 40);
+}
+
+/** A binder quoteout knows how to price (the usual Queensland grades). */
+export function isKnownBinder(code: string | null | undefined): boolean {
+  return !!code && BINDERS.some((b) => b.code === code);
 }
 
 /** The binder named in a mix's name ("AC14 A15E" -> A15E), or null if it doesn't say. */
