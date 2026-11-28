@@ -36,6 +36,8 @@ export async function GET(request: NextRequest) {
     const db = createAdminClient();
     const tenantId = ctx.tenant.id;
 
+    // Reconnecting (e.g. to allow a new permission): replace the old connection, its tokens and inbox watch.
+    await db.from("connections").delete().eq("tenant_id", tenantId).eq("provider", "microsoft").eq("purpose", "mailbox");
     const { data: conn, error: connErr } = await db.from("connections").insert({
       tenant_id: tenantId, provider: "microsoft", purpose: "mailbox", account_email: me.email,
       scopes: [...MS_SCOPES], status: "ok", last_ok_at: new Date().toISOString(),
