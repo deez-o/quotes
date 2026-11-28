@@ -77,16 +77,17 @@ const onColour = (h: string) => {
 };
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** A plain, readable HTML version of the message, with the company's colour as a thin bar. */
-export function messageHtml(message: string, business: string, brand: string, acceptUrl: string | null = null, footer = true): string {
+/** A plain, readable HTML version of the message: the company's logo and colour, and a small "Powered by quoteout". */
+export function messageHtml(message: string, business: string, brand: string, acceptUrl: string | null = null, logoUrl: string | null = null): string {
   const colour = /^#[0-9a-f]{6}$/i.test(brand) ? brand : "#16181B";
   const paras = message.split(/\n{2,}/).map((p) => `<p style="margin:0 0 14px">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
   return `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f6f7;font-family:Arial,Helvetica,sans-serif;color:#1c1f23;font-size:15px;line-height:1.5">
 <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #e1e4e8">
 <div style="height:6px;background:${colour}"></div>
-<div style="padding:24px 28px">${paras}${acceptUrl ? `<p style="margin:22px 0 4px"><a href="${esc(acceptUrl)}" style="display:inline-block;background:${colour};color:${onColour(colour)};text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:6px">View and accept quote</a></p>` : ""}</div>
+${logoUrl ? `<div style="padding:22px 28px 0"><img src="${esc(logoUrl)}" alt="${esc(business)}" style="display:block;max-height:56px;max-width:220px;height:auto;border:0"></div>` : `<div style="padding:22px 28px 0;font-size:18px;font-weight:bold;color:#1c1f23">${esc(business)}</div>`}
+<div style="padding:18px 28px 24px">${paras}${acceptUrl ? `<p style="margin:22px 0 4px"><a href="${esc(acceptUrl)}" style="display:inline-block;background:${colour};color:${onColour(colour)};text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:6px">View and accept quote</a></p>` : ""}</div>
 </div>
-${footer ? `<p style="max-width:600px;margin:12px auto 0;font-size:12px;color:#7a8089;text-align:center">Quote from ${esc(business)}, sent using quoteout.</p>` : ""}
+<p style="max-width:600px;margin:12px auto 0;font-size:11px;color:#9aa0a8;text-align:center">Powered by quoteout</p>
 </body></html>`;
 }
 

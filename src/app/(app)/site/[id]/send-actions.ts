@@ -98,13 +98,14 @@ export async function sendQuote(input: { id: string; to: string; cc: string; sub
   if (input.copyMe && ctx.email && !to.valid.includes(ctx.email.toLowerCase()) && !ccList.includes(ctx.email.toLowerCase())) ccList.push(ctx.email.toLowerCase());
   const replyTo = got.brand.email || ctx.email;
   const pdf = await got.pdf();
+  const logoUrl = got.brand.logo && acceptUrl ? `${acceptUrl}/logo` : null;
   const attachments = [{ filename: pdfName(quoteLabel(got.lead, false), got.lead.title ?? ""), content: pdf }];
   // Business with a connected Outlook: send from their own mailbox; otherwise (or if that fails) through quoteout.
   let sentVia: "mailbox" | "quoteout" = "quoteout";
   let sent: { ok: true; id: string } | { ok: false; message: string } = { ok: false, message: "Not sent." };
   if (own) {
     try {
-      await sendFromMailbox(admin, ctx.tenant.id, own, { to: to.valid, cc: ccList, subject, html: messageHtml(message, got.brand.name, got.data.brand, acceptUrl, false), attachments });
+      await sendFromMailbox(admin, ctx.tenant.id, own, { to: to.valid, cc: ccList, subject, html: messageHtml(message, got.brand.name, got.data.brand, acceptUrl, logoUrl), attachments });
       sent = { ok: true, id: `mailbox:${own.email}` };
       sentVia = "mailbox";
     } catch {
@@ -114,7 +115,7 @@ export async function sendQuote(input: { id: string; to: string; cc: string; sub
   if (!sent.ok && canSendEmail()) {
     sent = await sendEmail({
       fromName: fromName(got.brand.name), replyTo, to: to.valid, cc: ccList, subject, text: messageText(message, acceptUrl),
-      html: messageHtml(message, got.brand.name, got.data.brand, acceptUrl), attachments,
+      html: messageHtml(message, got.brand.name, got.data.brand, acceptUrl, logoUrl), attachments,
     });
   }
 
