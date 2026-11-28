@@ -86,3 +86,15 @@ describe("prime on the quote", () => {
     expect(p.customerLines.reduce((s, l) => s + l.total, 0)).toBe(p.priceExGst);
   });
 });
+
+describe("crew over the whole job", () => {
+  it("merges split crew lines into total days", async () => {
+    const { cleanScope } = await import("@/lib/site/scope-ai");
+    const lib = [{ id: "c", category: "crew", material_kind: null, name: "Crew", unit: "h", rate: 1000, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true }] as CostItem[];
+    const raw = { title: "t", job_type: "carpark", items: [], plant: [], supply_plant_id: null, truck_cost_item_id: null, assumptions: [], questions: [],
+      crew: [{ key: "c1", cost_item_id: "c", amount: 10, days: 4, note: null }, { key: "c2", cost_item_id: "c", amount: 10, days: 2, note: null }] } as unknown as SiteScope;
+    const { scope } = cleanScope(raw, lib, []);
+    expect(scope.crew).toHaveLength(1);
+    expect(scope.crew[0].days).toBe(6);
+  });
+});

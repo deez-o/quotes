@@ -84,6 +84,7 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `6d. Prime, tack coat and seal: one item over the total area they cover (e.g. prime under both the 40 mm and 50 mm asphalt is one prime item with both areas added), unless the RFQ prices them separately.`,
     `6e. Use the mix the RFQ or drawings specify, even if it seems unusual for the layer depth; if it looks wrong for the thickness (layer under about 3 times the stone size), keep it and add a short question.`,
     `6f. job_type: a carpark if the drawings or RFQ show parking bays, line marking, or concrete/kerbed islands within the asphalt (several islands = carpark), even if it isn't called one. A road is a long strip with kerb and channel; a driveway is one entry.`,
+    `6g. Crew and plant: one line per crew or plant item for the whole job, with the total days across all areas and stages (e.g. 6 days, not 4 + 2), unless they work different hours a day.`,
     `6c. Never add the float (category float) as an item or plant line: the app adds float moves itself.`,
     `7. truck_cost_item_id: the truck item from the library if any material must be carted (not delivered by the supplier).`,
     `8. Use short, clear descriptions a customer would understand ("Supply and lay AC10, 40 mm").`,
@@ -189,8 +190,20 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
     return { ...i, key: uniqueKey(i.key, `i${n + 1}`), cost_item_id: cost, area_m2: pos(i.area_m2), depth_mm: pos(i.depth_mm), quantity: pos(i.quantity),
       binder: i.kind === "asphalt" ? normaliseBinder(i.binder ?? null) : null };
   });
+  // One line per crew or plant item over the whole job: "Crew 10 h × 4 days" + "Crew 10 h × 2 days" = 6 days.
+  const merge = (arr: SiteScope["crew"]) => {
+    const out: SiteScope["crew"] = [];
+    for (const l of arr) {
+      const same = out.find((o) => o.cost_item_id === l.cost_item_id && (o.amount ?? 0) === (l.amount ?? 0));
+      if (same) {
+        same.days = (same.days && same.days > 0 ? same.days : 1) + (l.days && l.days > 0 ? l.days : 1);
+        if (l.note && l.note !== same.note) same.note = [same.note, l.note].filter(Boolean).join("; ");
+      } else out.push({ ...l });
+    }
+    return out;
+  };
   const lines = (arr: SiteScope["crew"], prefix: string) =>
-    arr.filter((l) => {
+    merge(arr).filter((l) => {
       const ok = ids.has(l.cost_item_id) && (l.amount == null || (Number.isFinite(l.amount) && l.amount >= 0));
       if (!ok) fixes.push(`A ${prefix === "c" ? "crew" : "plant"} line pointed at a cost that isn't in your library.`);
       return ok;

@@ -2,6 +2,7 @@
 
 import { COMMON_BASES, COMMON_EXTRAS, binderLabel } from "@/lib/binder";
 import Link from "next/link";
+import { PlanViewer } from "./plan-viewer";
 import { AreaMap } from "./overview/area-map";
 import { SendQuoteDialog } from "./send";
 import { RiseAndFall } from "./rise-fall";
@@ -319,6 +320,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                   ))}
                 </ul>
               )}
+              <PlanViewer files={rfq.files} />
               {rfq.emails.map((e, i) => (
                 <div key={e.name} style={{ borderTop: i ? "1px solid var(--line-soft)" : undefined, paddingTop: i ? 10 : 0 }}>
                   {i > 0 && <div className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 600 }}>Later email · {e.from ?? ""}{e.date ? ` · ${e.date}` : ""}</div>}

@@ -120,3 +120,7 @@ label { font-weight: 600; }
 /* A supply plant inside the Asphalt box on Costs. */
 .plant-panel { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line, #e1e4e8); border-radius: 10px; min-width: 0; }
 @media (max-width: 640px) { .plant-panel { padding: 10px; } }
+
+/* The RFQ drawings shown on the quote: desktops only (phones open the file instead). */
+.plan-viewer { display: none; }
+@media (min-width: 1000px) { .plan-viewer { display: flex; } }
