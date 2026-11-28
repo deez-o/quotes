@@ -1,6 +1,6 @@
 "use server";
 
-import { STATE_MIXES, type AuState } from "@/lib/mixes";
+import { STATE_BINDERS, STATE_MIXES, type AuState } from "@/lib/mixes";
 import { cleanCrewOutput } from "@/lib/site/crew-days";
 
 import { toCodes } from "@/lib/quote/placeholders";
@@ -140,7 +140,9 @@ export async function savePlant(formData: FormData) {
   // A new plant starts with the usual mixes for their state, ready for prices.
   if (!id && made) {
     const { data: st } = await supabase.from("tenant_settings").select("state").eq("tenant_id", ctx.tenant.id).maybeSingle();
-    const mixes = STATE_MIXES[(st?.state as AuState) ?? "QLD"] ?? STATE_MIXES.QLD;
+    const state = ((st?.state as AuState) ?? "QLD");
+    const mixes = STATE_MIXES[state] ?? STATE_MIXES.QLD;
+    await supabase.from("supply_plants").update({ base_binder: STATE_BINDERS[state]?.base ?? "C320" }).eq("id", made.id).eq("tenant_id", ctx.tenant.id);
     await supabase.from("cost_items").insert(mixes.map((m) => ({
       tenant_id: ctx.tenant.id, name: m, category: "material", material_kind: "asphalt", unit: "t", rate: 0, density_t_per_m3: 2.4,
       includes_delivery: false, supply_plant_id: made.id, active: true,

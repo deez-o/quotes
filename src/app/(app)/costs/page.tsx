@@ -198,7 +198,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
     supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours, sell_rate")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note, base_binder").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
-    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts, crew_output")
+    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts, crew_output, state")
       .eq("tenant_id", ctx.tenant.id).maybeSingle(),
     supabase.from("binder_extras").select("supply_plant_id, binder, extra_per_t").eq("tenant_id", ctx.tenant.id).order("binder"),
   ]);
@@ -263,7 +263,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
                 </div>
               </div>
               <h4 style={{ margin: "8px 0 0", fontSize: 15 }}>Binders</h4>
-              <BinderExtras plantId={p.id} plantName={p.name} base={p.base_binder ?? "C320"} extras={plantExtras} canEdit={canEdit} />
+              <BinderExtras plantId={p.id} plantName={p.name} base={p.base_binder ?? "C320"} extras={plantExtras} canEdit={canEdit} state={s?.state ?? null} />
             </div>
           );
         })}

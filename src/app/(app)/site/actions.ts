@@ -153,7 +153,7 @@ export async function saveSiteQuote(input: {
     const { data: q } = await db.from("site_quotes").select("id, site_lat, site_lng, haul_routes, option_group").eq("id", input.id).eq("tenant_id", ctx.tenant.id).maybeSingle();
     if (!q) return { ok: false, message: "Quote not found." };
     const pc = await loadPricingContext(db, ctx.tenant.id);
-    const { scope } = cleanScope(input.scope, pc.library, pc.plants);
+    const { scope } = cleanScope(input.scope, pc.library, pc.plants, pc.settings.state ?? null);
     scope.supply_plant_auto = !!input.scope.supply_plant_auto;
     scope.questions = input.scope.questions; // keep the user's view of questions, not re-added fixes
     const ho = input.scope.haul_override;

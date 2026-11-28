@@ -13,6 +13,8 @@ export const BINDERS: { code: string; label: string }[] = [
   { code: "M1000", label: "MG (Multigrade)" },
   { code: "M500", label: "Multigrade (M500)" },
   { code: "A10E", label: "PMB A10E" },
+  { code: "A5E", label: "PMB A5E" },
+  { code: "S10E", label: "PMB S10E" },
   { code: "A15E", label: "PMB A15E" },
   { code: "A20E", label: "PMB A20E" },
   { code: "A25E", label: "PMB A25E" },

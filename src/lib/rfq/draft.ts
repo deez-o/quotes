@@ -115,7 +115,7 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     };
     // The job overview (specs, dates, conditions) is read alongside the scope.
     overviewPromise = opts.call === undefined ? makeOverview(tenantId, rfqInput) : Promise.resolve(null);
-    const ctxAi = { tradingName: tenant?.name ?? "the contractor", library: pc.library, plants: pc.plants, rules };
+    const ctxAi = { tradingName: tenant?.name ?? "the contractor", library: pc.library, plants: pc.plants, rules, state: pc.settings.state ?? null };
     try {
       const out = await scopeFromRfq(call, ctxAi, rfqInput);
       scope = { ...out.scope, haul_override: null, supply_plant_auto: false };

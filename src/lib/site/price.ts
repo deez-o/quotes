@@ -7,7 +7,7 @@ import { WORK_ORDER } from "./tidy";
  * Pure functions: runs on the server and live in the phone browser.
  */
 import { binderExtraFor, binderLabel, type BinderSetup } from "@/lib/binder";
-import { ownBinder } from "@/lib/mixes";
+import { depthWarning, ownBinder } from "@/lib/mixes";
 
 export type CostItem = {
   id: string;
@@ -102,6 +102,8 @@ export type PricingSettings = {
   binders?: BinderSetup;
   /** m² a crew lays in a day by job type and haul (sets crew shifts on drafts). */
   crewOutput?: import("./crew-days").CrewOutput;
+  /** The state they work in: sets the layer depth checks. */
+  state?: string | null;
   /** Their yard or depot: crew travel time to the job is worked out from here. */
   base?: { lat: number; lng: number } | null;
 };
@@ -430,6 +432,11 @@ export function priceSiteQuote(input: {
 
   // Numbers that look mistyped: a stray digit can turn a $500k job into $100 million.
   for (const item of scope.items) {
+    if (item.kind === "asphalt") {
+      const ci = item.cost_item_id ? byId.get(item.cost_item_id) : undefined;
+      const w = depthWarning(settings.state, `${ci?.name ?? ""} ${item.description}`, item.depth_mm);
+      if (w) warnings.push(w);
+    }
     if (item.depth_mm != null && item.depth_mm > 300) warnings.push(`"${item.description}" is ${fmtN(item.depth_mm, 0)} mm deep. Check the depth (it's in millimetres).`);
     if (item.area_m2 != null && item.area_m2 > 200000) warnings.push(`"${item.description}" is ${fmtN(item.area_m2, 0)} m². Check the area.`);
   }

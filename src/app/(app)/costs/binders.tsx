@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { COMMON_BASES, COMMON_EXTRAS, binderLabel, normaliseBinder } from "@/lib/binder";
+import { STATE_BINDERS, type AuState } from "@/lib/mixes";
 import { removeBinderExtra, saveBinderExtra, setBaseBinder } from "./actions";
 
 const sel: React.CSSProperties = { font: "inherit", padding: "9px 10px", borderRadius: 8, border: "1px solid #b6bcc4", background: "#fff", minWidth: 0 };
@@ -12,8 +13,8 @@ const sel: React.CSSProperties = { font: "inherit", padding: "9px 10px", borderR
  * A job asking for AC14 in C600 is priced as the plant's AC14 + the C600 extra.
  * Each change saves straight away.
  */
-export function BinderExtras({ plantId, plantName, base, extras, canEdit }: {
-  plantId: string; plantName: string; base: string; extras: { binder: string; extra_per_t: number }[]; canEdit: boolean;
+export function BinderExtras({ plantId, plantName, base, extras, canEdit, state }: {
+  plantId: string; plantName: string; base: string; extras: { binder: string; extra_per_t: number }[]; canEdit: boolean; state?: string | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -31,7 +32,7 @@ export function BinderExtras({ plantId, plantName, base, extras, canEdit }: {
   });
 
   const used = new Set([base, ...extras.map((e) => e.binder)]);
-  const choices = COMMON_EXTRAS.filter((c) => !used.has(c));
+  const choices = (state ? STATE_BINDERS[state as AuState]?.extras ?? COMMON_EXTRAS : COMMON_EXTRAS).filter((c) => !used.has(c));
   const adding = newBinder === "own" ? own.trim() : newBinder;
   const add = () => run(() => saveBinderExtra({ plantId, binder: adding, extra: newExtra }), `Added ${binderLabel(normaliseBinder(adding))}.`, () => { setNewBinder(""); setNewExtra(""); setOwn(""); });
 

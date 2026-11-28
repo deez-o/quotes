@@ -1,5 +1,5 @@
 import { tidyItems } from "./tidy";
-import { ADD_MIX, hasMix, knownMix } from "@/lib/mixes";
+import { ADD_MIX, hasMix, knownMix, mixForDepth, ownBinder } from "@/lib/mixes";
 import { isKnownBinder, normaliseBinder } from "@/lib/binder";
 /**
  * Talk-to-quote: what the contractor said on site (plus photos) -> a scope.
@@ -92,6 +92,7 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `6a. Mixes marked "from <plant> only" are that plant's prices. Pick the right mix by name from any plant; the app swaps it to the chosen plant's price.`,
     `6b. binder: for asphalt, the binder the job asks for (e.g. "AC14 C600", "multigrade", "PMB A15E", "crumb rubber") as written; null if not said. Pick the mix by its size and type (AC10, AC14, SMA...): if the library has a mix with that exact binder in its name, use it; otherwise use the plain mix and set binder, and the app adds the plant's extra-over price.`,
     `6d. Prime, tack coat and seal: one item over the total area they cover (e.g. prime under both the 40 mm and 50 mm asphalt is one prime item with both areas added), unless the RFQ prices them separately.`,
+    `6p. No mix named, only a depth: pick the dense graded mix the state's spec allows at that depth (QLD TMR MRTS30: AC7 25-35, AC10 35-50, AC14 50-70, AC20 60-100 mm; NSW 3-5 x the size), the smallest that fits, and note it in attention.`,
     `6e. Use the mix the RFQ or drawings specify, even if it seems unusual for the layer depth; if it looks wrong for the thickness (layer under about 3 times the stone size), keep it and add a short question.`,
     `6f. job_type: a carpark if the drawings or RFQ show parking bays, line marking, or concrete/kerbed islands within the asphalt (several islands = carpark), even if it isn't called one. A road is a long strip with kerb and channel; a driveway is one entry.`,
     `6g. Crew and plant: one line per crew or plant item for the whole job, with the total days across all areas and stages (e.g. 6 days, not 4 + 2), unless they work different hours a day.`,
@@ -214,11 +215,12 @@ export function fixMixName(i: SiteScope["items"][number], library: CostItem[]): 
 }
 
 /** Keep only ids that exist; make keys unique; drop negatives. Returns notes for anything fixed. */
-export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPlant[]): { scope: SiteScope; fixes: string[] } {
+export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPlant[], state: string | null = "QLD"): { scope: SiteScope; fixes: string[] } {
   const ids = new Set(library.filter((c) => c.active).map((c) => c.id));
   const fixes: string[] = [];
   const binderNotes: string[] = [];
   const mixAsks: string[] = [];
+  const mixGuesses: string[] = [];
   const seen = new Set<string>();
   const uniqueKey = (k: string, prefix: string) => {
     let key = (k || prefix).replace(/[^\w-]/g, "").slice(0, 24) || prefix;
@@ -230,6 +232,15 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
 
   const items = raw.items.map((i, n) => {
     i = fixMixName(i, library);
+    // A depth but no mix named: the mix the state's spec allows at that depth.
+    if (i.kind === "asphalt" && !i.cost_item_id && !knownMix(i.description) && i.depth_mm) {
+      const guess = mixForDepth(state, i.depth_mm);
+      const hit = guess ? library.find((c) => c.active && c.material_kind === "asphalt" && hasMix([c.name], guess) && !ownBinder(c.name)) : undefined;
+      if (guess && hit) {
+        i = { ...i, cost_item_id: hit.id };
+        mixGuesses.push(`"${i.description}" had no mix named: priced as ${guess}, the mix the spec allows at ${i.depth_mm} mm.`);
+      }
+    }
     let cost = i.cost_item_id;
     if (cost && !ids.has(cost)) {
       fixes.push(`"${i.description}" pointed at a cost that isn't in your library.`);
@@ -292,7 +303,7 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
       optional_rates: (raw.optional_rates ?? []).filter((o) => o && ids.has(o.cost_item_id)).slice(0, 10)
         .map((o, n) => ({ key: uniqueKey(o.key, `o${n + 1}`), cost_item_id: o.cost_item_id, description: String(o.description ?? "").slice(0, 120), quantity: o.quantity != null && Number.isFinite(o.quantity) && o.quantity > 0 ? o.quantity : null })),
       assumptions: (raw.assumptions ?? []).map((a) => a.replace(/\s*Source:\s*(house|own|company)\.?/gi, "").trim()).filter(Boolean).slice(0, 30),
-      attention: (raw.attention ?? []).map((a) => a.replace(/\s*Source:\s*(house|own|company)\.?/gi, "").trim()).filter(Boolean).slice(0, 4),
+      attention: [...mixGuesses, ...(raw.attention ?? [])].map((a) => a.replace(/\s*Source:\s*(house|own|company)\.?/gi, "").trim()).filter(Boolean).slice(0, 4),
       questions: [...mixAsks, ...raw.questions.filter((q) => !mixAsks.some((a) => q.includes(a.slice(ADD_MIX.length + 1)) && /library|costs|not in|isn't in/i.test(q))), ...binderNotes, ...fixes.map((f) => `${f} Pick the right one.`)],
     },
     fixes,
@@ -310,7 +321,7 @@ export type ScopeCall = (messages: ChatMessage[]) => Promise<ProviderResult>;
 /** Read an RFQ into a scope, cleaned against the library. */
 export async function scopeFromRfq(
   call: ScopeCall,
-  ctx: { tradingName: string; library: CostItem[]; plants: SupplyPlant[]; rules?: { house: LayeredRule[]; own: LayeredRule[] } },
+  ctx: { tradingName: string; library: CostItem[]; plants: SupplyPlant[]; state?: string | null; rules?: { house: LayeredRule[]; own: LayeredRule[] } },
   input: Parameters<typeof buildRfqUserMessage>[0],
 ): Promise<{ scope: SiteScope; run: ProviderResult; fixes: string[] }> {
   const messages: ChatMessage[] = [
@@ -319,14 +330,14 @@ export async function scopeFromRfq(
   ];
   const run = await call(messages);
   if (!looksLikeScope(run.json)) throw new Error("The AI's answer wasn't a usable scope.");
-  const { scope, fixes } = cleanScope(run.json, ctx.library, ctx.plants);
+  const { scope, fixes } = cleanScope(run.json, ctx.library, ctx.plants, ctx.state ?? "QLD");
   return { scope, run, fixes };
 }
 
 /** Ask the AI for a scope (or a corrected scope), then clean it against the library. */
 export async function scopeFromTalk(
   call: ScopeCall,
-  ctx: { tradingName: string; library: CostItem[]; plants: SupplyPlant[]; rules?: { house: LayeredRule[]; own: LayeredRule[] } },
+  ctx: { tradingName: string; library: CostItem[]; plants: SupplyPlant[]; state?: string | null; rules?: { house: LayeredRule[]; own: LayeredRule[] } },
   input: Parameters<typeof buildSiteUserMessage>[0],
 ): Promise<{ scope: SiteScope; run: ProviderResult; fixes: string[] }> {
   const messages: ChatMessage[] = [
@@ -335,6 +346,6 @@ export async function scopeFromTalk(
   ];
   const run = await call(messages);
   if (!looksLikeScope(run.json)) throw new Error("The AI's answer wasn't a usable scope. Try again.");
-  const { scope, fixes } = cleanScope(run.json, ctx.library, ctx.plants);
+  const { scope, fixes } = cleanScope(run.json, ctx.library, ctx.plants, ctx.state ?? "QLD");
   return { scope, run, fixes };
 }

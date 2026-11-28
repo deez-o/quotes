@@ -17,7 +17,7 @@ export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
     db.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, active, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours, sell_rate")
       .eq("tenant_id", tenantId).order("name"),
     db.from("supply_plants").select("id, name, lat, lng, base_binder").eq("tenant_id", tenantId).eq("active", true).order("name"),
-    db.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, default_binder, crew_output, base_lat, base_lng")
+    db.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, default_binder, crew_output, base_lat, base_lng, state")
       .eq("tenant_id", tenantId).maybeSingle(),
     db.from("binder_extras").select("supply_plant_id, binder, extra_per_t").eq("tenant_id", tenantId),
   ]);
@@ -37,6 +37,7 @@ export async function loadPricingContext(db: SupabaseClient, tenantId: string) {
     gst_percent: Number(s?.gst_percent ?? DEFAULT_PRICING.gst_percent),
     binders,
     crewOutput: cleanCrewOutput(s?.crew_output ?? null),
+    state: (s?.state as string | null) ?? null,
     base: s?.base_lat != null && s?.base_lng != null ? { lat: Number(s.base_lat), lng: Number(s.base_lng) } : null,
   };
   return {
