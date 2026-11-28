@@ -157,6 +157,7 @@ export async function savePricingSettings(formData: FormData) {
   const { error } = await supabase.from("tenant_settings").upsert({
     tenant_id: ctx.tenant.id, ...values,
     quote_terms: String(formData.get("quote_terms") ?? "").trim().slice(0, 2000) || null,
+    notify_drafts: formData.get("notify_drafts") === "on",
     quote_email_message: String(formData.get("quote_email_message") ?? "").replace(/\r/g, "").trim().slice(0, 4000) || null,
     updated_at: new Date().toISOString(),
   });

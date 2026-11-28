@@ -170,7 +170,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
     supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
-    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent")
+    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts")
       .eq("tenant_id", ctx.tenant.id).maybeSingle(),
   ]);
 
@@ -258,6 +258,9 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
         <label style={field}>Email that goes with a quote
           <textarea name="quote_email_message" rows={9} defaultValue={s?.quote_email_message ?? DEFAULT_QUOTE_MESSAGE} disabled={!canEdit} />
           <span className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 400 }}>Filled in for you: {"{customer}"}, {"{quote_no}"}, {"{job}"}, {"{total}"} (inc GST), {"{total_ex}"}, {"{sender}"}, {"{business}"}, {"{phone_line}"}. You can change it before each send.</span>
+        </label>
+        <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
+          <input type="checkbox" name="notify_drafts" defaultChecked={s?.notify_drafts !== false} disabled={!canEdit} /> Email us when an RFQ has been drafted and is ready to check
         </label>
         {canEdit && <div><button type="submit" className="btn primary">Save pricing settings</button></div>}
         <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>Margin is on the selling price: at 15%, a $85 cost sells for $100.</p>

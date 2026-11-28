@@ -3,10 +3,11 @@ import Link from "next/link";
 import { AreaMap } from "./overview/area-map";
 import { SendQuoteDialog } from "./send";
 import { RiseAndFall } from "./rise-fall";
+import { clearBackup, looksOffline, readBackup, writeBackup, type Backup } from "./offline";
 import type { BitumenIndex } from "@/lib/bitumen";
 import type { DrawnArea } from "@/lib/rfq/overview";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { alignToPlant, choosePlant, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
 import { haulFor } from "@/lib/site/load";
@@ -137,13 +138,63 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
     setSending(true);
   }
 
+  // No signal on site: keep unsaved changes on the phone, and save them when it's back.
+  type Input = ReturnType<typeof saveInput>;
+  const [restore, setRestore] = useState<Backup<Input> | null>(null);
+  const [waitingForSignal, setWaitingForSignal] = useState(false);
+  const checked = useRef(false);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve().then(() => {
+      if (!live) return;
+      const b = readBackup<Input>(quote.id);
+      if (b) setRestore(b);
+      checked.current = true;
+    });
+    return () => { live = false; };
+  }, [quote.id]);
+  useEffect(() => {
+    if (!checked.current) return;
+    if (!dirty) { if (!waitingForSignal) clearBackup(quote.id); return; }
+    const t = setTimeout(() => writeBackup(quote.id, saveInput()), 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- saveInput reads these
+  }, [dirty, scope, margin, customer, email, address, incl, excl, showMap, quote.id, waitingForSignal]);
+  useEffect(() => {
+    if (!waitingForSignal) return;
+    const retry = () => { void save(); };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- retry with the latest changes
+  }, [waitingForSignal]);
+  function bringBack(b: Backup<Input>) {
+    const i = b.input;
+    setScope(i.scope); setMargin(i.marginPercent); setCustomer(i.customer); setEmail(i.customerEmail); setAddress(i.address);
+    setIncl((i.inclusions ?? []).join("\n")); setExcl((i.exclusions ?? []).join("\n")); setShowMap(i.showMap ?? true);
+    setDirty(true); setRestore(null);
+    setMsg({ ok: true, text: "Your changes from this phone are back. Press Save changes to keep them." });
+  }
+
   async function save(then?: "print" | "excel") {
     setBusy(then ?? "save");
     setMsg(null);
-    const r = await saveSiteQuote(saveInput());
+    let r: Awaited<ReturnType<typeof saveSiteQuote>>;
+    try {
+      r = await saveSiteQuote(saveInput());
+    } catch (e) {
+      setBusy(null);
+      if (looksOffline(e)) {
+        writeBackup(quote.id, saveInput());
+        setWaitingForSignal(true);
+        return setMsg({ ok: true, text: "No signal. Your changes are saved on this phone and will upload when you're back online." });
+      }
+      return setMsg({ ok: false, text: "Couldn't save just now. Try again." });
+    }
+    setWaitingForSignal(false);
     setBusy(null);
     if (!r.ok) return setMsg({ ok: false, text: r.message });
     setDirty(false);
+    clearBackup(quote.id);
     if (then === "print") window.open(`/print/site/${quote.id}`, "_blank");
     else if (then === "excel") {
       // A file download, not a page: a plain link click.
@@ -186,6 +237,13 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   return (
     <div className="editor-grid">
       <div className="editor-main">
+        {restore && (
+          <section className="card" style={{ background: "var(--warn-bg)", borderColor: "#f0dba5", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <span className="grow">This phone has changes to this quote that weren&apos;t saved ({new Date(restore.at).toLocaleString("en-AU", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}).</span>
+            <button type="button" className="btn primary" onClick={() => bringBack(restore)}>Bring them back</button>
+            <button type="button" className="btn" onClick={() => { clearBackup(quote.id); setRestore(null); }}>Discard</button>
+          </section>
+        )}
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
         <input type="text" aria-label="Quote title" value={scope.title} onChange={(e) => update({ ...scope, title: e.target.value })}
           style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 600, border: "1px solid transparent", background: "transparent", padding: "4px 0" }} />

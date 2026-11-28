@@ -1,3 +1,4 @@
+import { notifyDrafted } from "@/lib/rfq/notify";
 /**
  * Wires the worker steps to real services: Supabase (service role) and
  * Microsoft Graph with the tenant's encrypted tokens.
@@ -103,7 +104,9 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
 
     async draft_quote(job: QueueJob) {
       // Read the RFQ and its files, and turn it into a priced draft quote for the estimator to check.
-      await draftRfqQuote(db, job.tenant_id, String(job.payload.job_id));
+      const out = await draftRfqQuote(db, job.tenant_id, String(job.payload.job_id));
+      if (out.kind === "drafted") await notifyDrafted(db, job.tenant_id, out.siteQuoteId, "drafted", out.questions);
+      else if (out.kind === "follow_up") await notifyDrafted(db, job.tenant_id, out.siteQuoteId, "follow_up");
     },
   };
 }
