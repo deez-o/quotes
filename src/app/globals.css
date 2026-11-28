@@ -80,7 +80,7 @@ table.list th { text-align: left; color: var(--muted); font-size: 12px; font-wei
 table.list td { padding: 14px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
 .scroll { overflow-x: auto; }
 
-input[type="email"], input[type="text"], input[type="password"], textarea { font: inherit; border: 1px solid #b6bcc4; border-radius: 8px; padding: 12px; width: 100%; background: #fff; color: var(--ink); }
+input[type="email"], input[type="text"], input[type="password"], input[type="tel"], input[type="url"], input[type="number"], input[type="search"], input:not([type]), textarea { font: inherit; border: 1px solid #b6bcc4; border-radius: 8px; padding: 12px; width: 100%; background: #fff; color: var(--ink); }
 label { font-weight: 600; }
 .error { color: var(--accent-ink); font-weight: 600; }
 
@@ -97,5 +97,5 @@ label { font-weight: 600; }
   .nav .who-links a, .nav .who-links button { white-space: nowrap; padding: 8px 10px !important; font-size: 14px; margin-top: 0; }
   .main { padding: 20px 16px calc(24px + env(safe-area-inset-bottom)); }
   h1 { font-size: 26px; }
-  input[type="text"], input[type="email"], textarea, select { font-size: 16px; } /* no zoom on focus in iOS */
+  input[type="text"], input[type="email"], input[type="tel"], input[type="url"], input[type="number"], input[type="search"], input[type="password"], input:not([type]), textarea, select { font-size: 16px; } /* no zoom on focus in iOS */
 }
