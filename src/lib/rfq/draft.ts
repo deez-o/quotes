@@ -1,4 +1,5 @@
 import "server-only";
+import { missingPictures } from "@/lib/mail/sort";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { aiCaller, compareModels, liveModel, liveModelReadsPdfs } from "@/lib/ai/call";
 import { runTrials } from "./trial";
@@ -122,6 +123,13 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     scope.questions.push(`"${f.name}" couldn't be read (${f.note ?? "unknown"}). Check it for anything to price.`);
   }
   if (!scope.title) scope.title = fallbackTitle;
+  // The email points at a picture (e.g. "Areas = [image001.png]") that didn't come with it: usually
+  // a forward sent as plain text. Say so first, because that picture is often the areas.
+  const missing = missingPictures([rfq.body, ...emails.map((e) => e.body)].join("\n"), summaryFiles.map((f) => f.name));
+  if (missing.length) {
+    const ask = `The email points to a picture (${missing.slice(0, 3).join(", ")}) that didn't come through with it, often the areas or quantities. Forward the original email again, or add the picture under "Add the documents".`;
+    if (!scope.questions.includes(ask)) scope.questions.unshift(ask);
+  }
   // A portal invite: the customer is the builder inviting, not the portal's mail address.
   const portal = summary.portal;
   if (portal) {

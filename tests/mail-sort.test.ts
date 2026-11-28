@@ -65,3 +65,12 @@ describe("pictures pasted into the email", () => {
     expect(isSignatureImage(pic("image009.png", 6_000), "Kind regards\n[cid:image009.png@x]")).toBe(true);
   });
 });
+
+describe("pictures that didn't come through", () => {
+  it("flags a picture the email points at that isn't attached", async () => {
+    const { missingPictures } = await import("@/lib/mail/sort");
+    const body = "2. Areas =\n[cid:image001.png@01DD7CC5.11BB6C00]\n\nKind regards,\n[cid:image002.gif@01DD7CC5.11BB6C00]";
+    expect(missingPictures(body, [])).toEqual(["image001.png"]);
+    expect(missingPictures(body, ["image001.png"])).toEqual([]);
+  });
+});

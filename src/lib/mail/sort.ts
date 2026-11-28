@@ -112,3 +112,15 @@ export function documentLinks(text: string): string[] {
   const urls = text.match(/https?:\/\/[^\s<>"')]+/g) ?? [];
   return urls.filter((u) => !isUnsafeLink(u) && /(document|download|files?|share|drive|dropbox|wetransfer|box\.com|sharepoint|onedrive|tender)/i.test(u));
 }
+
+/** Pictures the email text points at as content ("Areas = [cid:image001.png@...]") that aren't among its files. */
+export function missingPictures(text: string, fileNames: string[]): string[] {
+  const have = new Set(fileNames.map((n) => n.toLowerCase()));
+  const out: string[] = [];
+  for (const m of text.matchAll(/\[cid:([^@\]\s]+)@/gi)) {
+    const name = m[1];
+    if (have.has(name.toLowerCase()) || out.includes(name)) continue;
+    if (pointedAt(name, text)) out.push(name);
+  }
+  return out;
+}
