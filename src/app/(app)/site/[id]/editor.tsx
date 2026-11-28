@@ -15,8 +15,10 @@ function fillAddedMixes(scope: SiteScope, library: CostItem[]): SiteScope {
     added.add(m!);
     return { ...i, cost_item_id: hit.id };
   });
-  if (!added.size) return scope;
-  return { ...scope, items, questions: scope.questions.filter((q) => !(q.startsWith(ADD_MIX) && added.has(q.slice(ADD_MIX.length).trim()))) };
+  // Crew with no hours a day yet: a 10-hour day.
+  const crew = scope.crew.map((l) => (l.amount > 0 ? l : { ...l, amount: library.find((c) => c.id === l.cost_item_id)?.unit === "h" ? 10 : 1 }));
+  if (!added.size) return { ...scope, crew };
+  return { ...scope, crew, items, questions: scope.questions.filter((q) => !(q.startsWith(ADD_MIX) && added.has(q.slice(ADD_MIX.length).trim()))) };
 }
 import { COMMON_BASES, COMMON_EXTRAS, binderLabel } from "@/lib/binder";
 import Link from "next/link";
@@ -271,6 +273,19 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           className="title-box"
           style={{ fontFamily: "var(--font-head)", fontSize: 22, fontWeight: 600, border: "1px solid transparent", background: "transparent", padding: "4px 0", resize: "none", overflow: "hidden", lineHeight: 1.25 }} />
 
+        {/* Who it's for and where: the first thing to fill in. */}
+        <section className="card" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+        <label style={small}>Customer<input type="text" list="customer-list" autoComplete="off" value={customer} disabled={!canEdit} onChange={(e) => {
+          const v = e.target.value;
+          setCustomer(v); setDirty(true);
+          const known = customers.find((c) => c.name.toLowerCase() === v.trim().toLowerCase());
+          if (known?.email && !email) setEmail(known.email);
+        }} /></label>
+        <datalist id="customer-list">{customers.map((c) => <option key={c.name} value={c.name}>{c.email ?? ""}</option>)}</datalist>
+        <label style={small}>Customer email<input type="email" value={email} disabled={!canEdit} onChange={(e) => { setEmail(e.target.value); setDirty(true); }} /></label>
+        <label style={{ ...small, gridColumn: "1 / -1" }}>Site address<input type="text" value={address} disabled={!canEdit} onChange={(e) => { setAddress(e.target.value); setDirty(true); }} /></label>
+        </section>
+
         {(scope.questions.length > 0 || scope.assumptions.length > 0) && (
           <section className="card" style={{ background: "var(--warn-bg)", borderColor: "#f0dba5", display: "flex", flexDirection: "column", gap: 6 }}>
             <strong>To confirm</strong>
@@ -437,13 +452,16 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
               if (add.length) { setExcl([...toLines(excl), ...add].join("\n")); setDirty(true); }
             }}>Add what the RFQ says is by others ({quote.rfqExclusions.length})</button>
           )}
-          <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
-            <input type="checkbox" checked={showMap} disabled={!canEdit} onChange={(e) => { setShowMap(e.target.checked); setDirty(true); }} />
-            Put the site map with the traced areas on the PDF{quote.areas.length ? "" : " (trace an area below first)"}
-          </label>
+          {/* RFQs come with their areas: the map is for quotes made on site (or one already traced). */}
+          {(!rfq || quote.areas.length > 0) && (
+            <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
+              <input type="checkbox" checked={showMap} disabled={!canEdit} onChange={(e) => { setShowMap(e.target.checked); setDirty(true); }} />
+              Put the site map with the traced areas on the PDF{quote.areas.length ? "" : " (trace an area below first)"}
+            </label>
+          )}
         </section>
 
-        <details className="card" onToggle={(e) => setMapOpen((e.currentTarget as HTMLDetailsElement).open)}>
+        {(!rfq || quote.areas.length > 0) && <details className="card" onToggle={(e) => setMapOpen((e.currentTarget as HTMLDetailsElement).open)}>
           <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 17 }}>
             Measure on the map{quote.areas.length ? <span className="sub" style={{ fontWeight: 400, marginLeft: 8 }}>{quote.areas.length} area{quote.areas.length === 1 ? "" : "s"} traced</span> : null}
           </summary>
@@ -458,7 +476,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 onUse={(key, m2) => setItem(key, { area_m2: m2 })} />
             ) : null}
           </div>
-        </details>
+        </details>}
 
         {(["crew", "plant"] as const).map((group) => (
           <section key={group} className="card">
@@ -549,17 +567,6 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         </section>
       </fieldset>
 
-      <section className="card" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-        <label style={small}>Customer<input type="text" list="customer-list" autoComplete="off" value={customer} disabled={!canEdit} onChange={(e) => {
-          const v = e.target.value;
-          setCustomer(v); setDirty(true);
-          const known = customers.find((c) => c.name.toLowerCase() === v.trim().toLowerCase());
-          if (known?.email && !email) setEmail(known.email);
-        }} /></label>
-        <datalist id="customer-list">{customers.map((c) => <option key={c.name} value={c.name}>{c.email ?? ""}</option>)}</datalist>
-        <label style={small}>Customer email<input type="email" value={email} disabled={!canEdit} onChange={(e) => { setEmail(e.target.value); setDirty(true); }} /></label>
-        <label style={{ ...small, gridColumn: "1 / -1" }}>Site address<input type="text" value={address} disabled={!canEdit} onChange={(e) => { setAddress(e.target.value); setDirty(true); }} /></label>
-      </section>
 
       <section className="card">
         <h2>What your customer sees</h2>

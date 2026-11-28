@@ -84,7 +84,7 @@ export function buildSiteSystemPrompt(tradingName: string, library: CostItem[], 
     `1. Only use cost_item_id values from the library below. If nothing fits, set cost_item_id to null and add a question.`,
     `2. Quantities only from what was said or clearly visible: area in m2, depth in mm. Convert units (e.g. "100 mil" = 100 mm, "2,000 squares" = 2000 m2, "half a day" = 4 h if shifts are 8 h). Never invent a number: if a needed quantity is missing, leave it null and ask.`,
     `3. Asphalt and base items need area_m2 and depth_mm. Prime, tack coat and seal need area_m2. "other" items use quantity in the cost item's unit.`,
-    `4. Crew and plant lines: amount is per day in the cost item's unit (hours a day for hourly crew and hire, shifts for per-shift crew); days is how many days (1 if it's one day). If the hours a day aren't said, set amount to null and ask. Overtime is worked out by the app from the hours.`,
+    `4. Crew and plant lines: amount is per day in the cost item's unit (hours a day for hourly crew and hire, shifts for per-shift crew); days is how many days (1 if it's one day). If the hours a day aren't said, use 10 hours a day and say so in assumptions (don't ask). Overtime is worked out by the app from the hours.`,
     `5. Under new asphalt, add a tack coat item (kind tack) over the asphalt area by default, and say so in assumptions. Only use prime (kind prime) when the job or RFQ asks for prime (e.g. on a new granular base): then prime goes first, and tack coat goes between asphalt layers only if asked. Never add both by default.`,
     `6. supply_plant_id: only if they name a plant (match it to the list). Otherwise null: the app picks the nearest plant to the site.`,
     `6a. Mixes marked "from <plant> only" are that plant's prices. Pick the right mix by name from any plant; the app swaps it to the chosen plant's price.`,
@@ -264,7 +264,8 @@ export function cleanScope(raw: SiteScope, library: CostItem[], plants: SupplyPl
       if (!ok) fixes.push(`A ${prefix === "c" ? "crew" : "plant"} line pointed at a cost that isn't in your library.`);
       return ok;
     }).map((l, n) => ({
-      ...l, key: uniqueKey(l.key, `${prefix}${n + 1}`), amount: l.amount ?? 0,
+      // Hours a day not said: a 10-hour day (1 for shift or day rates).
+      ...l, key: uniqueKey(l.key, `${prefix}${n + 1}`), amount: l.amount ?? (library.find((c) => c.id === l.cost_item_id)?.unit === "h" ? 10 : 1),
       days: l.days != null && Number.isFinite(l.days) && l.days > 0 ? l.days : null,
     }));
 

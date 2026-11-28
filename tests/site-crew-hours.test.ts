@@ -38,14 +38,14 @@ describe("crew by the hour with overtime", () => {
 });
 
 describe("the AI asks for what's missing", () => {
-  it("keeps a crew line with unknown hours (null) so it can be answered", () => {
+  it("gives a crew line with unknown hours a 10-hour day", () => {
     const raw = { ...scope(0), crew: [{ key: "c1", cost_item_id: "crew", amount: null as unknown as number, days: null, note: null }] };
     const { scope: s } = cleanScope(raw, [crew, bobcat], []);
-    expect(s.crew[0]).toMatchObject({ amount: 0, days: null });
+    expect(s.crew[0]).toMatchObject({ amount: crew.unit === "h" ? 10 : 1, days: null });
   });
-  it("tells the AI to ask for hours, days and the job's location", () => {
+  it("tells the AI to assume a 10-hour day and ask for the job's location", () => {
     const p = buildSiteSystemPrompt("Demo", [crew], []);
-    expect(p).toMatch(/If the hours a day aren't said, set amount to null and ask/);
+    expect(p).toMatch(/If the hours a day aren't said, use 10 hours a day/);
     expect(p).toMatch(/site_location: the job's address or suburb if they say it/);
   });
 });
