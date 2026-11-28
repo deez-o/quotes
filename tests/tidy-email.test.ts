@@ -38,6 +38,11 @@ describe("tidyEmail", () => {
     expect(p[1]).toMatchObject({ from: "Jane Builder", subject: "RE: Example Road - Asphalt - Request for Quotation." });
     expect(p[1].text).toBe("Please note the following project assumptions:\n\n* There will be four establishments\n* AC15");
   });
+  test("drops a forward that only carries the forwarder's name and title", () => {
+    const p = tidyEmail("Dan Soundy\nOperations Manager - QLD\n\nFrom: Ana <ana@example.com>\nSent: Tuesday, 24 November 2026 3:28 PM\nSubject: RFQ\n\nCould you please quote the asphalt.\n\nThanks\nAna");
+    expect(p).toHaveLength(1);
+    expect(p[0].text).toBe("Could you please quote the asphalt.");
+  });
   test("a plain email with no signature stays as it is", () => {
     expect(tidyEmail("Can you price 200 m2 of AC10 at 40 mm?")[0].text).toBe("Can you price 200 m2 of AC10 at 40 mm?");
   });

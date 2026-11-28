@@ -61,5 +61,12 @@ export function tidyEmail(body: string): EmailPart[] {
   }
   const text = clean(rest);
   if (text) parts.push({ ...head, text });
-  return parts;
+  // A forward with nothing written above it leaves just the sender's name and title: not a message.
+  return parts.filter((p, i) => parts.length === 1 || i > 0 || !signatureOnly(p.text));
+}
+
+/** "Dan Soundy\nOperations Manager - QLD": a name and title with nothing about the job. */
+function signatureOnly(text: string): boolean {
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  return lines.length <= 4 && lines.every((l) => l.length <= 45 && !/[?]|\d|\b(quote|price|job|please|attached|see|areas?|asphalt)\b/i.test(l));
 }
