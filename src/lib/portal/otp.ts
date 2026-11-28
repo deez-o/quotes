@@ -7,6 +7,8 @@ export function codeFromEmail(subject: string, body: string): string | null {
 }
 
 /** Is this email from a tender portal's sign-in system? */
-export function isPortalCodeEmail(from: string, subject: string): boolean {
-  return /estimateone|tenderlink|buildingconnected|procore|aconex/i.test(from) && /code|verif|sign|log ?in|access/i.test(subject);
+export function isPortalCodeEmail(from: string, subject: string, body = ""): boolean {
+  const portal = /estimateone|tenderlink|buildingconnected|procore|aconex/i;
+  // Straight from the portal, or forwarded on (e.g. an inbox rule from the sales inbox).
+  return /code|verif|sign|log ?in|access/i.test(subject) && (portal.test(from) || (portal.test(body) && /one[- ]time|verification|code/i.test(body)));
 }

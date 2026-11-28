@@ -127,10 +127,10 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
         const g = await graphForConnection(db, siteUrl, job.tenant_id, c.id as string);
         const { value } = await g.listInboxSince(since, 25);
         for (const m of [...value].reverse()) {
-          const from = m.from?.emailAddress?.address ?? "";
-          if (!isPortalCodeEmail(from, m.subject ?? "")) continue;
+          if (!/code|verif|sign|log ?in|access/i.test(m.subject ?? "")) continue;
           const full = await g.getMessage(m.id);
-          const code = codeFromEmail(full.subject, full.bodyText);
+          if (!isPortalCodeEmail(full.from, full.subject, full.bodyText)) continue;
+          const code = codeFromEmail(full.subject, full.bodyText.replace(/^.*?(one[- ]time|verification)/is, "$1"));
           if (code) return code;
         }
         return null;
