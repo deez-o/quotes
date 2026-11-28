@@ -67,7 +67,7 @@ export function isStoredLogo(f: { name: string; mime: string | null; size: numbe
   const a = { name: f.name, contentType: f.mime ?? "", size: f.size, isInline: false } as IncomingAttachment;
   if (bodies.some((b) => pointedAt(f.name, b))) return false;
   if (repeats > 1 && /^image\d{3}\./i.test(f.name)) return true;
-  return isSignatureImage(a, "");
+  return isSignatureImage(a, bodies.join("\n"));
 }
 
 /** True when the text just before "[cid:NAME@" (or "[NAME]") introduces it as content. */
