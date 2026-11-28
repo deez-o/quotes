@@ -15,6 +15,8 @@ import { searchPlaces } from "@/lib/maps";
 import { choosePlant, priceSiteQuote, type SiteScope } from "@/lib/site/price";
 import { SITE_SCOPE_SCHEMA, scopeFromRfq, type RfqAttachment, type ScopeCall } from "@/lib/site/scope-ai";
 import { readFile } from "./read";
+import { drawingPages } from "./drawings";
+import { isStoredLogo } from "@/lib/mail/sort";
 import { cleanSubject, forwardedFrom, splitSavedEmail, type RfqSummary } from "./split";
 import { detectPortal } from "./portal";
 import { findDocLinks } from "./links";
@@ -23,6 +25,8 @@ export { splitSavedEmail, type RfqSummary };
 const BUCKET = "job-files";
 const MAX_FILES = 20;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
+/** Drawing pages sent as pictures, across all the files of one RFQ. */
+const MAX_DRAWING_PAGES = 24;
 
 
 export type DraftOutcome =
@@ -130,11 +134,11 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
       scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
     } catch (e) {
       // A picture the AI won't take (an odd format, a broken file) shouldn't sink the whole read: try the words alone.
-      const pics = rfqInput.attachments.filter((a) => a.imageUrl || a.pdfUrl).map((a) => a.name);
+      const pics = rfqInput.attachments.filter((a) => a.imageUrl || a.pdfUrl || a.pages?.length).map((a) => a.name);
       let ok = false;
       if (pics.length && e instanceof Error && /\b400\b/.test(e.message)) {
         try {
-          const out = await scopeFromRfq(call, ctxAi, { ...rfqInput, attachments: rfqInput.attachments.map((a) => ({ ...a, imageUrl: null, pdfUrl: null })) });
+          const out = await scopeFromRfq(call, ctxAi, { ...rfqInput, attachments: rfqInput.attachments.map((a) => ({ ...a, imageUrl: null, pdfUrl: null, pages: [] })) });
           scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
           scope.questions.unshift(`Read without the pictures and scanned pages (${pics.slice(0, 4).join(", ")}): the AI couldn't open them. Check them by eye.`);
           ok = true;
@@ -252,15 +256,22 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
     .eq("tenant_id", tenantId).eq("job_id", jobId).order("created_at", { ascending: true }).limit(MAX_FILES);
   const attachments: RfqAttachment[] = [];
   const summaryFiles: RfqSummary["files"] = [];
+  let pagesLeft = MAX_DRAWING_PAGES;
+  const bodies = emails.map((e) => e.body);
+  const sizeCount = new Map<number, number>();
+  for (const f of files ?? []) sizeCount.set(Number(f.size_bytes), (sizeCount.get(Number(f.size_bytes)) ?? 0) + 1);
   for (const f of files ?? []) {
     const path = String(f.storage_path);
+    // Logos and signature pictures aren't part of the job: not read, not listed.
+    if (isStoredLogo({ name: f.filename, mime: f.mime, size: Number(f.size_bytes) }, bodies, sizeCount.get(Number(f.size_bytes)))) continue;
     if (!path.startsWith(`${tenantId}/`)) continue;
     if (Number(f.size_bytes) > MAX_FILE_BYTES) {
       attachments.push({ name: f.filename, text: null, imageUrl: null, pdfUrl: null, note: "too big to read: check it by eye" });
       summaryFiles.push({ name: f.filename, path, read: "no", note: "too big to read" });
       continue;
     }
-    const read = await readFile(f.filename, f.mime, await download(db, path));
+    const bytes = await download(db, path);
+    const read = await readFile(f.filename, f.mime, bytes);
     let imageUrl: string | null = null;
     let pdfUrl: string | null = null;
     // The AI reads JPG and PNG pictures; a GIF is nearly always a logo or animation.
@@ -268,14 +279,27 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
       summaryFiles.push({ name: f.filename, path, read: "no", note: "GIF picture (usually a logo): not read" });
       continue;
     }
-    if (read.kind === "image" || (read.kind === "pdf" && !read.text)) {
+    // Drawing sheets (and scans) go in as pictures of each page, so the AI sees the plans, not just their words.
+    const pages: { page: number; url: string }[] = [];
+    if (read.kind === "pdf" && pagesLeft > 0) {
+      const drawn = await drawingPages(bytes, { max: Math.min(12, pagesLeft) });
+      for (const d of drawn) {
+        const pagePath = `${tenantId}/${jobId}/.pages/${f.id}-p${d.page}.jpg`;
+        const up = await db.storage.from(BUCKET).upload(pagePath, d.jpg, { contentType: "image/jpeg", upsert: true });
+        if (up.error) continue;
+        const { data } = await db.storage.from(BUCKET).createSignedUrl(pagePath, 3600);
+        if (data?.signedUrl) pages.push({ page: d.page, url: data.signedUrl });
+      }
+      pagesLeft -= pages.length;
+    }
+    if (read.kind === "image" || (read.kind === "pdf" && !read.text && !pages.length)) {
       const { data } = await db.storage.from(BUCKET).createSignedUrl(path, 3600);
       if (read.kind === "image") imageUrl = data?.signedUrl ?? null;
       else pdfUrl = data?.signedUrl ?? null;
     }
-    attachments.push({ name: f.filename, text: read.text, imageUrl, pdfUrl, note: read.note });
-    summaryFiles.push({ name: f.filename, path, read: read.text ? "text" : imageUrl ? "image" : "no", note: read.note });
-    await db.from("attachments").update({ read_ok: Boolean(read.text || imageUrl) }).eq("tenant_id", tenantId).eq("id", f.id);
+    attachments.push({ name: f.filename, text: read.text, imageUrl, pdfUrl, pages, note: read.note });
+    summaryFiles.push({ name: f.filename, path, read: read.text ? "text" : imageUrl || pages.length ? "image" : "no", note: read.note });
+    await db.from("attachments").update({ read_ok: Boolean(read.text || imageUrl || pages.length) }).eq("tenant_id", tenantId).eq("id", f.id);
   }
 
   // Forwarded to quoteout (or to the inbox by a colleague): the customer is whoever sent the original.

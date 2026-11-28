@@ -154,7 +154,9 @@ export function buildSiteUserMessage(input: {
   return [{ type: "text", text }, ...input.photoUrls.slice(0, 6).map((url) => ({ type: "image_url" as const, image_url: { url } }))];
 }
 
-export type RfqAttachment = { name: string; text: string | null; imageUrl: string | null; pdfUrl?: string | null; note: string | null };
+export type RfqAttachment = { name: string; text: string | null; imageUrl: string | null; pdfUrl?: string | null; note: string | null;
+  /** Drawing sheets as pictures, by page number. */
+  pages?: { page: number; url: string }[] };
 
 /** The RFQ email and what could be read from its attachments. */
 export function buildRfqUserMessage(input: { from: string; subject: string; received: string | null; body: string; attachments: RfqAttachment[]; extraNotes?: string[] }): ChatPart[] {
@@ -172,9 +174,9 @@ export function buildRfqUserMessage(input: { from: string; subject: string; rece
     if (a.text) {
       const t = a.text.slice(0, Math.min(MAX_ATTACH_TEXT, Math.max(0, budget)));
       budget -= t.length;
-      parts.push(``, `--- Attachment: ${a.name} ---`, t || "(too long to include)", a.text.length > t.length ? "(cut short)" : "");
+      parts.push(``, `--- Attachment: ${a.name} ---${a.pages?.length ? ` (drawing pages ${a.pages.map((p) => p.page).join(", ")} are also attached below as pictures: read widths, lengths and the hatched/marked areas off them)` : ""}`, t || "(too long to include)", a.text.length > t.length ? "(cut short)" : "");
     } else {
-      parts.push(``, `--- Attachment: ${a.name} --- ${a.imageUrl ? "(image attached below)" : a.pdfUrl ? "(scanned PDF attached below as a document)" : `(${a.note ?? "could not be read"})`}`);
+      parts.push(``, `--- Attachment: ${a.name} --- ${a.imageUrl ? "(image attached below)" : a.pages?.length ? `(no text: pages ${a.pages.map((p) => p.page).join(", ")} attached below as pictures)` : a.pdfUrl ? "(scanned PDF attached below as a document)" : `(${a.note ?? "could not be read"})`}`);
     }
   }
   if (input.extraNotes?.length) parts.push(``, ...input.extraNotes);
@@ -184,6 +186,11 @@ export function buildRfqUserMessage(input: { from: string; subject: string; rece
     { type: "text", text: parts.filter((x) => x !== undefined).join("\n") },
     ...images.map((a) => ({ type: "image_url" as const, image_url: { url: a.imageUrl! } })),
     ...pdfs.map((a) => ({ type: "document_url" as const, document_url: { url: a.pdfUrl!, name: a.name } })),
+    // Each drawing page with its name just before it, so notes can say which sheet.
+    ...input.attachments.flatMap((a) => (a.pages ?? []).flatMap((p) => [
+      { type: "text" as const, text: `Picture: ${a.name}, page ${p.page}` },
+      { type: "image_url" as const, image_url: { url: p.url } },
+    ])),
   ];
 }
 

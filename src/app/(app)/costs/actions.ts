@@ -1,5 +1,6 @@
 "use server";
 
+import { cleanCartage } from "@/lib/site/trucks";
 import { STATE_BINDERS, STATE_MIXES, type AuState } from "@/lib/mixes";
 import { cleanCrewOutput } from "@/lib/site/crew-days";
 
@@ -253,4 +254,20 @@ export async function saveCrewOutput(formData: FormData) {
   if (error) back(error.message);
   revalidatePath("/costs");
   back("Crew output saved.", true);
+}
+
+/** Truck rounds by distance from the plant, and when a job goes in one round. */
+export async function saveCartageRules(formData: FormData) {
+  const ctx = await adminCtx();
+  const raw: Record<string, number> = {};
+  for (const k of ["farMinutes", "farRounds", "midMinutes", "midRounds", "nearRounds", "oneRoundLoads"]) {
+    const n = num(formData.get(k));
+    if (n == null || Number.isNaN(n) || n < 0) back("Truck rounds must be numbers.");
+    raw[k] = n as number;
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("tenant_settings").upsert({ tenant_id: ctx.tenant.id, cartage_rules: cleanCartage(raw), updated_at: new Date().toISOString() });
+  if (error) back(error.message);
+  revalidatePath("/costs");
+  back("Truck rounds saved.", true);
 }

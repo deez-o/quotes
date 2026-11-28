@@ -4,7 +4,8 @@ import { keyFor, liveModel } from "@/lib/ai/call";
 import Link from "next/link";
 import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
-import { archiveCostItem, saveCostItem, saveCrewOutput, savePricingSettings } from "./actions";
+import { archiveCostItem, saveCostItem, saveCartageRules, saveCrewOutput, savePricingSettings } from "./actions";
+import { cleanCartage } from "@/lib/site/trucks";
 import { cleanCrewOutput } from "@/lib/site/crew-days";
 import { PlantForm } from "./plant-form";
 import { BinderExtras } from "./binders";
@@ -198,7 +199,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
     supabase.from("cost_items").select("id, category, material_kind, name, unit, rate, density_t_per_m3, includes_delivery, truck_capacity_t, supply_plant_id, ordinary_hours, ot1_hours, ot1_multiplier, ot2_multiplier, rate_tiers, min_hours, sell_rate")
       .eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
     supabase.from("supply_plants").select("id, name, address, lat, lng, prices_valid_until, prices_note, base_binder").eq("tenant_id", ctx.tenant.id).eq("active", true).order("name"),
-    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts, crew_output, state")
+    supabase.from("tenant_settings").select("margin_percent, truck_load_minutes, truck_unload_minutes, shift_minutes, road_factor, average_speed_kmh, gst_percent, quote_terms, quote_email_message, binder_percent, notify_drafts, crew_output, cartage_rules, state")
       .eq("tenant_id", ctx.tenant.id).maybeSingle(),
     supabase.from("binder_extras").select("supply_plant_id, binder, extra_per_t").eq("tenant_id", ctx.tenant.id).order("binder"),
   ]);
@@ -308,6 +309,33 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
         );
       })()}
 
+      {(() => {
+        const r = cleanCartage(s?.cartage_rules ?? null);
+        const f = (name: string, label: string, v: number, unit: string) => (
+          <label style={field}>{label}<span style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="text" inputMode="decimal" name={name} defaultValue={v} style={{ flex: 1, minWidth: 0 }} />{unit}</span></label>
+        );
+        return (
+          <form action={saveCartageRules} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {canEdit && <AutoSave />}
+            <div>
+              <h2 style={{ margin: 0 }}>Trucks: rounds a shift</h2>
+              <p className="sub" style={{ marginTop: 2, marginBottom: 0, fontSize: 13 }}>
+                Sets how many trucks each quote allows. Going by the drive from the asphalt plant to the job (not your yard), each truck does this many rounds a shift;
+                the loads a shift ÷ rounds = trucks. A small job goes in one round. Never more rounds than fit in the truck working day below.
+              </p>
+            </div>
+            <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, ...grid }}>
+              {f("farMinutes", "Far: plant this far or more", r.farMinutes, "min")}
+              {f("farRounds", "Far: rounds", r.farRounds, "rounds")}
+              {f("midMinutes", "Middle: from", r.midMinutes, "min")}
+              {f("midRounds", "Middle: rounds", r.midRounds, "rounds")}
+              {f("nearRounds", "Closer than that: rounds", r.nearRounds, "rounds")}
+              {f("oneRoundLoads", "One round when a shift is up to", r.oneRoundLoads, "loads")}
+            </fieldset>
+          </form>
+        );
+      })()}
+
       <form action={savePricingSettings} className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <h2 style={{ margin: 0 }}>Pricing settings</h2>
         <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, ...grid }}>
@@ -318,7 +346,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
           <label style={field}>Binder in asphalt (%)<input type="text" inputMode="decimal" name="binder_percent" defaultValue={s?.binder_percent ?? 5.5} /></label>
         </fieldset>
         <p className="sub" style={{ marginTop: 0, fontSize: 13 }}>
-          Cartage is worked out from these: each load takes loading + the drive there and back + tipping. A truck does as many loads as fit in its working day; more loads than that means another truck. Binder in asphalt is how much of each tonne is bitumen, for rise and fall.
+          Each load takes loading + the drive there and back + tipping (a round); the rounds a truck does are set above. Binder in asphalt is how much of each tonne is bitumen, for rise and fall.
         </p>
         <label style={field}>Terms printed on quotes
           <textarea name="quote_terms" rows={5} defaultValue={toShown(s?.quote_terms ?? DEFAULT_TERMS)} disabled={!canEdit} />

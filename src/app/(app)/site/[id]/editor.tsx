@@ -6,7 +6,6 @@ import { fillAddedMixes } from "@/lib/site/fill-mixes";
 
 import { COMMON_BASES, COMMON_EXTRAS, binderLabel } from "@/lib/binder";
 import Link from "next/link";
-import { PlanViewer } from "./plan-viewer";
 import { AreaMap } from "./overview/area-map";
 import { SendQuoteDialog } from "./send";
 import { clearBackup, looksOffline, readBackup, writeBackup, type Backup } from "./offline";
@@ -15,7 +14,7 @@ import type { DrawnArea, PlanOverlay } from "@/lib/rfq/overview";
 
 import { useEffect, useMemo, useRef, useState, Fragment } from "react";
 import { useRouter } from "next/navigation";
-import { alignToPlant, choosePlant, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
+import { alignToPlant, chargeable, choosePlant, PROFILING_M2_PER_HOUR, money, priceSiteQuote, type CostItem, type HaulRoutes, type LabourLine, type PricingSettings, type ScopeItem, type SiteScope, type SupplyPlant } from "@/lib/site/price";
 import { haulFor } from "@/lib/site/load";
 import { correctSiteScope, locateSite, saveSiteQuote, sendToXero } from "../actions";
 import { PlaceSearch } from "../../place-search";
@@ -109,6 +108,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   const priced = useMemo(() => priceSiteQuote({ scope, library, settings, haul, marginPercent: margin }), [scope, library, settings, haul, margin]);
 
   const update = (s: SiteScope) => { setScope(s); setDirty(true); };
+  const setRate = (key: string, patch: Partial<NonNullable<SiteScope["optional_rates"]>[number]>) => update({ ...scope, optional_rates: (scope.optional_rates ?? []).map((x) => (x.key === key ? { ...x, ...patch } : x)) });
   const setItem = (key: string, patch: Partial<ScopeItem>) => update({ ...scope, items: scope.items.map((i) => (i.key === key ? { ...i, ...patch } : i)) });
   const setLine = (group: "crew" | "plant", key: string, patch: Partial<LabourLine>) => update({ ...scope, [group]: scope[group].map((l) => (l.key === key ? { ...l, ...patch } : l)) });
   // Mixes from the chosen plant (and general costs) first, then other plants' mixes.
@@ -326,29 +326,26 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         {compare && <ComparePanel quoteId={quote.id} view={compare} />}
 
         {rfq && (
+          <Link href={`/site/${quote.id}/overview`} className="card overview-cta">
+            <span>
+              <strong>Job overview</strong>
+              <span className="sub" style={{ display: "block", marginTop: 2 }}>The drawings with our work marked up, quantities, specs, notes and the run from your yard{rfq.files.length ? ` · ${rfq.files.length} document${rfq.files.length === 1 ? "" : "s"}` : ""}</span>
+            </span>
+            <span aria-hidden="true" className="overview-cta-arrow">›</span>
+          </Link>
+        )}
+
+        {rfq && (
           <details className="card" open>
-            <summary style={{ fontWeight: 600, cursor: "pointer", fontSize: 18 }}>From the RFQ</summary>
+            <summary style={{ fontWeight: 600, cursor: "pointer", fontSize: 18 }}>What the email says</summary>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
               <div className="sub" style={{ marginTop: 0, fontSize: 13 }}>
                 {rfq.from ?? "Unknown sender"}{rfq.received ? ` · ${new Date(rfq.received).toLocaleString("en-AU", { dateStyle: "medium", timeStyle: "short" })}` : ""}
                 {rfq.subject ? <><br /><strong style={{ color: "var(--ink)" }}>{rfq.subject}</strong></> : null}
               </div>
-              {rfq.files.length > 0 && (
-                <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {rfq.files.map((f) => (
-                    <li key={f.name}>
-                      <a href={f.url ?? undefined} target="_blank" rel="noreferrer" title={f.read === "no" ? f.note ?? "Not read" : f.read === "image" ? "Looked at as a picture" : "Read"}
-                        style={{ display: "inline-flex", gap: 6, alignItems: "center", border: "1px solid var(--line)", borderRadius: 8, padding: "6px 10px", fontSize: 13, background: f.read === "no" ? "var(--warn-bg)" : "#fff" }}>
-                        <span aria-hidden="true">{f.read === "no" ? "⚠" : "📎"}</span>{f.name}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <PlanViewer files={rfq.files} />
               {rfq.emails.map((e, i) => (
-                <div key={e.name} style={{ borderTop: i ? "1px solid var(--line-soft)" : undefined, paddingTop: i ? 10 : 0 }}>
-                  {i > 0 && <div className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 600 }}>Later email · {e.from ?? ""}{e.date ? ` · ${e.date}` : ""}</div>}
+                <div key={`${e.name}-${i}`} style={{ borderTop: i ? "1px solid var(--line-soft)" : undefined, paddingTop: i ? 10 : 0 }}>
+                  {(i > 0 || e.from) && <div className="sub" style={{ marginTop: 0, fontSize: 12, fontWeight: 600 }}>{e.from ?? ""}{e.date ? ` · ${e.date}` : ""}</div>}
                   <div style={{ whiteSpace: "pre-wrap", fontSize: 14, maxHeight: 320, overflowY: "auto", background: "var(--ground)", borderRadius: 8, padding: 12 }}>{e.body.trim() || "(no message text)"}</div>
                 </div>
               ))}
@@ -528,6 +525,22 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 : "Pick a plant and find the site, or enter the distance."}
             </span>
           </div>
+          {priced.trucks && (
+            <div className="truck-plan" aria-label="How the trucks are worked out">
+              <div className="truck-plan-head">
+                <strong>{priced.trucks.trucks} truck{priced.trucks.trucks === 1 ? "" : "s"} × {priced.trucks.rounds} round{priced.trucks.rounds === 1 ? "" : "s"}</strong>
+                <span>{priced.trucks.shifts > 1 ? `a shift, ${priced.trucks.shifts} shifts` : "one shift"}</span>
+              </div>
+              <dl>
+                <div><dt>Asphalt to cart</dt><dd>{priced.trucks.tonnes.toLocaleString("en-AU")} t = {priced.trucks.loads} loads</dd></div>
+                {priced.trucks.shifts > 1 && <div><dt>Each shift</dt><dd>{priced.trucks.tonnesPerShift.toLocaleString("en-AU")} t, {priced.trucks.loadsPerShift} loads</dd></div>}
+                <div><dt>Rounds</dt><dd>{priced.trucks.why}</dd></div>
+                <div><dt>A round</dt><dd>{priced.trucks.cycleMinutes} min (there and back, loading and tipping)</dd></div>
+                <div><dt>Truck hours</dt><dd>{priced.trucks.hours.toLocaleString("en-AU")} h charged</dd></div>
+              </dl>
+              <span className="sub" style={{ fontSize: 12, marginTop: 0 }}>Rounds by distance from the plant are set on <Link href="/costs">Costs</Link>. To allow a different number of trucks, change the minutes above.</span>
+            </div>
+          )}
           {active.some((c) => c.category === "establishment") && (
             <label style={{ ...small, maxWidth: 220 }}>Establishments (set-ups on site)
               <input type="text" inputMode="numeric" value={scope.establishments ?? (scope.items.length ? 1 : 0)}
@@ -574,7 +587,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
         {(priced.optionalRates.length > 0 || canEdit) && (
           <div style={{ marginTop: 14, borderTop: "1px solid var(--line-soft)", paddingTop: 10 }}>
             <strong style={{ fontSize: 14 }}>Rates, not in the total</strong>
-            <p className="sub" style={{ margin: "2px 0 6px", fontSize: 12 }}>Extra-overs the customer asked for (extra establishment, MTV, profiling): a rate, or a lump sum if you put a quantity. Shown on the quote with your margin on.</p>
+            <p className="sub" style={{ margin: "2px 0 6px", fontSize: 12 }}>Extra-overs the customer asked for (extra establishment, MTV, profiling): your cost with the margin you pick on it, shown on the quote as a rate.</p>
             {priced.optionalRates.map((o) => (
               <Fragment key={o.key}>
               <div className="row" style={{ gap: 10, padding: "4px 0", alignItems: "center" }}>
@@ -592,21 +605,39 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                     </span>
                   );
                 })()}
-                <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{o.total ? `${money(o.total)} total` : `${money(o.rate)} per ${o.unit}`}</span>
+                <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{o.unit === "lump sum" ? `${money(o.rate)} lump sum` : `${money(o.rate)} per ${o.unit}`}</span>
                 {canEdit && <button type="button" className="job-item-remove" style={{ marginLeft: 0 }} onClick={() => update({ ...scope, optional_rates: (scope.optional_rates ?? []).filter((x) => x.key !== o.key) })}>Remove</button>}
               </div>
-              {(() => {
+              {o.cost != null && (() => {
                 const raw = (scope.optional_rates ?? []).find((x) => x.key === o.key);
-                const ci = raw?.custom_rate == null ? active.find((c) => c.id === raw?.cost_item_id) : undefined;
+                const ci = active.find((c) => c.id === raw?.cost_item_id);
                 return (
-                  <div className="sub" style={{ marginTop: -2, marginBottom: 6, fontSize: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                    {ci && <span>From Your costs: {ci.name} {money(ci.sell_rate ?? ci.rate)}/{UNIT[ci.unit]}{ci.sell_rate == null ? ` + ${priced.marginPercent}% margin` : " (fixed price)"}</span>}
-                    {canEdit && (
-                      <label style={{ display: "inline-flex", gap: 6, alignItems: "center" }} title="Leave blank to show it as a rate">
-                        Price a set amount instead: how many {o.unit}?
-                        <input type="text" inputMode="decimal" placeholder="–" value={raw?.quantity ?? ""} style={{ width: 70, padding: "4px 6px" }}
-                          onChange={(e) => update({ ...scope, optional_rates: (scope.optional_rates ?? []).map((x) => x.key === o.key ? { ...x, quantity: toNum(e.target.value) } : x) })} />
-                      </label>
+                  <div className="sub" style={{ marginTop: -2, marginBottom: 6, fontSize: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    <span>Cost {money(o.cost)}/{o.unit}{ci ? ` (${ci.name}, from Your costs)` : ""} +</span>
+                    {canEdit ? (
+                      <select aria-label="Margin on this rate" value={o.margin ?? 20} style={{ ...sel, width: "auto", padding: "2px 6px", fontSize: 12 }}
+                        onChange={(e) => setRate(o.key, { margin_percent: Number(e.target.value), quantity: null })}>
+                        {[0, 5, 10, 15, 20, 25, 30, 35, 40, 50].map((m) => <option key={m} value={m}>{m}%</option>)}
+                      </select>
+                    ) : <span>{o.margin}%</span>}
+                    <span>margin</span>
+                    {canEdit && ci && chargeable(ci) && (
+                      <>
+                        <select aria-label="Charge it" value={raw?.charge ?? "hour"} style={{ ...sel, width: "auto", padding: "2px 6px", fontSize: 12 }}
+                          onChange={(e) => setRate(o.key, { charge: e.target.value as "m2" | "hour" | "lump" })}>
+                          <option value="m2">per m²</option><option value="hour">per hour</option><option value="lump">lump sum</option>
+                        </select>
+                        {raw?.charge === "m2" && ci.unit === "h" && (
+                          <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>at
+                            <input type="text" inputMode="decimal" value={raw.m2_per_hour ?? PROFILING_M2_PER_HOUR} style={{ width: 60, padding: "2px 6px" }} onChange={(e) => setRate(o.key, { m2_per_hour: toNum(e.target.value) })} /> m² an hour
+                          </label>
+                        )}
+                        {raw?.charge === "lump" && (
+                          <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>for
+                            <input type="text" inputMode="decimal" value={raw.lump_qty ?? ""} placeholder="0" style={{ width: 60, padding: "2px 6px" }} onChange={(e) => setRate(o.key, { lump_qty: toNum(e.target.value) })} /> {ci.unit === "h" ? "hours" : "m²"}
+                          </label>
+                        )}
+                      </>
                     )}
                   </div>
                 );
@@ -619,7 +650,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                   const v = e.target.value;
                   if (v === "__other") { update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: "", description: "", custom_rate: 0, custom_unit: "each" }] }); return; }
                   const c = active.find((x) => x.id === v);
-                  if (c) update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: c.id, description: c.category === "establishment" ? "Extra establishment (each)" : `${c.name} (extra over)` }] });
+                  if (c) update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: c.id, description: c.category === "establishment" ? "Extra establishment (each)" : chargeable(c) ? "Profiling" : `${c.name} (extra over)`, ...(chargeable(c) ? { charge: "m2" as const } : {}) }] });
                 }}>
                 <option value="">+ Add a rate...</option>
                 {/* The extra-overs builders ask for: establishment, MTV, profiling. Anything else: type it in. */}

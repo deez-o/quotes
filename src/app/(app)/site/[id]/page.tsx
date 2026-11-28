@@ -18,6 +18,7 @@ import { isOwner } from "@/lib/owner";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { modelInfo } from "@/lib/ai/models";
 import { splitSavedEmail, type RfqSummary } from "@/lib/rfq/split";
+import { tidyEmail } from "@/lib/rfq/tidy-email";
 import type { Overview } from "@/lib/rfq/overview";
 
 export default async function SiteQuotePage({ params }: { params: Promise<{ id: string }> }) {
@@ -67,6 +68,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
 
   // Made from an RFQ: show the original email and files beside the quote.
   let rfq: RfqView | null = null;
+  let emailHasDocLink = false;
   if (q.job_id) {
     const sum = (q.rfq_summary ?? null) as RfqSummary | null;
     const folder = `${ctx.tenant.id}/${q.job_id}/4. Correspondence`;
@@ -79,13 +81,26 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
       emails.push({ name: f.name, from: e.from, date: e.date, subject: e.subject, body: e.body.slice(0, 20_000) });
     }
     emails.sort((a, b) => (a.name.startsWith("RFQ") ? -1 : b.name.startsWith("RFQ") ? 1 : String(a.date).localeCompare(String(b.date))));
+    // Only what each email says about the job: no signatures, logos, disclaimers, or the same
+    // message again where a reply quotes it. Each email in a forwarded chain is its own part.
+    emailHasDocLink = emails.some((e) => /sharepoint\.com|1drv\.ms|onedrive\.live|dropbox\.com|drive\.google/i.test(e.body));
+    const seenText = new Set<string>();
+    const parts: RfqView["emails"] = [];
+    for (const e of emails) {
+      for (const p of tidyEmail(e.body)) {
+        const key = p.text.replace(/\s+/g, " ").toLowerCase();
+        if (key.length < 3 || seenText.has(key)) continue;
+        seenText.add(key);
+        parts.push({ name: e.name, from: p.from ?? (parts.length ? e.from : null), date: p.date ?? (parts.length ? e.date : null), subject: p.subject ?? e.subject, body: p.text });
+      }
+    }
     const files: RfqView["files"] = [];
     for (const f of sum?.files ?? []) {
       if (!f.path.startsWith(`${ctx.tenant.id}/`)) continue;
       const { data } = await db.storage.from("job-files").createSignedUrl(f.path, 3600);
       files.push({ name: f.name, url: data?.signedUrl ?? null, read: f.read, note: f.note });
     }
-    rfq = { from: sum?.from ?? emails[0]?.from ?? null, subject: sum?.subject ?? emails[0]?.subject ?? null, received: sum?.received ?? emails[0]?.date ?? null, emails, files };
+    rfq = { from: sum?.from ?? emails[0]?.from ?? null, subject: sum?.subject ?? emails[0]?.subject ?? null, received: sum?.received ?? emails[0]?.date ?? null, emails: parts, files };
   }
 
   // Testing (quoteout staff only): other models' drafts of this RFQ.
@@ -158,7 +173,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
       {q.job_id && !q.sent_at && !q.option_group && !(Number(q.revision) > 0) && (
         <RfqFiles quoteId={q.id} tenantId={ctx.tenant.id} portal={(q.rfq_summary as RfqSummary | null)?.portal ?? null} canEdit={ctx.role !== "viewer"}
           fetched={(q.portal_fetch as PortalFetch) ?? null}
-          linkCount={(q.rfq_summary as RfqSummary | null)?.links?.length ?? (rfq?.emails.some((e) => /sharepoint\.com|1drv\.ms|onedrive\.live|dropbox\.com|drive\.google/i.test(e.body)) ? 1 : 0)}
+          linkCount={(q.rfq_summary as RfqSummary | null)?.links?.length ?? (emailHasDocLink ? 1 : 0)}
           hasLogin={Boolean((await createAdminClient().from("connections").select("id").eq("tenant_id", ctx.tenant.id).eq("purpose", "portal").eq("provider", providerFor((q.rfq_summary as RfqSummary | null)?.portal?.portal ?? "") ?? "none").maybeSingle()).data)} />
       )}
       <SiteQuoteEditor quote={view} library={pc.library} plants={pc.plants} settings={pc.settings}

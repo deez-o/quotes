@@ -42,15 +42,16 @@ describe("site-quote pricing", () => {
     expect(byKey.i1).toBe(28800);          // 192 t × $150
     expect(byKey.i2).toBe(594);            // 6 m³ × 2.2 = 13.2 t × $45 (delivered, no trucks)
     expect(byKey.i3).toBe(3600);           // 2,000 m² × $1.80
-    expect(p.trucks).toEqual({ loads: 16, trucks: 4, cycleMinutes: 109, hours: 29.07, tonnes: 192 });
-    expect(byKey.trucks).toBe(4069.8);     // 29.07 h × $140
+    // 42 min from the plant: 3 rounds a truck; 16 loads ÷ 3 = 6 trucks, each 3 × 109 min = 5.45 h.
+    expect(p.trucks).toMatchObject({ loads: 16, trucks: 6, rounds: 3, shifts: 1, cycleMinutes: 109, hours: 32.7, tonnes: 192 });
+    expect(byKey.trucks).toBe(4578);       // 32.7 h × $140
     expect(byKey.c1).toBe(9500);
     expect(byKey.p1).toBe(720);
 
-    expect(p.cost).toBe(47283.8);
-    expect(p.priceExGst).toBe(55628);      // cost ÷ 0.85, to the dollar
-    expect(p.gst).toBe(5562.8);
-    expect(p.priceIncGst).toBe(61190.8);
+    expect(p.cost).toBe(47792);
+    expect(p.priceExGst).toBe(56226);      // cost ÷ 0.85, to the dollar
+    expect(p.gst).toBe(5622.6);
+    expect(p.priceIncGst).toBe(61848.6);
     expect(p.warnings).toEqual([]);
 
     // Customer lines add up exactly and hide trucks/crew inside the rates.
@@ -69,13 +70,13 @@ describe("site-quote pricing", () => {
   it("shows its working", () => {
     const p = priceSiteQuote({ scope: carpark(), library: lib, settings, haul: { km: 38, minutes: 42, source: "entered" }, marginPercent: 15 });
     expect(p.costLines.find((l) => l.key === "i1")?.working).toBe("2,000 m² × 0.04 m × 2.4 t/m³ = 192 t × $150/t");
-    expect(p.costLines.find((l) => l.key === "trucks")?.working).toContain("16 loads × 109 min cycle");
+    expect(p.costLines.find((l) => l.key === "trucks")?.working).toContain("16 ÷ 3 = 6 trucks, each 3 × 109 min");
   });
 
   it("moves the price with the margin, not the cost", () => {
     const at = (m: number) => priceSiteQuote({ scope: carpark(), library: lib, settings, haul: { km: 38, minutes: 42, source: "entered" }, marginPercent: m });
-    expect(at(0).priceExGst).toBe(47284);
-    expect(at(20).priceExGst).toBe(59105);
+    expect(at(0).priceExGst).toBe(47792);
+    expect(at(20).priceExGst).toBe(59740);
     expect(at(20).cost).toBe(at(0).cost);
   });
 
@@ -122,10 +123,15 @@ describe("establishments and rates", () => {
     expect(p.customerLines.reduce((s, l) => s + l.total, 0)).toBe(p.priceExGst);
   });
 
-  it("shows asked-for rates with the margin on, outside the total", () => {
+  it("shows asked-for rates at cost plus their own margin (20% unless picked), outside the total", () => {
     const base = priceSiteQuote({ scope: carpark(), library: [...lib, est, mtv], settings, haul, marginPercent: 20 });
     const p = priceSiteQuote({ scope: { ...carpark(), optional_rates: [{ key: "o1", cost_item_id: "est", description: "Extra establishment (each)" }, { key: "o2", cost_item_id: "mtv", description: "MTV (optional)" }] }, library: [...lib, est, mtv], settings, haul, marginPercent: 20 });
-    expect(p.optionalRates).toEqual([{ key: "o1", description: "Extra establishment (each)", unit: "each", rate: 1250, quantity: null, total: null }, { key: "o2", description: "MTV (optional)", unit: "h", rate: 500, quantity: null, total: null }]);
+    expect(p.optionalRates).toEqual([
+      { key: "o1", description: "Extra establishment (each)", unit: "each", rate: 1250, cost: 1000, margin: 20, quantity: null, total: null },
+      { key: "o2", description: "MTV (optional)", unit: "h", rate: 500, cost: 400, margin: 20, quantity: null, total: null },
+    ]);
+    const m30 = priceSiteQuote({ scope: { ...carpark(), optional_rates: [{ key: "o1", cost_item_id: "est", description: "Extra establishment", margin_percent: 30 }] }, library: [...lib, est], settings, haul, marginPercent: 10 });
+    expect(m30.optionalRates[0].rate).toBe(1429);
     expect(p.priceExGst).toBe(base.priceExGst);
   });
 });
@@ -141,10 +147,12 @@ describe("fixed sell price", () => {
   });
 });
 
-describe("lump sums", () => {
-  it("turns a rate with a quantity into a lump sum", () => {
-    const prof: CostItem = { id: "prof", category: "plant", material_kind: null, name: "Profiling", unit: "m2", rate: 4, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true };
-    const p = priceSiteQuote({ scope: { ...carpark(), optional_rates: [{ key: "o1", cost_item_id: "prof", description: "Profiling (extra over)", quantity: 7002 }] }, library: [...lib, prof], settings, haul: { km: 38, minutes: 42, source: "entered" }, marginPercent: 20 });
-    expect(p.optionalRates[0]).toMatchObject({ rate: 5, quantity: 7002, total: 35010, unit: "m²" });
+describe("profiling", () => {
+  const prof: CostItem = { id: "prof", category: "plant", material_kind: null, name: "Profiler", unit: "h", rate: 400, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true };
+  const at = (o: object) => priceSiteQuote({ scope: { ...carpark(), optional_rates: [{ key: "o1", cost_item_id: "prof", description: "Profiling", ...o }] }, library: [...lib, prof], settings, haul: { km: 38, minutes: 42, source: "entered" }, marginPercent: 15 }).optionalRates[0];
+  it("can be charged per hour, per m² or as a lump sum", () => {
+    expect(at({ charge: "hour" })).toMatchObject({ unit: "h", rate: 500, cost: 400 });
+    expect(at({ charge: "m2", m2_per_hour: 200 })).toMatchObject({ unit: "m²", rate: 2.5, cost: 2 });
+    expect(at({ charge: "lump", lump_qty: 8 })).toMatchObject({ unit: "lump sum", rate: 4000, cost: 3200, quantity: 8 });
   });
 });

@@ -1,3 +1,4 @@
+import { planTrucks } from "./trucks";
 import { WORK_ORDER } from "./tidy";
 /**
  * Site-quote pricing: plain code, never the AI. Turns a scope (what was said
@@ -56,6 +57,16 @@ export type ScopeItem = {
 /** amount: per day, in the cost item's unit (hours, shifts...). days: how many days (1 if not set). */
 export type LabourLine = { key: string; cost_item_id: string; amount: number; days?: number | null; note: string | null };
 
+/** Margin on an extra-over rate unless the estimator picks another. */
+export const OPTIONAL_RATE_MARGIN = 20;
+/** A profiler's usual output, for turning its hourly cost into a m² rate (editable on the quote). */
+export const PROFILING_M2_PER_HOUR = 250;
+
+/** Hourly plant that can be charged per m², per hour or as a lump sum (profiling). */
+export function chargeable(ci: Pick<CostItem, "name" | "unit"> | undefined): boolean {
+  return Boolean(ci && /profil|milling/i.test(ci.name) && (ci.unit === "h" || ci.unit === "m2"));
+}
+
 export type SiteScope = {
   title: string;
   job_type: string;
@@ -77,7 +88,15 @@ export type SiteScope = {
   /** Set-ups on site the job needs (e.g. one for the prime and one per asphalt layer). Null = 1 when there's work. */
   establishments?: number | null;
   /** Rates the customer asked for that aren't in the price (extra establishment, MTV if needed). */
-  optional_rates?: { key: string; cost_item_id: string; description: string; quantity?: number | null; custom_rate?: number | null; custom_unit?: string | null }[];
+  optional_rates?: { key: string; cost_item_id: string; description: string; quantity?: number | null; custom_rate?: number | null; custom_unit?: string | null;
+    /** Margin on this rate (default OPTIONAL_RATE_MARGIN): the rate is the cost from Your costs plus this. */
+    margin_percent?: number | null;
+    /** Profiling (and other hourly plant) can be priced per m², per hour or as a lump sum. */
+    charge?: "m2" | "hour" | "lump" | null;
+    /** For per m²: how much the machine does an hour (default PROFILING_M2_PER_HOUR). */
+    m2_per_hour?: number | null;
+    /** For a lump sum: the hours (hourly plant) or m² it covers. */
+    lump_qty?: number | null }[];
   /** The job's address or suburb as they said it (the AI hears it); used instead of the phone's location. */
   site_location?: string | null;
   /** True when the plant was picked as the nearest one (re-picked if the site moves); false once the user chooses. */
@@ -102,6 +121,8 @@ export type PricingSettings = {
   binders?: BinderSetup;
   /** m² a crew lays in a day by job type and haul (sets crew shifts on drafts). */
   crewOutput?: import("./crew-days").CrewOutput;
+  /** Rounds a truck does by distance from the plant (DEFAULT_CARTAGE if not set). */
+  cartage?: import("./trucks").CartageRules;
   /** The state they work in: sets the layer depth checks. */
   state?: string | null;
   /** Their yard or depot: crew travel time to the job is worked out from here. */
@@ -138,7 +159,7 @@ export type Priced = {
   profit: number;
   gst: number;
   priceIncGst: number;
-  trucks: { loads: number; trucks: number; cycleMinutes: number; hours: number; tonnes: number } | null;
+  trucks: { loads: number; trucks: number; cycleMinutes: number; hours: number; tonnes: number; rounds: number; shifts: number; loadsPerShift: number; tonnesPerShift: number; why: string } | null;
   haul: Haul | null;
   warnings: string[];
   /** Asphalt by the tonne: what it costs us and what we sell it for (supply and lay), shared costs included. */
@@ -147,7 +168,8 @@ export type Priced = {
   shifts: number;
   profitPerShift: number | null;
   /** Rate-only lines shown on the quote, not added to the total: the cost rate with the margin on. */
-  optionalRates: { key: string; description: string; unit: string; rate: number; quantity?: number | null; total?: number | null }[];
+  /** unit "lump sum": rate is the whole amount, for `quantity` of `lumpOf` (h or m²). */
+  optionalRates: { key: string; description: string; unit: string; rate: number; cost: number | null; margin: number | null; quantity?: number | null; total?: number | null; lumpOf?: string }[];
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -359,21 +381,29 @@ export function priceSiteQuote(input: {
       warnings.push("Distance to the plant is unknown (no site location or plant location), so cartage isn't priced.");
     } else {
       const capacity = truck.truck_capacity_t ?? 12;
-      const loads = Math.ceil(truckTonnes / capacity - 1e-9);
-      const cycle = 2 * haul.minutes + settings.truck_load_minutes + settings.truck_unload_minutes;
-      const workHours = round2((loads * cycle) / 60);
-      const trucksNeeded = Math.min(loads, Math.max(1, Math.ceil((loads * cycle) / settings.shift_minutes)));
-      // Minimum hire: each truck is paid for at least its minimum hours.
-      const minHours = truck.unit === "h" && truck.min_hours ? truck.min_hours * trucksNeeded : 0;
-      const hours = Math.max(workHours, minHours);
-      const rateUnit = truck.unit === "h" ? hours : truck.unit === "km" ? loads * 2 * haul.km : truck.unit === "each" || truck.unit === "day" ? trucksNeeded : hours;
+      // Paving shifts from the crew lines: the trucks run on the days the crew lays.
+      const pavingShifts = scope.crew.reduce((n, l) => {
+        const u = byId.get(l.cost_item_id)?.unit;
+        const days = l.days && l.days > 0 ? l.days : 1;
+        return n + (u === "shift" ? l.amount * days : u === "h" || u === "day" ? (l.amount > 0 ? days : 0) : 0);
+      }, 0);
+      const plan = planTrucks({
+        tonnes: truckTonnes, capacity, shifts: pavingShifts || 1, minutesEachWay: haul.minutes,
+        loadMinutes: settings.truck_load_minutes, unloadMinutes: settings.truck_unload_minutes, shiftMinutes: settings.shift_minutes, rules: settings.cartage,
+      });
+      const { loads, cycleMinutes: cycle, trucks: trucksNeeded } = plan;
+      const truckShifts = trucksNeeded * plan.shifts;
+      // Each truck is paid for its rounds, or its minimum hire if that's more.
+      const perTruck = Math.max(plan.hoursPerTruck, truck.unit === "h" && truck.min_hours ? truck.min_hours : 0);
+      const hours = round2(truckShifts * perTruck);
+      const rateUnit = truck.unit === "h" ? hours : truck.unit === "km" ? loads * 2 * haul.km : truck.unit === "each" || truck.unit === "day" ? truckShifts : hours;
       const cost = round2(rateUnit * truck.rate);
-      trucks = { loads, trucks: trucksNeeded, cycleMinutes: cycle, hours, tonnes: round2(truckTonnes) };
+      trucks = { loads, trucks: trucksNeeded, cycleMinutes: cycle, hours, tonnes: round2(truckTonnes), rounds: plan.rounds, shifts: plan.shifts, loadsPerShift: plan.loadsPerShift, tonnesPerShift: plan.tonnesPerShift, why: plan.why };
       costLines.push({
         key: "trucks",
         group: "trucks",
-        label: `Cartage from plant (${trucksNeeded} truck${trucksNeeded === 1 ? "" : "s"})`,
-        working: `${fmtN(truckTonnes)} t ÷ ${capacity} t = ${loads} loads × ${cycle} min cycle (${haul.minutes} min each way + load/unload) = ${fmtN(workHours, 2)} h${hours > workHours ? `, charged ${fmtN(hours, 2)} h (${fmtN(truck.min_hours!)} h minimum a truck)` : ""} × ${money(truck.rate)}/h`,
+        label: `Cartage from plant (${trucksNeeded} truck${trucksNeeded === 1 ? "" : "s"} × ${plan.rounds} round${plan.rounds === 1 ? "" : "s"}${plan.shifts > 1 ? `, ${plan.shifts} shifts` : ""})`,
+        working: `${fmtN(truckTonnes)} t ÷ ${capacity} t = ${loads} loads${plan.shifts > 1 ? ` over ${plan.shifts} shifts = ${plan.loadsPerShift} a shift` : ""}. ${plan.why}. ${plan.loadsPerShift} ÷ ${plan.rounds} = ${trucksNeeded} truck${trucksNeeded === 1 ? "" : "s"}, each ${plan.rounds} × ${cycle} min (${haul.minutes} min each way + load/tip) = ${fmtN(plan.hoursPerTruck, 2)} h${perTruck > plan.hoursPerTruck ? `, paid ${fmtN(perTruck)} h minimum` : ""}. ${truckShifts} truck-shift${truckShifts === 1 ? "" : "s"} × ${fmtN(perTruck, 2)} h = ${fmtN(hours, 2)} h × ${money(truck.rate)}/h`,
         cost,
         calc: {
           kind: "trucks", tonnes: round2(truckTonnes), capacity, loads, minutesEachWay: haul.minutes, km: haul.km,
@@ -558,19 +588,31 @@ export function priceSiteQuote(input: {
   }, 0);
   const profit = round2(priceExGst - cost);
 
-  // Rates asked for but not in the price: the cost rate with the same margin on.
-  const optionalRates = (scope.optional_rates ?? []).flatMap((o) => {
-    const q = o.quantity != null && o.quantity > 0 ? o.quantity : null;
+  // Rates asked for but not in the price (extra establishment, MTV, profiling): the cost from
+  // Your costs with the margin chosen for that rate on (20% unless changed).
+  const optionalRates = (scope.optional_rates ?? []).flatMap((o): Priced["optionalRates"] => {
     // Their own rate, typed in: shown as typed (it's already the price).
     if (o.custom_rate != null && o.custom_rate >= 0) {
       const unit = (o.custom_unit || "each").slice(0, 20);
-      return [{ key: o.key, description: o.description || "Rate", unit, rate: o.custom_rate, quantity: q, total: q ? Math.round(o.custom_rate * q) : null }];
+      return [{ key: o.key, description: o.description || "Rate", unit, rate: o.custom_rate, cost: null, margin: null, quantity: null, total: null }];
     }
     const ci = byId.get(o.cost_item_id);
     if (!ci || !ci.active) return [];
-    const rate = ci.sell_rate ?? (ci.rate < 50 ? round2(ci.rate / (1 - marginPercent / 100)) : Math.round(ci.rate / (1 - marginPercent / 100)));
-    // A quantity makes it a lump sum (e.g. profiling 7,002 m² at the m² rate).
-    return [{ key: o.key, description: o.description || ci.name, unit: UNIT_LABEL[ci.unit], rate, quantity: q, total: q ? Math.round(rate * q) : null }];
+    const m = Math.min(90, Math.max(0, o.margin_percent ?? OPTIONAL_RATE_MARGIN));
+    const sell = (c: number) => (c < 50 ? round2(c / (1 - m / 100)) : Math.round(c / (1 - m / 100)));
+    if (chargeable(ci) && o.charge) {
+      // Cost per hour and per m², whichever way the cost is kept.
+      const perHour = o.m2_per_hour && o.m2_per_hour > 0 ? o.m2_per_hour : PROFILING_M2_PER_HOUR;
+      const costH = ci.unit === "h" ? ci.rate : ci.rate * perHour;
+      const costM2 = ci.unit === "m2" ? ci.rate : ci.rate / perHour;
+      if (o.charge === "hour") return [{ key: o.key, description: o.description || ci.name, unit: "h", rate: sell(costH), cost: round2(costH), margin: m, quantity: null, total: null }];
+      if (o.charge === "m2") return [{ key: o.key, description: o.description || ci.name, unit: "m²", rate: sell(costM2), cost: round2(costM2), margin: m, quantity: null, total: null }];
+      const q = o.lump_qty && o.lump_qty > 0 ? o.lump_qty : 0;
+      const unit = ci.unit === "h" ? "h" : "m²";
+      const c = (ci.unit === "h" ? costH : costM2) * q;
+      return [{ key: o.key, description: o.description || ci.name, unit: "lump sum", rate: Math.round(c / (1 - m / 100)), cost: Math.round(c), margin: m, quantity: q ? q : null, total: null, lumpOf: unit }];
+    }
+    return [{ key: o.key, description: o.description || ci.name, unit: UNIT_LABEL[ci.unit], rate: sell(ci.rate), cost: ci.rate, margin: m, quantity: null, total: null }];
   });
 
   return {

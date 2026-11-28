@@ -7,6 +7,7 @@ import type { RfqSummary } from "@/lib/rfq/split";
 import type { SiteScope } from "@/lib/site/price";
 import { AreaMap } from "./area-map";
 import { DrawingMarkups } from "./markups";
+import { Documents } from "./documents";
 import { tidyItems } from "@/lib/site/tidy";
 import { fillAddedMixes } from "@/lib/site/fill-mixes";
 import { yardRoute } from "@/lib/site/yard-route";
@@ -168,7 +169,7 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
       {(ov?.markups?.length ?? 0) > 0 && files.length > 0 && (
         <section className="card">
           <strong>On the drawings</strong>
-          <p className="sub" style={{ margin: "2px 0 10px", fontSize: 13 }}>Our work marked on the plans: highlighted words on the drawing, with the note beside them.</p>
+          <p className="sub" style={{ margin: "2px 0 10px", fontSize: 13 }}>Our asphalt marked on the plans, from the drawing&apos;s key. Click a drawing to enlarge it.</p>
           <DrawingMarkups markups={ov!.markups!} files={files} />
         </section>
       )}
@@ -213,14 +214,8 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
 
       {files.length > 0 && (
         <section className="card"><strong>Documents</strong>
-          <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
-            {files.map((f) => (
-              <div key={f.name}>
-                {f.url ? <a href={f.url} target="_blank" rel="noreferrer" style={{ fontWeight: 600 }}>{f.name}</a> : <strong>{f.name}</strong>}
-                {about.get(f.name.toLowerCase()) && <div className="sub">{about.get(f.name.toLowerCase())}</div>}
-              </div>
-            ))}
-          </div>
+          <p className="sub" style={{ margin: "2px 0 0", fontSize: 13 }}>Click one to open it full screen and zoom in.</p>
+          <Documents files={files.map((f) => ({ name: f.name, url: f.url, about: about.get(f.name.toLowerCase()) ?? null }))} />
         </section>
       )}
 

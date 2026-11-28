@@ -37,13 +37,37 @@ export function normaliseSubject(subject: string): string {
 }
 
 /**
- * Signature logos and similar: small inline images. A picture pasted into the body is kept when
- * the words just before it point at it ("Areas =", "quantities below:", "see table"), however small:
- * that's where builders paste the areas. Bigger inline pictures are always kept.
+ * Signature logos and similar. A picture pasted into the body is kept when the words just before it
+ * point at it ("Areas =", "quantities below:", "see table"), however small: that's where builders
+ * paste the areas. GIFs, and pictures the text shows sitting elsewhere (the signature), are dropped;
+ * with no clue in the text, small ones are logos and bigger ones are kept.
  */
 export function isSignatureImage(a: IncomingAttachment, body = ""): boolean {
-  if (!a.isInline || !a.contentType.startsWith("image/") || a.size >= 20_000) return false;
-  return !pointedAt(a.name, body);
+  const image = a.contentType.startsWith("image/") || /\.(png|jpe?g|gif|bmp|webp)$/i.test(a.name);
+  if (!image) return false;
+  // GIFs in emails are logos and banners.
+  if (/\.gif$/i.test(a.name) || a.contentType === "image/gif") return true;
+  if (pointedAt(a.name, body)) return false;
+  const pasted = a.isInline || /^image\d{3}\.(png|jpe?g|bmp|webp)$/i.test(a.name);
+  if (!pasted) return false;
+  // The text shows where it sits ("[cid:image003.jpg@...]") but nothing points at it: the signature.
+  const esc = a.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`\\[(?:cid:)?${esc}[@\\]]`, "i").test(body)) return true;
+  // Otherwise only small pictures are taken as logos; a bigger one may be a pasted table or plan.
+  if (a.size < 20_000) return true;
+  return false;
+}
+
+/**
+ * A file already saved with a job that is really a logo or signature picture (from before the
+ * filter above, or a forward that turned inline pictures into attachments). `bodies` are the job's
+ * emails; `repeats` is how many of the job's files have the same size (a logo comes with every email).
+ */
+export function isStoredLogo(f: { name: string; mime: string | null; size: number }, bodies: string[], repeats = 1): boolean {
+  const a = { name: f.name, contentType: f.mime ?? "", size: f.size, isInline: false } as IncomingAttachment;
+  if (bodies.some((b) => pointedAt(f.name, b))) return false;
+  if (repeats > 1 && /^image\d{3}\./i.test(f.name)) return true;
+  return isSignatureImage(a, "");
 }
 
 /** True when the text just before "[cid:NAME@" (or "[NAME]") introduces it as content. */
