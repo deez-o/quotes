@@ -222,7 +222,11 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
       {files.length > 0 && (
         <section className="card"><strong>Documents</strong>
           <p className="sub" style={{ margin: "2px 0 0", fontSize: 13 }}>Click one to open it full screen and zoom in.</p>
-          <Documents files={files.map((f) => ({ name: f.name, url: f.url, about: about.get(f.name.toLowerCase()) ?? null }))} />
+          <Documents files={files
+            // Logos and signature banners the AI spotted aren't documents.
+            .filter((f) => !/\b(logo|signature|banner)\b/i.test(about.get(f.name.toLowerCase()) ?? "") || !/^image\d{3}\./i.test(f.name))
+            .filter((f, i, all) => all.findIndex((g) => g.name === f.name && (about.get(g.name.toLowerCase()) ?? "") === (about.get(f.name.toLowerCase()) ?? "")) === i)
+            .map((f) => ({ name: f.name, url: f.url, about: about.get(f.name.toLowerCase()) ?? null }))} />
         </section>
       )}
 
