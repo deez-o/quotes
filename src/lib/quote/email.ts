@@ -71,6 +71,13 @@ export function fillMessage(template: string | null | undefined, f: EmailFacts):
     .replace(/\n{3,}/g, "\n\n").trim();
 }
 
+
+/** The small "Powered by quoteout" line at the foot of every email: the icon, linked to the site. */
+export function poweredBy(): string {
+  return `<p style="max-width:600px;margin:14px auto 0;text-align:center;font-size:12px;color:#9aa0a8;line-height:16px">
+<a href="https://quoteout.app" style="color:#9aa0a8;text-decoration:none"><img src="https://quoteout.app/favicon-48.png" width="16" height="16" alt="" style="vertical-align:middle;border:0;border-radius:4px;margin-right:6px">Powered by <strong style="color:#6b7280">quoteout</strong> · quoteout.app</a></p>`;
+}
+
 const onColour = (h: string) => {
   const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] > 0.45 ? "#16181B" : "#FFFFFF";
@@ -87,7 +94,7 @@ export function messageHtml(message: string, business: string, brand: string, ac
 ${logoUrl ? `<div style="padding:22px 28px 0"><img src="${esc(logoUrl)}" alt="${esc(business)}" style="display:block;max-height:56px;max-width:220px;height:auto;border:0"></div>` : `<div style="padding:22px 28px 0;font-size:18px;font-weight:bold;color:#1c1f23">${esc(business)}</div>`}
 <div style="padding:18px 28px 24px">${paras}${acceptUrl ? `<p style="margin:22px 0 4px"><a href="${esc(acceptUrl)}" style="display:inline-block;background:${colour};color:${onColour(colour)};text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:6px">View and accept quote</a></p>` : ""}</div>
 </div>
-<p style="max-width:600px;margin:12px auto 0;font-size:11px;color:#9aa0a8;text-align:center">Powered by quoteout</p>
+${poweredBy()}
 </body></html>`;
 }
 
@@ -118,6 +125,6 @@ export function acceptedHtml(a: {
 <table style="width:100%;border-collapse:collapse;margin-top:20px;font-size:15px">${row("Accepted by", a.acceptedBy)}${row("PO number", a.po)}${row("Their note", a.note)}${row("Site", a.site)}</table>
 <p style="margin:24px 0 0"><a href="${esc(a.quoteUrl)}" style="display:inline-block;background:#FF6A13;color:#fff;text-decoration:none;font-weight:bold;padding:13px 24px;border-radius:8px">Open the quote</a></p>
 </div></div>
-<p style="max-width:560px;margin:12px auto 0;font-size:11px;color:#9aa0a8;text-align:center">Sent to ${esc(a.business)} by quoteout</p>
+${poweredBy()}
 </body></html>`;
 }

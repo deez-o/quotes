@@ -17,9 +17,9 @@ describe("sending a quote from the company's Outlook", () => {
     expect(body.message.toRecipients).toEqual([{ emailAddress: { address: "sam@builder.test" } }]);
     expect(body.message.attachments[0]).toMatchObject({ "@odata.type": "#microsoft.graph.fileAttachment", name: "Quote Q-1.pdf", contentBytes: "JVBERi0=" });
   });
-  it("leaves the quoteout footer off mail from their own address", () => {
-    expect(messageHtml("Hi", "Demo", "#123456")).toContain("Powered by quoteout");
-    expect(messageHtml("Hi", "Demo", "#123456")).not.toContain("quoteout.app");
+  it("puts a small Powered by quoteout footer on the email", () => {
+    expect(messageHtml("Hi", "Demo", "#123456")).toContain("Powered by <strong");
+    expect(messageHtml("Hi", "Demo", "#123456")).toContain('href="https://quoteout.app"');
     expect(messageHtml("Hi", "Demo", "#123456", null, "https://quoteout.app/accept/t/logo")).toContain('<img src="https://quoteout.app/accept/t/logo"');
   });
 });
