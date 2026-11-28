@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireTenant } from "@/lib/tenant";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { exchangeCode, msConfigFromEnv, MS_SCOPES, whoAmI } from "@/lib/microsoft/oauth";
+import { exchangeCode, graphClientState, msConfigFromEnv, MS_SCOPES, whoAmI } from "@/lib/microsoft/oauth";
 import { encryptToken } from "@/lib/crypto/tokens";
 import { GraphMailbox } from "@/lib/mail/graph";
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   const code = params.get("code");
   const cfg = msConfigFromEnv(origin);
-  const clientState = process.env.GRAPH_CLIENT_STATE;
+  const clientState = graphClientState();
   if (!code || !cfg || !clientState) return fail("Microsoft connection isn't set up on the server yet.");
 
   try {

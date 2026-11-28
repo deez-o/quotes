@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { handleGraphNotifications } from "@/lib/mail/notifications";
+import { graphClientState } from "@/lib/microsoft/oauth";
 
 /**
  * Microsoft Graph posts new-mail notifications here.
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     return new NextResponse(validationToken, { status: 200, headers: { "Content-Type": "text/plain" } });
   }
 
-  const clientState = process.env.GRAPH_CLIENT_STATE;
+  const clientState = graphClientState();
   if (!clientState) return NextResponse.json({ error: "not configured" }, { status: 503 });
 
   let body: unknown;

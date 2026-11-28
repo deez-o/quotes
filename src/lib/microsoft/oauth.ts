@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 /**
  * Microsoft sign-in for connecting a mailbox (OAuth 2.0 authorization code flow,
  * multi-tenant app). The app gets tokens, never a password.
@@ -90,4 +91,15 @@ export async function whoAmI(accessToken: string, fetchImpl: typeof fetch = fetc
   if (!res.ok) throw new Error(`Could not read the Microsoft account (${res.status}).`);
   const me = (await res.json()) as { id: string; mail?: string | null; userPrincipalName?: string };
   return { id: me.id, email: me.mail ?? me.userPrincipalName ?? "" };
+}
+
+/**
+ * The secret Microsoft echoes back on inbox notifications, so we know they're real.
+ * GRAPH_CLIENT_STATE if set; otherwise derived from TOKEN_ENCRYPTION_KEY (never sent anywhere but Microsoft).
+ */
+export function graphClientState(): string | null {
+  if (process.env.GRAPH_CLIENT_STATE) return process.env.GRAPH_CLIENT_STATE;
+  const key = process.env.TOKEN_ENCRYPTION_KEY;
+  if (!key) return null;
+  return createHmac("sha256", key).update("graph-client-state").digest("base64url").slice(0, 64);
 }

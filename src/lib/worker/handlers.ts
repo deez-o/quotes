@@ -7,7 +7,7 @@ import { syncXeroQuotes } from "@/lib/xero-conn";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptToken, encryptToken } from "@/lib/crypto/tokens";
 import { GraphMailbox } from "@/lib/mail/graph";
-import { msConfigFromEnv, validAccessToken, type MsTokens } from "@/lib/microsoft/oauth";
+import { graphClientState, msConfigFromEnv, validAccessToken, type MsTokens } from "@/lib/microsoft/oauth";
 import { processMessage, type MailboxPort } from "./process-message";
 import type { Handlers, QueueJob } from "./run";
 import { supabaseStore } from "./supabase-store";
@@ -119,8 +119,8 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
 
 /** Extend a mailbox subscription by two days, or create a new one if Microsoft removed it. */
 export async function renewWatch(db: SupabaseClient, siteUrl: string, tenantId: string, connectionId: string) {
-  const clientState = process.env.GRAPH_CLIENT_STATE;
-  if (!clientState) throw new Error("GRAPH_CLIENT_STATE not set.");
+  const clientState = graphClientState();
+  if (!clientState) throw new Error("TOKEN_ENCRYPTION_KEY not set.");
   const g = await graphForConnection(db, siteUrl, tenantId, connectionId);
   const expires = new Date(Date.now() + 2 * 24 * 3600 * 1000);
 
