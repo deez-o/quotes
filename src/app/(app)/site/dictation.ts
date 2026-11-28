@@ -51,10 +51,8 @@ export function useDictation(onText: (text: string) => void) {
     if (!Ctor) { setError("This browser can't take voice here. Use the microphone on your keyboard instead."); return; }
     setError(null);
     const r = new Ctor();
-    const iphone = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent);
     r.lang = "en-AU";
-    // iPhones handle one phrase at a time more reliably; we restart after each pause.
-    r.continuous = !iphone;
+    r.continuous = true; // as Quick quote has always used it
     r.interimResults = true;
     r.onresult = (e) => {
       let live = "";

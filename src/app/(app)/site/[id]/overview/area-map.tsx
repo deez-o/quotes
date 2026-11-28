@@ -39,10 +39,12 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, 
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
   const shapes = useRef(new Map<string, any>());
-  const draft = useRef<{ line: any; points: [number, number][] } | null>(null);
+  const draft = useRef<{ poly: any; dots: any[]; points: [number, number][]; color: string } | null>(null);
+  const labels = useRef(new Map<string, any>());
   const [areas, setAreas] = useState<DrawnArea[]>(initial);
   const [drawing, setDrawing] = useState(false);
   const [draftCount, setDraftCount] = useState(0);
+  const [draftM2, setDraftM2] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -51,19 +53,39 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, 
 
   const pathOf = (poly: any): [number, number][] => poly.getPath().getArray().map((p: any) => [p.lat(), p.lng()] as [number, number]);
 
+  /** A label on the map with the area's name and size, at its middle. */
+  const setLabel = useCallback((a: DrawnArea) => {
+    const g = (window as any).google;
+    if (!g || !map.current || a.path.length < 3) return;
+    const lat = a.path.reduce((s2, p) => s2 + p[0], 0) / a.path.length;
+    const lng = a.path.reduce((s2, p) => s2 + p[1], 0) / a.path.length;
+    const text = `${a.name} · ${Math.round(a.m2).toLocaleString("en-AU")} m²`;
+    const opts = { position: { lat, lng }, label: { text, color: "#ffffff", fontWeight: "700", fontSize: "13px" }, icon: { path: g.maps.SymbolPath.CIRCLE, scale: 0 }, clickable: false };
+    const m = labels.current.get(a.id);
+    if (m) m.setOptions(opts); else labels.current.set(a.id, new g.maps.Marker({ ...opts, map: map.current }));
+  }, []);
+
   const addShape = useCallback((g: any, a: DrawnArea) => {
     const poly = new g.maps.Polygon({
-      paths: a.path.map(([lat, lng]) => ({ lat, lng })), map: map.current, editable: canEdit, strokeColor: a.color, strokeWeight: 2, fillColor: a.color, fillOpacity: 0.3,
+      paths: a.path.map(([lat, lng]) => ({ lat, lng })), map: map.current, editable: canEdit, strokeColor: a.color, strokeWeight: 3, fillColor: a.color, fillOpacity: 0.35,
     });
+    let current = a;
+    setLabel(a);
     const sync = () => {
       const path = pathOf(poly);
-      setAreas((all) => all.map((x) => (x.id === a.id ? { ...x, path, m2: Math.round(polygonArea(path)) } : x)));
+      setAreas((all) => all.map((x) => {
+        if (x.id !== a.id) return x;
+        current = { ...x, path, m2: Math.round(polygonArea(path)) };
+        setLabel(current);
+        return current;
+      }));
       setDirty(true);
     };
+    void current;
     const p = poly.getPath();
     ["set_at", "insert_at", "remove_at"].forEach((ev) => p.addListener(ev, sync));
     shapes.current.set(a.id, poly);
-  }, [canEdit]);
+  }, [canEdit, setLabel]);
 
   useEffect(() => {
     if (!browserKey || !box.current) return;
@@ -80,45 +102,68 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, 
         initial.forEach((a) => a.path.forEach(([lat, lng]) => b.extend({ lat, lng })));
         map.current.fitBounds(b, 40);
       }
-      map.current.addListener("click", (e: any) => {
-        const d = draft.current;
-        if (!d) return;
-        d.points.push([e.latLng.lat(), e.latLng.lng()]);
-        d.line.setPath(d.points.map(([lat, lng]) => ({ lat, lng })));
-        setDraftCount(d.points.length);
-      });
+      map.current.addListener("click", (e: any) => addPoint(g, e.latLng.lat(), e.latLng.lng()));
     }).catch((e) => setFailed(e instanceof Error ? e.message : "The map didn't load."));
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the map is made once
   }, [browserKey]);
 
+  function redrawDraft() {
+    const d = draft.current;
+    if (!d) return;
+    d.poly.setPath(d.points.map(([lat, lng]) => ({ lat, lng })));
+    setDraftCount(d.points.length);
+    setDraftM2(d.points.length >= 3 ? Math.round(polygonArea(d.points)) : 0);
+  }
+  function addPoint(g: any, lat: number, lng: number) {
+    const d = draft.current;
+    if (!d) return;
+    d.points.push([lat, lng]);
+    const first = d.points.length === 1;
+    const dot = new g.maps.Marker({
+      position: { lat, lng }, map: map.current, zIndex: first ? 1000 : 999,
+      icon: { path: g.maps.SymbolPath.CIRCLE, scale: first ? 11 : 8, fillColor: first ? "#ffffff" : d.color, fillOpacity: 1, strokeColor: first ? d.color : "#ffffff", strokeWeight: 3 },
+      title: first ? "Tap here to finish" : undefined,
+    });
+    // Tapping the first corner again closes the area.
+    if (first) dot.addListener("click", () => { if ((draft.current?.points.length ?? 0) >= 3) finish(); });
+    d.dots.push(dot);
+    redrawDraft();
+  }
   function startDraw() {
     const g = (window as any).google;
     if (!g || !map.current) return;
     const color = COLORS[areas.length % COLORS.length];
-    draft.current = { line: new g.maps.Polyline({ map: map.current, strokeColor: color, strokeWeight: 2, clickable: false }), points: [] };
+    draft.current = {
+      poly: new g.maps.Polygon({ map: map.current, strokeColor: color, strokeWeight: 3, fillColor: color, fillOpacity: 0.3, clickable: false, zIndex: 900 }),
+      dots: [], points: [], color,
+    };
+    // Taps inside areas already drawn must add corners, not select the area.
+    shapes.current.forEach((p) => p.setOptions({ clickable: false, editable: false }));
     map.current.setOptions({ draggableCursor: "crosshair" });
-    setDrawing(true); setDraftCount(0); setMsg(null);
+    setDrawing(true); setDraftCount(0); setDraftM2(0); setMsg(null);
   }
   function stopDraw() {
-    draft.current?.line.setMap(null);
+    draft.current?.poly.setMap(null);
+    draft.current?.dots.forEach((m) => m.setMap(null));
     draft.current = null;
+    shapes.current.forEach((p) => p.setOptions({ clickable: true, editable: canEdit }));
     map.current?.setOptions({ draggableCursor: null });
-    setDrawing(false); setDraftCount(0);
+    setDrawing(false); setDraftCount(0); setDraftM2(0);
   }
   function undoPoint() {
     const d = draft.current;
-    if (!d) return;
+    if (!d || !d.points.length) return;
     d.points.pop();
-    d.line.setPath(d.points.map(([lat, lng]) => ({ lat, lng })));
-    setDraftCount(d.points.length);
+    d.dots.pop()?.setMap(null);
+    redrawDraft();
   }
   function finish() {
     const d = draft.current;
     const g = (window as any).google;
     if (!d || d.points.length < 3 || !g) return;
     const id = `a${Date.now().toString(36)}`;
-    const a: DrawnArea = { id, name: `Area ${areas.length + 1}`, path: d.points, m2: Math.round(polygonArea(d.points)), color: COLORS[areas.length % COLORS.length] };
+    const a: DrawnArea = { id, name: `Area ${areas.length + 1}`, path: [...d.points], m2: Math.round(polygonArea(d.points)), color: d.color };
     stopDraw();
     addShape(g, a);
     setAreas((all) => [...all, a]);
@@ -127,11 +172,18 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, 
   function remove(id: string) {
     shapes.current.get(id)?.setMap(null);
     shapes.current.delete(id);
+    labels.current.get(id)?.setMap(null);
+    labels.current.delete(id);
     setAreas((all) => all.filter((a) => a.id !== id));
     setDirty(true);
   }
   function rename(id: string, name: string) {
-    setAreas((all) => all.map((a) => (a.id === id ? { ...a, name } : a)));
+    setAreas((all) => all.map((a) => {
+      if (a.id !== id) return a;
+      const next = { ...a, name };
+      setLabel(next);
+      return next;
+    }));
     setDirty(true);
   }
 
@@ -174,7 +226,16 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, 
         {!bare && <strong>Measure on the map</strong>}
         {areas.length > 0 && <span className="sub">{areas.length} area{areas.length === 1 ? "" : "s"}, {m2(total)} in all</span>}
       </div>
-      <p className="sub" style={{ margin: "4px 0 10px" }}>Trace each area on the satellite view. Click its corners, then Finish. Drag the white dots to adjust.</p>
+      {drawing ? (
+        <p role="status" style={{ margin: "4px 0 10px", padding: "8px 10px", borderRadius: 8, background: "var(--accent-soft, #eef4fd)", fontWeight: 600 }}>
+          {draftCount === 0 && "Tap the first corner of the area."}
+          {draftCount === 1 && "Now tap the next corner."}
+          {draftCount === 2 && "Keep tapping corners. The shape fills in from the third."}
+          {draftCount >= 3 && `${draftCount} corners · ${m2(draftM2)}. Tap the big white dot or Finish when done.`}
+        </p>
+      ) : (
+        <p className="sub" style={{ margin: "4px 0 10px" }}>Press Draw an area, then tap each corner on the satellite view. Drag the white dots to adjust a shape after.</p>
+      )}
       {failed ? (
         <p className="error">{failed}</p>
       ) : (
@@ -185,12 +246,12 @@ export function AreaMap({ quoteId, center, initial, items, canEdit, browserKey, 
         <div className="row" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
           {drawing ? (
             <>
-              <button type="button" className="btn primary" disabled={draftCount < 3} onClick={finish}>Finish area{draftCount ? ` (${draftCount} points)` : ""}</button>
-              <button type="button" className="btn" disabled={!draftCount} onClick={undoPoint}>Undo point</button>
-              <button type="button" className="btn" onClick={stopDraw}>Cancel</button>
+              <button type="button" className="btn primary" style={{ minHeight: 44 }} disabled={draftCount < 3} onClick={finish}>Finish area</button>
+              <button type="button" className="btn" style={{ minHeight: 44 }} disabled={!draftCount} onClick={undoPoint}>Undo last corner</button>
+              <button type="button" className="btn" style={{ minHeight: 44 }} onClick={stopDraw}>Cancel</button>
             </>
           ) : (
-            <button type="button" className="btn primary" onClick={startDraw}>Draw an area</button>
+            <button type="button" className="btn primary" style={{ minHeight: 44 }} onClick={startDraw}>Draw an area</button>
           )}
           {dirty && !drawing && <button type="button" className="btn" disabled={busy !== null} onClick={() => void save()}>{busy === "save" ? "Saving..." : "Save areas"}</button>}
         </div>

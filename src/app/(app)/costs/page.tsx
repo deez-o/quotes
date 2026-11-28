@@ -69,14 +69,15 @@ function HeadRow({ category, kinds, plantId }: { category: string; kinds?: [stri
   );
 }
 
-function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault }: {
-  item?: Item; category: string; canEdit: boolean; plantId?: string; kinds?: [string, string][]; unitDefault?: string;
+function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, sliding = false }: {
+  item?: Item; category: string; canEdit: boolean; plantId?: string; kinds?: [string, string][]; unitDefault?: string; sliding?: boolean;
 }) {
   const isMaterial = category === "material";
   const hourly = category === "crew" || category === "plant";
   const c = columns(category, kinds, plantId);
   const n = item?.name ?? "new";
-  const tiers = isMaterial; // job-size price breaks: materials only
+  // Job-size price breaks: spray seal only (and any item that already has some, so they can be cleared).
+  const tiers = sliding || Boolean(item?.rate_tiers?.length);
   return (
     <form action={saveCostItem} style={{ borderTop: "1px solid var(--line-soft)", padding: "8px 0" }}>
       <fieldset disabled={!canEdit} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
@@ -158,8 +159,8 @@ function CostSection({ s, items, canEdit }: { s: Section; items: Item[]; canEdit
       <div className="cost-scroll">
         <div className="cost-table">
           <HeadRow category={s.category} kinds={s.kinds} />
-          {rows.map((i) => <ItemForm key={i.id} item={i} category={s.category} canEdit={canEdit} kinds={s.kinds} />)}
-          {canEdit && <ItemForm category={s.category} canEdit={canEdit} kinds={s.kinds} unitDefault={s.key === "seal" ? "m2" : undefined} />}
+          {rows.map((i) => <ItemForm key={i.id} item={i} category={s.category} canEdit={canEdit} kinds={s.kinds} sliding={s.key === "seal"} />)}
+          {canEdit && <ItemForm category={s.category} canEdit={canEdit} kinds={s.kinds} unitDefault={s.key === "seal" ? "m2" : undefined} sliding={s.key === "seal"} />}
         </div>
       </div>
       {rows.length === 0 && !canEdit && <p className="sub">None yet.</p>}
