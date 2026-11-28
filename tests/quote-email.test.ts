@@ -80,3 +80,24 @@ describe("bitumen rise and fall", () => {
     expect(indexFor(list, "2026-01-01")).toBeNull();
   });
 });
+
+import { parseTmrIndex } from "@/lib/bitumen-tmr";
+import { statusFromXero } from "@/lib/xero-status";
+
+describe("TMR bitumen index PDF", () => {
+  it("reads months and values from the PDF text", () => {
+    const text = "Bitumen Price Index\nApril 2026 1978.59 \nMay 2026 1978.59 \nJune 2026 1941.92 \nSeptember 2026 1,878.59\nContact Phone: 5439 6942\nIssued March 2026 page 2";
+    expect(parseTmrIndex(text)).toEqual([
+      { month: "2026-04-01", value: 1978.59 }, { month: "2026-05-01", value: 1978.59 }, { month: "2026-06-01", value: 1941.92 }, { month: "2026-09-01", value: 1878.59 },
+    ]);
+  });
+});
+
+describe("Xero quote status", () => {
+  it("maps accepted and declined", () => {
+    expect(statusFromXero("ACCEPTED")).toBe("won");
+    expect(statusFromXero("INVOICED")).toBe("won");
+    expect(statusFromXero("DECLINED")).toBe("lost");
+    expect(statusFromXero("SENT")).toBeNull();
+  });
+});

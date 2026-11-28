@@ -11,9 +11,10 @@ import { routesToPlants } from "@/lib/site/routes";
 import { loadLayeredRules } from "@/lib/rules-load";
 import { searchPlaces } from "@/lib/maps";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { decryptToken, encryptToken } from "@/lib/crypto/tokens";
 import { renderTerms } from "@/lib/site/terms";
-import { buildXeroQuote, findOrCreateContact, liveXeroQuoteId, xeroClient, xeroConfigFromEnv, xeroValidToken, type XeroTokens } from "@/lib/xero";
+import { buildXeroQuote, findOrCreateContact, liveXeroQuoteId } from "@/lib/xero";
+import { xeroForTenant } from "@/lib/xero-conn";
+import { quoteLabel } from "@/lib/quote/numbering";
 import { choosePlant, haversineKm, priceSiteQuote, type CustomerLine, type HaulRoutes, type SiteScope } from "@/lib/site/price";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -224,40 +225,23 @@ export async function sendToXero(input: { id: string; origin: string }): Promise
     const db = await createClient();
     const t = ctx.tenant.id;
     const { data: q } = await db.from("site_quotes")
-      .select("quote_no, title, customer_name, customer_email, site_address, costing, created_at, xero_quote_id")
+      .select("quote_no, revision, option_label, title, customer_name, customer_email, site_address, costing, created_at, xero_quote_id")
       .eq("id", input.id).eq("tenant_id", t).maybeSingle();
     if (!q) return { ok: false, message: "Quote not found." };
     if (!q.customer_name?.trim()) return { ok: false, message: "Add the customer's name first, then save." };
     const lines = ((q.costing as { customerLines?: CustomerLine[] } | null)?.customerLines ?? []).filter((l) => l.total > 0);
     if (!lines.length) return { ok: false, message: "This quote has no priced lines yet." };
 
-    const cfg = xeroConfigFromEnv(input.origin.startsWith("https://") ? input.origin : "https://localhost");
-    if (!cfg) return { ok: false, message: "Xero isn't set up on the server yet." };
     const admin = createAdminClient();
-    const { data: conn } = await admin.from("connections").select("id").eq("tenant_id", t).eq("provider", "xero").eq("status", "ok")
-      .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!conn) return { ok: false, message: "Connect Xero first (Setup)." };
-    const { data: secret } = await admin.from("connection_secrets").select("token_ciphertext").eq("connection_id", conn.id).eq("tenant_id", t).maybeSingle();
-    if (!secret) return { ok: false, message: "Reconnect Xero (Setup)." };
-    let tokens = JSON.parse(decryptToken(t, secret.token_ciphertext)) as XeroTokens;
-    try {
-      tokens = await xeroValidToken(cfg, tokens, async (fresh) => {
-        await admin.from("connection_secrets").update({ token_ciphertext: encryptToken(t, JSON.stringify(fresh)), expires_at: new Date(fresh.expires_at).toISOString(), updated_at: new Date().toISOString() })
-          .eq("connection_id", conn.id).eq("tenant_id", t);
-      });
-    } catch {
-      await admin.from("connections").update({ status: "error", last_error: "Xero sign-in expired" }).eq("id", conn.id);
-      return { ok: false, message: "Xero needs reconnecting (Setup): the sign-in has expired." };
-    }
-    if (!tokens.xero_tenant_id) return { ok: false, message: "Reconnect Xero (Setup)." };
-
-    const call = xeroClient(tokens.access_token, tokens.xero_tenant_id);
+    const x = await xeroForTenant(admin, t, input.origin);
+    if (!x.ok) return { ok: false, message: x.message };
+    const { call, connectionId } = x;
     const contactId = await findOrCreateContact(call, q.customer_name, q.customer_email ?? null);
     const { data: s } = await db.from("tenant_settings").select("quote_terms").eq("tenant_id", t).maybeSingle();
     // Deleted in Xero (or made in another organisation)? Make a fresh draft rather than fail.
     const existingId = await liveXeroQuoteId(call, q.xero_quote_id);
     const body = buildXeroQuote({
-      contactId, quoteNo: q.quote_no, title: q.title ?? "Quote", siteAddress: q.site_address, lines,
+      contactId, quoteNo: quoteLabel(q), title: q.title ?? "Quote", siteAddress: q.site_address, lines,
       terms: renderTerms(s?.quote_terms, q.created_at), date: new Date(), existingQuoteId: existingId,
     });
     const out = (await call("/Quotes?unitdp=4", { method: existingId ? "POST" : "PUT", body })) as { Quotes?: { QuoteID: string; QuoteNumber: string }[] };
@@ -265,7 +249,7 @@ export async function sendToXero(input: { id: string; origin: string }): Promise
     if (!made) return { ok: false, message: "Xero didn't return the quote." };
     await db.from("site_quotes").update({ xero_quote_id: made.QuoteID, xero_quote_number: made.QuoteNumber, xero_sent_at: new Date().toISOString() })
       .eq("id", input.id).eq("tenant_id", t);
-    await admin.from("connections").update({ last_ok_at: new Date().toISOString(), last_error: null }).eq("id", conn.id);
+    await admin.from("connections").update({ last_ok_at: new Date().toISOString(), last_error: null }).eq("id", connectionId);
     revalidatePath(`/site/${input.id}`);
     return { ok: true, number: made.QuoteNumber };
   } catch (e) {

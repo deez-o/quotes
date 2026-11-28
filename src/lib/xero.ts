@@ -69,7 +69,7 @@ export async function xeroOrganisation(accessToken: string, f: typeof fetch = fe
   return { tenantId: orgs[0].tenantId, name: orgs[0].tenantName };
 }
 
-type XeroCall = (path: string, init?: { method?: string; body?: unknown }) => Promise<unknown>;
+export type XeroCall = (path: string, init?: { method?: string; body?: unknown }) => Promise<unknown>;
 
 export function xeroClient(accessToken: string, xeroTenantId: string, f: typeof fetch = fetch): XeroCall {
   return async (path, init = {}) => {

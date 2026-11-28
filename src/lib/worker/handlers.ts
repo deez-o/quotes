@@ -1,4 +1,5 @@
 import { notifyDrafted } from "@/lib/rfq/notify";
+import { syncXeroQuotes } from "@/lib/xero-conn";
 /**
  * Wires the worker steps to real services: Supabase (service role) and
  * Microsoft Graph with the tenant's encrypted tokens.
@@ -100,6 +101,11 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
 
     async process_inbound(job: QueueJob) {
       await processInbound(db, store, job.tenant_id, job.payload as { path: string; inbound_id: string });
+    },
+
+    async xero_sync(job: QueueJob) {
+      // Quotes the customer accepted or declined in Xero.
+      await syncXeroQuotes(db, job.tenant_id);
     },
 
     async draft_quote(job: QueueJob) {

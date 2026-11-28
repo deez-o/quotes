@@ -13,16 +13,31 @@ async function save(f: FormData) {
   revalidatePath("/admin/bitumen");
 }
 
+async function checkTmr() {
+  "use server";
+  await requireOwner();
+  const { syncTmrIndex } = await import("@/lib/bitumen-sync");
+  const r = await syncTmrIndex(createAdminClient());
+  revalidatePath("/admin/bitumen");
+  const { redirect } = await import("next/navigation");
+  redirect(`/admin/bitumen?m=${encodeURIComponent(r.message)}`);
+}
+
 /** The monthly bitumen index every company's rise and fall uses. Update it when TMR publishes. */
-export default async function BitumenPage() {
+export default async function BitumenPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
+  const { m } = await searchParams;
   await requireOwner();
   const { data } = await createAdminClient().from("bitumen_indexes").select("month, value, source").order("month", { ascending: false }).limit(36);
   return (
     <div className="page" style={{ maxWidth: 760 }}>
       <div>
         <h1>Bitumen index</h1>
-        <p className="sub">$ per tonne, from TMR&apos;s monthly Bitumen Price Index (tmr.qld.gov.au, Infrastructure contract → Bitumen price index). Add each month when it&apos;s published.</p>
+        <p className="sub">$ per tonne, from TMR&apos;s monthly Bitumen Price Index. quoteout reads TMR&apos;s PDF every morning and adds new months by itself (you&apos;re emailed at ALERT_EMAIL when it does). You can also add or correct a month here.</p>
       </div>
+      <form action={checkTmr} className="row" style={{ gap: 10, alignItems: "center" }}>
+        <button type="submit" className="btn">Check TMR now</button>
+        {m && <span className="sub" style={{ marginTop: 0 }} role="status">{m}</span>}
+      </form>
       <form action={save} className="card row" style={{ gap: 8, alignItems: "end", flexWrap: "wrap" }}>
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontWeight: 600, fontSize: 13 }}>Month<input type="month" name="month" required /></label>
         <label style={{ display: "flex", flexDirection: "column", gap: 4, fontWeight: 600, fontSize: 13 }}>$ per tonne<input name="value" inputMode="decimal" required placeholder="1878.59" /></label>

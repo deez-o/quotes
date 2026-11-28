@@ -114,3 +114,39 @@ export async function makeRevision(input: { id: string }): Promise<R> {
     return { ok: false, message: e instanceof Error ? e.message : "Couldn't make the revision." };
   }
 }
+
+/**
+ * Won or lost without the customer clicking accept (a PO by email, a phone call, accepted in Xero
+ * before it synced), or back to open. A win marks the quote's other options as lost.
+ */
+export async function setOutcome(input: { id: string; outcome: "won" | "lost" | "open"; name?: string; po?: string; note?: string }): Promise<R> {
+  try {
+    const { ctx, db } = await writer();
+    if (!UUID.test(input.id)) return { ok: false, message: "Quote not found." };
+    const { data: q } = await db.from("site_quotes").select("id, option_group, revision, sent_at, superseded_at").eq("tenant_id", ctx.tenant.id).eq("id", input.id).maybeSingle();
+    if (!q) return { ok: false, message: "Quote not found." };
+    if (q.superseded_at) return { ok: false, message: "This is an older revision. Open the latest one." };
+    const clip = (v: string | undefined, n: number) => (v ?? "").trim().slice(0, n) || null;
+    const ids = q.option_group
+      ? ((await db.from("site_quotes").select("id").eq("tenant_id", ctx.tenant.id).eq("option_group", q.option_group).eq("revision", q.revision)).data ?? []).map((r) => r.id as string)
+      : [q.id];
+    const now = new Date().toISOString();
+    if (input.outcome === "won") {
+      await db.from("site_quotes").update({ status: "won", accepted_at: now, accepted_name: clip(input.name, 120) ?? "Marked won", accepted_po: clip(input.po, 80), accepted_note: clip(input.note, 2000), outcome_note: "Marked won in quoteout" })
+        .eq("tenant_id", ctx.tenant.id).eq("id", q.id);
+      const others = ids.filter((x) => x !== q.id);
+      if (others.length) await db.from("site_quotes").update({ status: "lost" }).eq("tenant_id", ctx.tenant.id).in("id", others);
+    } else if (input.outcome === "lost") {
+      await db.from("site_quotes").update({ status: "lost", outcome_note: clip(input.note, 2000) }).eq("tenant_id", ctx.tenant.id).in("id", ids);
+    } else {
+      await db.from("site_quotes").update({ status: q.sent_at ? "sent" : "draft", accepted_at: null, accepted_name: null, accepted_po: null, accepted_note: null, outcome_note: null })
+        .eq("tenant_id", ctx.tenant.id).in("id", ids);
+    }
+    await db.from("audit_log").insert({ tenant_id: ctx.tenant.id, actor: ctx.userId, action: `quote.marked_${input.outcome}`, target: q.id, detail: { po: input.po ?? null } });
+    revalidatePath(`/site/${q.id}`);
+    revalidatePath("/quotes");
+    return { ok: true, id: q.id };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "Couldn't change it." };
+  }
+}

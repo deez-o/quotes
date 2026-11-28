@@ -9,6 +9,7 @@ import type { HaulRoutes, SiteScope } from "@/lib/site/price";
 import { SiteQuoteEditor, type QuoteView, type RfqView } from "./editor";
 import { QuoteBar, type QuoteBarView } from "./quote-bar";
 import { quoteLabel } from "@/lib/quote/numbering";
+import { syncXeroQuotes } from "@/lib/xero-conn";
 import type { CompareView } from "./compare";
 import { isOwner } from "@/lib/owner";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -21,10 +22,21 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
   const ctx = await requireTenant();
   const db = await createClient();
   const { data: q } = await db.from("site_quotes")
-    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst, overview, option_group, option_label, revision, superseded_at, sent_at, accepted_at, accepted_name, accepted_po, accepted_note, inclusions, exclusions, show_map")
+    .select("id, quote_no, status, customer_name, customer_email, site_address, site_lat, site_lng, haul_routes, transcript, photos, scope, margin_percent, title, xero_quote_number, job_id, rfq_summary, total_ex_gst, overview, option_group, option_label, revision, superseded_at, sent_at, accepted_at, accepted_name, accepted_po, accepted_note, inclusions, exclusions, show_map, outcome_note, xero_quote_id")
     .eq("id", id).eq("tenant_id", ctx.tenant.id).maybeSingle();
   if (!q) notFound();
 
+  // Sent to Xero and still open: see whether the customer has accepted or declined it there.
+  if (q.xero_quote_id && (q.status === "draft" || q.status === "sent") && !q.superseded_at) {
+    const changed = await Promise.race([
+      syncXeroQuotes(createAdminClient(), ctx.tenant.id, { ids: [q.id], limit: 1 }).catch(() => 0),
+      new Promise<number>((r) => setTimeout(() => r(0), 4000)),
+    ]);
+    if (changed) {
+      const { data: fresh } = await db.from("site_quotes").select("status, accepted_at, accepted_name").eq("id", q.id).eq("tenant_id", ctx.tenant.id).single();
+      if (fresh) Object.assign(q, fresh);
+    }
+  }
   const pc = await loadPricingContext(db, ctx.tenant.id);
   const photoUrls: string[] = [];
   for (const p of (q.photos as string[]) ?? []) {
@@ -116,6 +128,7 @@ export default async function SiteQuotePage({ params }: { params: Promise<{ id: 
   const acceptedRow = (opts ?? []).find((o) => o.accepted_at) ?? (q.accepted_at ? { ...q, option_label: null } : null);
   const bar: QuoteBarView = {
     id: q.id, label: quoteLabel(q), status: q.status, canEdit: ctx.role !== "viewer", sentAt: q.sent_at ?? null,
+    outcomeNote: q.outcome_note ?? null, xeroNumber: q.xero_quote_number ?? null,
     options: (opts ?? []).map((o) => ({ id: o.id, label: o.option_label ?? "A", title: o.title ?? "", total: o.total_ex_gst == null ? null : Number(o.total_ex_gst) })),
     revisions: earlier.map((r) => ({ id: r.id, label: quoteLabel({ quote_no: q.quote_no, revision: r.revision }), sentAt: r.sent_at })),
     newer: latest ? { id: latest.id, label: quoteLabel({ quote_no: q.quote_no, revision: latest.revision }) } : null,
