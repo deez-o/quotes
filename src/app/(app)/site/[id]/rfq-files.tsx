@@ -118,7 +118,7 @@ export function RfqFiles({ quoteId, tenantId, portal, canEdit, fetched, hasLogin
             onClick={async () => {
               setBusy(true); setMsg({ ok: true, text: "Fetching the email again from your inbox..." });
               const r = await refetchEmails({ id: quoteId }); setBusy(false);
-              setMsg(r.ok ? { ok: true, text: `${r.added ? `Picked up ${r.added} more file${r.added === 1 ? "" : "s"}` : "Nothing new in the email"}. Reading the RFQ again now: refresh in a minute or two.` } : { ok: false, text: r.message });
+              setMsg(r.ok ? { ok: true, text: `${r.added ? `Picked up ${r.added} more file${r.added === 1 ? "" : "s"}` : "Nothing new in the email"}. In the email: ${r.seen.length ? r.seen.join(", ") : "no attachments or pictures at all (the forward may have dropped them: add them below)"}. Reading the RFQ again now: refresh in a minute or two.` } : { ok: false, text: r.message });
               if (r.ok) router.refresh();
             }}>Fetch the email again</button>
         </div>

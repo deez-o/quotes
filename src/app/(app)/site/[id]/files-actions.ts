@@ -78,7 +78,7 @@ export async function fetchPortalNow(input: { id: string }): Promise<{ ok: true 
  * Fetch the RFQ emails again from the connected inbox: picks up anything missed the first time
  * (a picture of the areas pasted into the email, an attachment that failed), then reads the RFQ again.
  */
-export async function refetchEmails(input: { id: string }): Promise<{ ok: true; added: number } | { ok: false; message: string }> {
+export async function refetchEmails(input: { id: string }): Promise<{ ok: true; added: number; seen: string[] } | { ok: false; message: string }> {
   const ctx = await requireTenant();
   if (ctx.role === "viewer") return { ok: false, message: "Viewers can't change quotes." };
   if (!UUID.test(input.id)) return { ok: false, message: "Quote not found." };
@@ -93,12 +93,15 @@ export async function refetchEmails(input: { id: string }): Promise<{ ok: true; 
   const { isSignatureImage } = await import("@/lib/mail/sort");
   const { appUrl } = await import("@/lib/app-url");
   const files: { name: string; bytes: Uint8Array }[] = [];
+  const seen: string[] = [];
   for (const m of msgs) {
     try {
       const g = await graphForConnection(db, appUrl(), t, m.connection_id as string);
       const msg = await g.getMessage(m.provider_message_id as string);
       for (const a of msg.attachments) {
-        if (isSignatureImage(a, msg.bodyText)) continue;
+        const kb = `${Math.max(1, Math.round(a.size / 1024))} KB`;
+        if (isSignatureImage(a, msg.bodyText)) { seen.push(`${a.name} (${kb}, logo: skipped)`); continue; }
+        seen.push(`${a.name} (${kb})`);
         const stream = await g.downloadAttachment(msg.id, a.id);
         files.push({ name: a.name, bytes: new Uint8Array(await new Response(stream as BodyInit).arrayBuffer()) });
       }
@@ -112,5 +115,5 @@ export async function refetchEmails(input: { id: string }): Promise<{ ok: true; 
   await db.from("jobs").update({ status: "processing", updated_at: new Date().toISOString() }).eq("tenant_id", t).eq("id", q.job_id);
   await db.from("audit_log").insert({ tenant_id: t, actor: ctx.userId, action: "rfq.refetched", target: q.id, detail: { added } });
   revalidatePath(`/site/${q.id}`);
-  return { ok: true, added };
+  return { ok: true, added, seen };
 }
