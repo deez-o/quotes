@@ -12,7 +12,7 @@ import { searchPlaces } from "@/lib/maps";
 import { choosePlant, priceSiteQuote, type SiteScope } from "@/lib/site/price";
 import { SITE_SCOPE_SCHEMA, scopeFromRfq, type RfqAttachment, type ScopeCall } from "@/lib/site/scope-ai";
 import { readFile } from "./read";
-import { splitSavedEmail, type RfqSummary } from "./split";
+import { cleanSubject, forwardedFrom, splitSavedEmail, type RfqSummary } from "./split";
 export { splitSavedEmail, type RfqSummary };
 
 const BUCKET = "job-files";
@@ -76,7 +76,7 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     loadAccess(tenantId),
   ]);
 
-  const fallbackTitle = (summary.subject || "RFQ").replace(/^(re|fw|fwd):\s*/gi, "").slice(0, 120);
+  const fallbackTitle = cleanSubject(summary.subject || "RFQ").slice(0, 120) || "RFQ";
   let scope: SiteScope = emptyScope(fallbackTitle);
   const call = opts.call === undefined ? await aiCaller(SITE_SCOPE_SCHEMA, tenantId, null, "ai_rfq") : opts.call;
   const mainModel = await liveModel();
@@ -92,9 +92,14 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     scope.questions.push("The AI isn't switched on yet, so add the items from the RFQ yourself.");
   } else if (!pc.library.some((c) => c.active)) {
     scope.questions.push("Your costs library is empty. Add your costs in Setup, then add the items from the RFQ.");
+    // Still read the job details (dates, specs, site) for the overview.
+    if (opts.call === undefined) overviewPromise = makeOverview(tenantId, {
+      from: summary.from, subject: summary.subject, received: summary.received, body: rfq.body, attachments, extraNotes: [],
+    });
   } else {
     const rfqInput = {
-      from: summary.from, subject: summary.subject, received: summary.received, body: rfq.body, attachments,
+      from: summary.forwardedBy ? `${summary.from} (forwarded by ${summary.forwardedBy}, who is the contractor, not the customer)` : summary.from,
+      subject: summary.subject, received: summary.received, body: rfq.body, attachments,
       extraNotes: emails.slice(1).map((e) => `--- Later email from ${e.from ?? "?"} (${e.date ?? "?"}) ---\n${e.body.slice(0, 8000)}`),
     };
     // The job overview (specs, dates, conditions) is read alongside the scope.
@@ -110,6 +115,12 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     scope.questions.push(`"${f.name}" couldn't be read (${f.note ?? "unknown"}). Check it for anything to price.`);
   }
   if (!scope.title) scope.title = fallbackTitle;
+  // Who to quote: the original sender of a forwarded RFQ, unless the AI found better.
+  const orig = summary.original;
+  if (orig) {
+    if (!scope.customer_email && orig.email) scope.customer_email = orig.email;
+    if (!scope.customer_name) scope.customer_name = orig.name ?? companyFromEmail(orig.email);
+  }
 
   const placed = await locateAndPrice(pc, scope);
   scope = placed.scope;
@@ -144,6 +155,13 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   }
 
   return { kind: "drafted", siteQuoteId: made.id as string, questions: scope.questions.length };
+}
+
+/** "jane@brownbuilders.com.au" -> "Brownbuilders" (a starting point the estimator can fix). */
+function companyFromEmail(email: string | null): string | null {
+  const d = email?.split("@")[1]?.split(".")[0];
+  if (!d || /^(gmail|outlook|hotmail|live|yahoo|icloud|bigpond|optusnet)$/i.test(d)) return null;
+  return d.charAt(0).toUpperCase() + d.slice(1);
 }
 
 export type GatheredRfq = {
@@ -195,10 +213,15 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
     await db.from("attachments").update({ read_ok: Boolean(read.text || imageUrl) }).eq("tenant_id", tenantId).eq("id", f.id);
   }
 
+  // Forwarded to quoteout (or to the inbox by a colleague): the customer is whoever sent the original.
+  const fwd = forwardedFrom(rfq.body);
+  const fwdFrom = fwd && (fwd.name || fwd.email) ? (fwd.name && fwd.email ? `${fwd.name} <${fwd.email}>` : (fwd.name ?? fwd.email)!) : null;
   const summary: RfqSummary = {
-    from: rfq.from ?? first?.from_address ?? "unknown sender",
-    subject: rfq.subject ?? first?.subject ?? jobSite ?? "RFQ",
-    received: rfq.date ?? first?.received_at ?? null,
+    from: fwdFrom ?? rfq.from ?? first?.from_address ?? "unknown sender",
+    subject: cleanSubject(fwd?.subject ?? rfq.subject ?? first?.subject ?? jobSite ?? "RFQ") || "RFQ",
+    received: fwd?.date ?? rfq.date ?? first?.received_at ?? null,
+    forwardedBy: fwdFrom ? (rfq.from ?? first?.from_address ?? null) : null,
+    original: fwd,
     files: summaryFiles,
     followUps: Math.max(0, (messages?.length ?? 1) - 1),
   };

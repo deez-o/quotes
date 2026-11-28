@@ -65,7 +65,10 @@ export function fillMessage(template: string | null | undefined, f: EmailFacts):
     business: f.business, sender: f.sender || f.business, phone: f.phone ?? "", phone_line: f.phone ? ` or call ${f.phone}` : "",
     price_summary: priceSummary(f),
   };
-  return t.replace(/\{(\w+)\}/g, (m, k: string) => (k in vals ? vals[k] : m)).replace(/ +([.,])/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
+  return t.replace(/\{(\w+)\}/g, (m, k: string) => (k in vals ? vals[k] : m)).replace(/ +([.,])/g, "$1")
+    // "{sender}\n{business}" when no one's name is set: don't sign off with the business twice.
+    .replace(/^(.+)\n\1$/gm, "$1")
+    .replace(/\n{3,}/g, "\n\n").trim();
 }
 
 const onColour = (h: string) => {

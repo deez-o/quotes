@@ -113,3 +113,30 @@ describe("[square bracket] fill-ins", () => {
     expect(fillMessage("Hi [Customer], [Price]", facts)).toBe("Hi Sam, The total is $12,100.00 inc GST ($11,000.00 ex GST).");
   });
 });
+
+import { cleanSubject, forwardedFrom } from "@/lib/rfq/split";
+describe("forwarded RFQs", () => {
+  it("reads the original sender from an Outlook forward", () => {
+    const body = "Can you price this?\n\nDan\n\n________________________________\nFrom: Jane Brown <jane@brownbuilders.com.au>\nSent: Thursday, 26 November 2026 9:14 AM\nTo: Sales <sales@demo.com>\nSubject: RFQ - Carpark Capalaba\n\nHi, please quote...";
+    expect(forwardedFrom(body)).toEqual({ name: "Jane Brown", email: "jane@brownbuilders.com.au", subject: "RFQ - Carpark Capalaba", date: "Thursday, 26 November 2026 9:14 AM" });
+  });
+  it("reads a Gmail forward with a mailto name", () => {
+    const body = "---------- Forwarded message ---------\nFrom: Sam Lee <sam@acme.com>\nDate: Wed, 25 Nov 2026 at 10:02\nSubject: Fisher Road asphalt\nTo: <x@y.com>\n\nbody";
+    expect(forwardedFrom(body)?.email).toBe("sam@acme.com");
+    expect(forwardedFrom(body)?.name).toBe("Sam Lee");
+  });
+  it("ignores an email that wasn't forwarded", () => {
+    expect(forwardedFrom("Hi,\nFrom: the site plan, area is 200m2.\nThanks")).toBeNull();
+  });
+  it("cleans subject prefixes", () => {
+    expect(cleanSubject("FW: RE: [Spam] Invitation to Tender")).toBe("Invitation to Tender");
+  });
+});
+
+describe("sign-off", () => {
+  it("doesn't repeat the business when there's no sender name", async () => {
+    const { fillMessage } = await import("@/lib/quote/email");
+    const out = fillMessage(null, { customer: "Sam", quoteNo: "Q-1", job: "Carpark", totalExGst: 100, totalIncGst: 110, business: "Test asphalt", sender: null, phone: null } as never);
+    expect(out.endsWith("Kind regards,\nTest asphalt")).toBe(true);
+  });
+});
