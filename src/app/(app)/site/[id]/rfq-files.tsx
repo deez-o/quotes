@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { PortalInvite } from "@/lib/rfq/portal";
-import { addRfqFiles, fetchPortalNow } from "./files-actions";
+import { addRfqFiles, fetchPortalNow, refetchEmails } from "./files-actions";
 import Link from "next/link";
 
 const MAX_MB = 50;
@@ -109,6 +109,18 @@ export function RfqFiles({ quoteId, tenantId, portal, canEdit, fetched, hasLogin
           <input ref={input} type="file" multiple hidden accept=".zip,.pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xlsm,.xls,.csv,.docx" onChange={(e) => void upload(e.target.files)} />
           <button type="button" className="btn primary" disabled={busy} onClick={() => input.current?.click()}>{busy ? "Working..." : "Add the documents"}</button>
           <span className="sub" style={{ marginTop: 0, fontSize: 13 }}>or drop the files or zip here. PDFs, drawings, spreadsheets. Reading again replaces the items on this draft.</span>
+        </div>
+      )}
+      {canEdit && (
+        <div className="sub" style={{ marginTop: 0, fontSize: 13 }}>
+          Something missing from the email, like a picture of the areas?{" "}
+          <button type="button" disabled={busy} style={{ border: 0, background: "none", padding: 0, font: "inherit", fontWeight: 600, color: "var(--ink)", textDecoration: "underline", cursor: "pointer" }}
+            onClick={async () => {
+              setBusy(true); setMsg({ ok: true, text: "Fetching the email again from your inbox..." });
+              const r = await refetchEmails({ id: quoteId }); setBusy(false);
+              setMsg(r.ok ? { ok: true, text: `${r.added ? `Picked up ${r.added} more file${r.added === 1 ? "" : "s"}` : "Nothing new in the email"}. Reading the RFQ again now: refresh in a minute or two.` } : { ok: false, text: r.message });
+              if (r.ok) router.refresh();
+            }}>Fetch the email again</button>
         </div>
       )}
       {msg && <span className={msg.ok ? "sub" : "error"} role="status" style={{ marginTop: 0 }}>{msg.text}</span>}

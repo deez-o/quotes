@@ -73,3 +73,44 @@ export async function fetchPortalNow(input: { id: string }): Promise<{ ok: true 
   revalidatePath(`/site/${q.id}`);
   return { ok: true };
 }
+
+/**
+ * Fetch the RFQ emails again from the connected inbox: picks up anything missed the first time
+ * (a picture of the areas pasted into the email, an attachment that failed), then reads the RFQ again.
+ */
+export async function refetchEmails(input: { id: string }): Promise<{ ok: true; added: number } | { ok: false; message: string }> {
+  const ctx = await requireTenant();
+  if (ctx.role === "viewer") return { ok: false, message: "Viewers can't change quotes." };
+  if (!UUID.test(input.id)) return { ok: false, message: "Quote not found." };
+  const t = ctx.tenant.id;
+  const db = createAdminClient();
+  const { data: q } = await db.from("site_quotes").select("id, job_id, sent_at").eq("tenant_id", t).eq("id", input.id).maybeSingle();
+  if (!q?.job_id || q.sent_at) return { ok: false, message: "Only unsent RFQ quotes can fetch their emails again." };
+  const { data: msgs } = await db.from("messages").select("connection_id, provider_message_id").eq("tenant_id", t).eq("job_id", q.job_id).not("connection_id", "is", null).limit(10);
+  if (!msgs?.length) return { ok: false, message: "This RFQ didn't come through a connected inbox, so there's nothing to fetch again. Add the documents instead." };
+
+  const { graphForConnection } = await import("@/lib/worker/handlers");
+  const { isSignatureImage } = await import("@/lib/mail/sort");
+  const { appUrl } = await import("@/lib/app-url");
+  const files: { name: string; bytes: Uint8Array }[] = [];
+  for (const m of msgs) {
+    try {
+      const g = await graphForConnection(db, appUrl(), t, m.connection_id as string);
+      const msg = await g.getMessage(m.provider_message_id as string);
+      for (const a of msg.attachments) {
+        if (isSignatureImage(a, msg.bodyText)) continue;
+        const stream = await g.downloadAttachment(msg.id, a.id);
+        files.push({ name: a.name, bytes: new Uint8Array(await new Response(stream as BodyInit).arrayBuffer()) });
+      }
+    } catch (e) {
+      return { ok: false, message: `Couldn't reach the inbox: ${e instanceof Error ? e.message : "unknown error"}. Reconnect Outlook in Setup and try again.` };
+    }
+  }
+  const { files: kept } = await unpackFiles(files);
+  const { added } = await attachToJob(db, t, q.job_id as string, kept);
+  await db.from("queue_jobs").insert({ tenant_id: t, kind: "draft_quote", payload: { job_id: q.job_id, redo: true } });
+  await db.from("jobs").update({ status: "processing", updated_at: new Date().toISOString() }).eq("tenant_id", t).eq("id", q.job_id);
+  await db.from("audit_log").insert({ tenant_id: t, actor: ctx.userId, action: "rfq.refetched", target: q.id, detail: { added } });
+  revalidatePath(`/site/${q.id}`);
+  return { ok: true, added };
+}
