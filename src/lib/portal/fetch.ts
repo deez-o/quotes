@@ -81,12 +81,19 @@ type Page = import("playwright-core").Page;
 type Locator = import("playwright-core").Locator;
 
 async function onLoginPage(page: Page): Promise<boolean> {
-  if (/\/(auth\/)?(login|signin|sign-in)\b/i.test(page.url())) return true;
+  if (/\/(auth\/)?(login|signin|sign-in)\b|\/otp\b/i.test(page.url())) return true;
+  if (/verify it.s you|one-time code/i.test(await page.locator("body").innerText().catch(() => ""))) return true;
   return (await page.locator("input[type=password]:visible").count()) > 0
     || (await page.locator("input[name*='login' i][type=email]:visible, input[autocomplete=username]:visible").count()) > 0;
 }
 
 async function signIn(page: Page, login: { username: string; password: string }): Promise<{ ok: true } | FetchResult & { ok: false }> {
+  // "We need to verify it's you": choose to log in (not the emailed one-time code).
+  const logIn = page.getByRole("link", { name: /^log ?in( to \w+)?$/i }).or(page.getByRole("button", { name: /^log ?in( to \w+)?$/i })).first();
+  if (await logIn.isVisible().catch(() => false) && !(await page.locator("input[type=email]:visible, input[type=password]:visible").count())) {
+    await logIn.click();
+    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+  }
   const email = page.locator("input[type=email]:visible, input[name*='email' i]:visible, input[autocomplete=username]:visible").first();
   if (await email.count()) {
     await email.fill(login.username);
