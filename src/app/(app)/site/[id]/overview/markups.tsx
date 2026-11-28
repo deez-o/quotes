@@ -13,11 +13,33 @@ const overlaps = (a: Box, b: Box, pad = 6) => a.x < b.x + b.w + pad && b.x < a.x
 
 type Rendered = { src: string; w: number; h: number; find: (anchor: string) => Box | null };
 
+/** Each PDF is downloaded and opened once, however many of its pages are shown. */
+const docs = new Map<string, Promise<import("pdfjs-dist").PDFDocumentProxy>>();
+function openDoc(url: string) {
+  let d = docs.get(url);
+  if (!d) {
+    d = import("pdfjs-dist").then((pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      return pdfjs.getDocument({ url }).promise;
+    });
+    docs.set(url, d);
+  }
+  return d;
+}
+/** One page drawn at a time, so a long set of drawings doesn't freeze the page. */
+let queue: Promise<unknown> = Promise.resolve();
+function inTurn<T>(job: () => Promise<T>): Promise<T> {
+  const run = queue.then(job, job);
+  queue = run.catch(() => undefined);
+  return run;
+}
+
 /** One PDF page as a picture, with a finder for words printed on it. */
-async function renderPage(url: string, page: number, px = 2400): Promise<Rendered & { pages: number }> {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-  const doc = await pdfjs.getDocument({ url }).promise;
+function renderPage(url: string, page: number, px = 1800): Promise<Rendered & { pages: number }> {
+  return inTurn(() => drawPage(url, page, px));
+}
+async function drawPage(url: string, page: number, px: number): Promise<Rendered & { pages: number }> {
+  const doc = await openDoc(url);
   const p = await doc.getPage(Math.min(Math.max(1, page), doc.numPages));
   const base = p.getViewport({ scale: 1 });
   const vp = p.getViewport({ scale: Math.min(4, px / Math.max(base.width, base.height)) });
@@ -55,7 +77,9 @@ async function renderPage(url: string, page: number, px = 2400): Promise<Rendere
     }
     return best;
   };
-  return { src: canvas.toDataURL("image/jpeg", 0.88), w: W, h: H, find, pages: doc.numPages };
+  const src = canvas.toDataURL("image/jpeg", 0.85);
+  canvas.width = 0; canvas.height = 0; // free the canvas memory
+  return { src, w: W, h: H, find, pages: doc.numPages };
 }
 
 /** Puts each note's label near what it points at, without labels covering each other. */
@@ -125,9 +149,20 @@ function MarkedPage({ url, name, page, notes }: { url: string; name: string; pag
   const [err, setErr] = useState<string | null>(null);
   const [big, setBig] = useState(false);
   const done = useRef(false);
+  const box = useRef<HTMLElement>(null);
+  const [seen, setSeen] = useState(false);
+
+  // Only drawn once it's nearly on screen.
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { setSeen(true); io.disconnect(); } }, { rootMargin: "600px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   useEffect(() => {
-    if (done.current) return;
+    if (!seen || done.current) return;
     done.current = true;
     (async () => {
       try {
@@ -144,10 +179,10 @@ function MarkedPage({ url, name, page, notes }: { url: string; name: string; pag
         setErr("Couldn't open this drawing here.");
       }
     })();
-  }, [url, page, notes]);
+  }, [seen, url, page, notes]);
 
   if (err) return <p className="sub">{err}</p>;
-  if (!img) return <p className="sub">{name}, page {page}: loading...</p>;
+  if (!img) return <figure ref={box} style={{ margin: 0, minHeight: 240, display: "grid", placeItems: "center", border: "1px dashed var(--line)", borderRadius: 8 }}><span className="sub">{name}, page {page}: {seen ? "drawing..." : "waiting"}</span></figure>;
   return (
     <figure style={{ margin: 0 }}>
       <button type="button" onClick={() => setBig(true)} className="drawing-thumb" aria-label={`Open ${name} page ${page} full screen`}>
@@ -195,12 +230,12 @@ export function DocumentViewer({ name, url, onClose }: { name: string; url: stri
     let stop = false;
     (async () => {
       try {
-        const first = await renderPage(url, 1, 2000);
+        const first = await renderPage(url, 1, 1800);
         if (stop) return;
         setCount(first.pages);
         setPages([first.src]);
         for (let n = 2; n <= Math.min(first.pages, 40) && !stop; n++) {
-          const r = await renderPage(url, n, 2000);
+          const r = await renderPage(url, n, 1800);
           if (!stop) setPages((p) => [...p, r.src]);
         }
       } catch { setCount(0); }
