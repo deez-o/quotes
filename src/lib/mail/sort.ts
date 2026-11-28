@@ -1,3 +1,4 @@
+import { isPortalCodeEmail } from "@/lib/portal/otp";
 /**
  * Inbox sorting and job linking. Cheap, explainable rules first; anything the
  * rules are unsure about is marked for the AI to sort (confident=false).
@@ -18,6 +19,8 @@ export function sortMessage(msg: IncomingMessage): SortResult {
   const subject = msg.subject;
   const text = `${subject}\n${msg.bodyText}`;
 
+  // A tender portal's sign-in code (quoteout asked for it to fetch documents): never a new RFQ.
+  if (isPortalCodeEmail(msg.from, subject)) return { category: "junk", confident: true, reason: "Portal sign-in code." };
   // Order matters: an award email often mentions the tender it was for.
   if (has(text, AWARD)) return { category: "award", confident: true, reason: "Award or purchase-order wording." };
   if (has(text, INVOICE)) return { category: "invoice", confident: true, reason: "Invoice wording." };

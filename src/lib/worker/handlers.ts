@@ -1,4 +1,5 @@
 import { runPortalFetch } from "@/lib/portal/run";
+import { codeFromEmail, isPortalCodeEmail } from "@/lib/portal/otp";
 import { notifyDrafted } from "@/lib/rfq/notify";
 import { syncXeroQuotes } from "@/lib/xero-conn";
 /**
@@ -119,6 +120,20 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
         const { data: sec } = await db.from("connection_secrets").select("token_ciphertext").eq("tenant_id", job.tenant_id).eq("connection_id", c.id).maybeSingle();
         const granted = sec ? (JSON.parse(decryptToken(job.tenant_id, sec.token_ciphertext as string)) as { scope?: string }).scope ?? "" : "";
         return { token, canReadFiles: /files\.read\.all/i.test(granted) };
+      }, async (since) => {
+        // The portal's one-time code, from the connected inbox the invite went to.
+        const { data: c } = await db.from("connections").select("id").eq("tenant_id", job.tenant_id).eq("provider", "microsoft").eq("purpose", "mailbox").eq("status", "ok").maybeSingle();
+        if (!c) return null;
+        const g = await graphForConnection(db, siteUrl, job.tenant_id, c.id as string);
+        const { value } = await g.listInboxSince(since, 25);
+        for (const m of [...value].reverse()) {
+          const from = m.from?.emailAddress?.address ?? "";
+          if (!isPortalCodeEmail(from, m.subject ?? "")) continue;
+          const full = await g.getMessage(m.id);
+          const code = codeFromEmail(full.subject, full.bodyText);
+          if (code) return code;
+        }
+        return null;
       });
     },
 

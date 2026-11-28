@@ -7,11 +7,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { RfqSummary } from "@/lib/rfq/split";
 import { attachToJob, unpackFiles } from "@/lib/rfq/attach";
 import { notifyDrafted } from "@/lib/rfq/notify";
-import { fetchPortalDocs } from "./fetch";
+import { fetchPortalDocs, type OtpReader } from "./fetch";
 import { loadPortalLogin, providerFor } from "./logins";
 import { fetchMicrosoftShare, fetchPublicLink, type DocLink } from "@/lib/rfq/links";
 
-export async function runPortalFetch(db: SupabaseClient, tenantId: string, jobId: string, msToken?: () => Promise<{ token: string; canReadFiles: boolean } | null>): Promise<void> {
+export async function runPortalFetch(db: SupabaseClient, tenantId: string, jobId: string, msToken?: () => Promise<{ token: string; canReadFiles: boolean } | null>, otp?: OtpReader | null): Promise<void> {
   const { data: q } = await db.from("site_quotes").select("id, rfq_summary, sent_at, portal_fetch").eq("tenant_id", tenantId).eq("job_id", jobId).maybeSingle();
   if (!q || q.sent_at) return;
   const summary = q.rfq_summary as RfqSummary | null;
@@ -24,7 +24,7 @@ export async function runPortalFetch(db: SupabaseClient, tenantId: string, jobId
   const login = provider ? await loadPortalLogin(db, tenantId, provider) : null;
   const at = new Date().toISOString();
 
-  const r = await fetchPortalDocs(portal.docsUrl, login ? { username: login.username, password: login.password } : null);
+  const r = await fetchPortalDocs(portal.docsUrl, login ? { username: login.username, password: login.password } : null, { otp: otp ?? null });
   if (!r.ok) {
     const firstTime = !(q.portal_fetch as { notified?: boolean } | null)?.notified;
     await db.from("site_quotes").update({ portal_fetch: { ok: false, at, reason: r.reason, message: r.message, notified: true } }).eq("tenant_id", tenantId).eq("id", q.id);
