@@ -104,6 +104,7 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   const readsPdfs = opts.readsPdfs ?? (await liveModelReadsPdfs());
 
   let overviewPromise: Promise<Overview | null> = Promise.resolve(null);
+  let aiFailed = false;
   // Counts against the month's quotes the first time an RFQ is drafted; re-reads are free.
   let quotaMsg: string | null = null;
   if (access.state !== "locked" && opts.call === undefined && !redoId) {
@@ -130,6 +131,7 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
     };
     // The job overview (specs, dates, conditions) is read alongside the scope.
     overviewPromise = opts.call === undefined ? makeOverview(tenantId, rfqInput) : Promise.resolve(null);
+    aiFailed = false;
     const ctxAi = { tradingName: tenant?.name ?? "the contractor", library: pc.library, plants: pc.plants, rules, state: pc.settings.state ?? null };
     try {
       const t1 = Date.now();
@@ -137,17 +139,31 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
       console.info(`[draft] ${jobId} scope read in ${Math.round((Date.now() - t1) / 1000)} s`);
       scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
     } catch (e) {
-      // A picture the AI won't take (an odd format, a broken file) shouldn't sink the whole read: try the words alone.
+      // A picture the AI won't take, or too many drawing pages for one go, shouldn't sink the whole read:
+      // try again with the first few drawing pages, then with the words alone.
+      console.warn(`[draft] ${jobId} AI read failed: ${e instanceof Error ? e.message : e}`);
       const pics = rfqInput.attachments.filter((a) => a.imageUrl || a.pdfUrl || a.pages?.length).map((a) => a.name);
+      const pageCount = rfqInput.attachments.reduce((n, a) => n + (a.pages?.length ?? 0), 0);
       let ok = false;
-      if (pics.length && e instanceof Error && /\b400\b/.test(e.message)) {
+      if (pageCount > 6) {
+        try {
+          let left = 6;
+          const fewer = rfqInput.attachments.map((a) => { const keep = (a.pages ?? []).slice(0, Math.max(0, left)); left -= keep.length; return { ...a, pages: keep }; });
+          const out = await scopeFromRfq(call, ctxAi, { ...rfqInput, attachments: fewer });
+          scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
+          scope.questions.unshift(`Read with the first 6 drawing pages only (there were ${pageCount}): check the rest of the drawings by eye.`);
+          ok = true;
+        } catch (e2) { console.warn(`[draft] ${jobId} retry with fewer pages failed: ${e2 instanceof Error ? e2.message : e2}`); }
+      }
+      if (!ok && pics.length) {
         try {
           const out = await scopeFromRfq(call, ctxAi, { ...rfqInput, attachments: rfqInput.attachments.map((a) => ({ ...a, imageUrl: null, pdfUrl: null, pages: [] })) });
           scope = { ...out.scope, haul_override: null, supply_plant_auto: false };
-          scope.questions.unshift(`Read without the pictures and scanned pages (${pics.slice(0, 4).join(", ")}): the AI couldn't open them. Check them by eye.`);
+          scope.questions.unshift(`Read without the pictures and drawing pages (${pics.slice(0, 4).join(", ")}): the AI couldn't take them. Check them by eye.`);
           ok = true;
         } catch { /* fall through */ }
       }
+      aiFailed = !ok;
       if (!ok) scope.questions.push(`The AI couldn't read this RFQ (${e instanceof Error ? e.message : "error"}). Add the items yourself from the email and files below.`);
     }
   }
@@ -184,6 +200,19 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   const { site, routes, priced } = placed;
 
   const overview = await overviewPromise;
+  // Re-reading failed: keep the draft that's there, with a note, rather than blanking it.
+  if (aiFailed && redoId) {
+    const { data: prev } = await db.from("site_quotes").select("scope, overview").eq("tenant_id", tenantId).eq("id", redoId).single();
+    const prevScope = prev?.scope as SiteScope | null;
+    if (prevScope?.items?.length) {
+      const note = scope.questions.find((q) => q.startsWith("The AI couldn't read")) ?? "Reading the RFQ again didn't work.";
+      await db.from("site_quotes").update({
+        scope: { ...prevScope, questions: [`${note.replace(/ Add the items yourself.*$/, "")} The last draft is kept.`, ...(prevScope.questions ?? []).filter((q) => !q.startsWith("The AI couldn't read"))] },
+        overview: overview ?? prev?.overview ?? null, updated_at: new Date().toISOString(),
+      }).eq("tenant_id", tenantId).eq("id", redoId);
+      return { kind: "drafted", siteQuoteId: redoId, questions: prevScope.questions?.length ?? 0 };
+    }
+  }
   const row = {
     tenant_id: tenantId, job_id: jobId, quote_no: job.quote_no, title: scope.title,
     customer_name: scope.customer_name ?? null, customer_email: scope.customer_email ?? null,
@@ -369,9 +398,19 @@ export async function makeOverview(tenantId: string, input: Parameters<typeof bu
   try {
     const call = await aiCaller(OVERVIEW_SCHEMA, tenantId, null, "ai_overview");
     if (!call) return null;
-    const r = await call(overviewMessages(buildRfqUserMessage(input)));
-    return { ...cleanOverview(r.json), made_at: new Date().toISOString() };
-  } catch {
+    try {
+      const r = await call(overviewMessages(buildRfqUserMessage(input)));
+      return { ...cleanOverview(r.json), made_at: new Date().toISOString() };
+    } catch (e) {
+      // Too many drawing pages for one go: the first 6.
+      console.warn(`[overview] failed: ${e instanceof Error ? e.message : e}`);
+      let left = 6;
+      const fewer = input.attachments.map((a) => { const keep = (a.pages ?? []).slice(0, Math.max(0, left)); left -= keep.length; return { ...a, pages: keep }; });
+      const r = await call(overviewMessages(buildRfqUserMessage({ ...input, attachments: fewer })));
+      return { ...cleanOverview(r.json), made_at: new Date().toISOString() };
+    }
+  } catch (e) {
+    console.warn(`[overview] retry failed: ${e instanceof Error ? e.message : e}`);
     return null;
   }
 }

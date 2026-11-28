@@ -48,6 +48,24 @@ type ChatResponse = {
 /** Longest one AI call may take (the worker has 800 s). */
 export const AI_TIMEOUT_MS = 480_000;
 
+/**
+ * Node's built-in fetch gives up when a response takes over 300 s to start, and a big RFQ read
+ * (no streaming, drawing pages as pictures) can take longer: use a client that waits as long as
+ * AI_TIMEOUT_MS. Tests pass their own fetch.
+ */
+let longFetch: typeof fetch | null = null;
+async function aiFetch(): Promise<typeof fetch> {
+  if (longFetch) return longFetch;
+  try {
+    const { Agent, fetch: uFetch } = await import("undici");
+    const agent = new Agent({ headersTimeout: AI_TIMEOUT_MS + 10_000, bodyTimeout: AI_TIMEOUT_MS + 10_000 });
+    longFetch = ((url: string, init?: RequestInit) => uFetch(url, { ...(init as object), dispatcher: agent } as Parameters<typeof uFetch>[1])) as unknown as typeof fetch;
+  } catch {
+    longFetch = fetch;
+  }
+  return longFetch;
+}
+
 export type ChatPart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string } }
@@ -67,7 +85,7 @@ export async function xaiStructured(opts: {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
 }): Promise<ProviderResult> {
-  const f = opts.fetchImpl ?? fetch;
+  const f = opts.fetchImpl ?? (await aiFetch());
   const started = Date.now();
   // Grok takes no PDFs: say one was there instead.
   const messages = opts.messages.map((m) => typeof m.content === "string" ? m : {
@@ -128,7 +146,7 @@ export async function anthropicStructured(opts: {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
 }): Promise<ProviderResult> {
-  const f = opts.fetchImpl ?? fetch;
+  const f = opts.fetchImpl ?? (await aiFetch());
   const started = Date.now();
   const system = opts.messages.filter((m) => m.role === "system").map((m) => (typeof m.content === "string" ? m.content : m.content.map((p) => (p.type === "text" ? p.text : "")).join("\n"))).join("\n\n");
   const messages = opts.messages.filter((m) => m.role !== "system").map((m) => ({
