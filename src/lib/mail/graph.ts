@@ -54,6 +54,24 @@ export class GraphMailbox {
     return (await res.json()) as T;
   }
 
+  /** Send an email from this mailbox (it's kept in the mailbox's Sent Items). */
+  sendMail(m: { to: string[]; cc: string[]; subject: string; html: string; attachments: { filename: string; contentType: string; base64: string }[] }) {
+    const addr = (a: string) => ({ emailAddress: { address: a } });
+    return this.call<void>(`/${this.mailbox}/sendMail`, {
+      method: "POST",
+      body: JSON.stringify({
+        message: {
+          subject: m.subject,
+          body: { contentType: "HTML", content: m.html },
+          toRecipients: m.to.map(addr),
+          ccRecipients: m.cc.map(addr),
+          attachments: m.attachments.map((a) => ({ "@odata.type": "#microsoft.graph.fileAttachment", name: a.filename, contentType: a.contentType, contentBytes: a.base64 })),
+        },
+        saveToSentItems: true,
+      }),
+    }, false);
+  }
+
   /** Push notifications for new mail in the inbox. Graph caps message subscriptions at under 7 days: renew daily. */
   createInboxSubscription(notificationUrl: string, clientState: string, expires: Date) {
     return this.call<{ id: string; expirationDateTime: string }>("/subscriptions", {

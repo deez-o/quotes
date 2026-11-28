@@ -3,7 +3,7 @@
  * multi-tenant app). The app gets tokens, never a password.
  * Scopes: offline_access (refresh token), User.Read (who connected), Mail.ReadWrite (read, label, draft).
  */
-export const MS_SCOPES = ["offline_access", "User.Read", "Mail.ReadWrite"] as const;
+export const MS_SCOPES = ["offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send"] as const;
 const AUTHORITY = "https://login.microsoftonline.com/common/oauth2/v2.0";
 
 export type MsConfig = { clientId: string; clientSecret: string; redirectUri: string };

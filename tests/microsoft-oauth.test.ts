@@ -16,7 +16,7 @@ describe("Microsoft OAuth", () => {
   it("asks only for the three scopes, with state", () => {
     const url = new URL(authorizeUrl(cfg, "abc"));
     expect(url.origin + url.pathname).toBe("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
-    expect(url.searchParams.get("scope")).toBe("offline_access User.Read Mail.ReadWrite");
+    expect(url.searchParams.get("scope")).toBe("offline_access User.Read Mail.ReadWrite Mail.Send");
     expect(url.searchParams.get("state")).toBe("abc");
     expect(url.searchParams.get("redirect_uri")).toBe(cfg.redirectUri);
   });

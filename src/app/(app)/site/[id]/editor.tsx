@@ -611,7 +611,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
       </div>
       {sending && (
         <SendQuoteDialog quoteId={quote.id} onClose={() => setSending(false)}
-          onSent={(to) => { setSending(false); setMsg({ ok: true, text: `Quote sent to ${to.join(", ")}.` }); router.refresh(); }} />
+          onSent={(to, note) => { setSending(false); setMsg({ ok: true, text: `Quote sent to ${to.join(", ")}.${note ? ` ${note}` : ""}` }); router.refresh(); }} />
       )}
     </div>
   );

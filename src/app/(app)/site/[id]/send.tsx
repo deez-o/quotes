@@ -7,7 +7,7 @@ import { sendDraft, sendQuote } from "./send-actions";
 type Draft = Extract<Awaited<ReturnType<typeof sendDraft>>, { ok: true }>;
 
 /** Email the quote PDF to the customer, from inside the app. Nothing goes until Send is pressed. */
-export function SendQuoteDialog({ quoteId, onClose, onSent }: { quoteId: string; onClose: () => void; onSent: (to: string[]) => void }) {
+export function SendQuoteDialog({ quoteId, onClose, onSent }: { quoteId: string; onClose: () => void; onSent: (to: string[], note: string | null) => void }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
@@ -48,7 +48,7 @@ export function SendQuoteDialog({ quoteId, onClose, onSent }: { quoteId: string;
     const r = await sendQuote({ id: quoteId, to, cc, subject, message, copyMe });
     setBusy(false);
     if (!r.ok) return setErr(r.message);
-    onSent(r.sentTo);
+    onSent(r.sentTo, r.note);
   }
 
   const lbl: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 13, fontWeight: 600 };
@@ -69,6 +69,7 @@ export function SendQuoteDialog({ quoteId, onClose, onSent }: { quoteId: string;
 
         {draft && (
           <>
+            <p className="sub" style={{ margin: 0 }}>From: {draft.from}</p>
             <label style={lbl}>To
               <input type="text" inputMode="email" autoComplete="off" value={to} onChange={(e) => setTo(e.target.value)} placeholder="customer@example.com.au, another@example.com.au" />
               <span className="sub" style={{ fontWeight: 400, marginTop: 0 }}>

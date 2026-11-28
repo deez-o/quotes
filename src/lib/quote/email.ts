@@ -74,7 +74,7 @@ const onColour = (h: string) => {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 /** A plain, readable HTML version of the message, with the company's colour as a thin bar. */
-export function messageHtml(message: string, business: string, brand: string, acceptUrl: string | null = null): string {
+export function messageHtml(message: string, business: string, brand: string, acceptUrl: string | null = null, footer = true): string {
   const colour = /^#[0-9a-f]{6}$/i.test(brand) ? brand : "#16181B";
   const paras = message.split(/\n{2,}/).map((p) => `<p style="margin:0 0 14px">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
   return `<!doctype html><html><body style="margin:0;padding:24px;background:#f5f6f7;font-family:Arial,Helvetica,sans-serif;color:#1c1f23;font-size:15px;line-height:1.5">
@@ -82,7 +82,7 @@ export function messageHtml(message: string, business: string, brand: string, ac
 <div style="height:6px;background:${colour}"></div>
 <div style="padding:24px 28px">${paras}${acceptUrl ? `<p style="margin:22px 0 4px"><a href="${esc(acceptUrl)}" style="display:inline-block;background:${colour};color:${onColour(colour)};text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:6px">View and accept quote</a></p>` : ""}</div>
 </div>
-<p style="max-width:600px;margin:12px auto 0;font-size:12px;color:#7a8089;text-align:center">Quote from ${esc(business)}, sent using quoteout.</p>
+${footer ? `<p style="max-width:600px;margin:12px auto 0;font-size:12px;color:#7a8089;text-align:center">Quote from ${esc(business)}, sent using quoteout.</p>` : ""}
 </body></html>`;
 }
 
