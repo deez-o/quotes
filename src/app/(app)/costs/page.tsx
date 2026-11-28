@@ -31,8 +31,8 @@ const SECTIONS: Section[] = [
     match: (i) => i.category === "material" && !i.supply_plant_id && ["seal", "prime"].includes(i.material_kind ?? "") },
 ];
 const AFTER_ASPHALT: Section[] = [
-  { key: "plant", category: "plant", title: "Plant and hire", hint: "Bobcat, profiler, roller and so on.", match: (i) => i.category === "plant" },
-  { key: "truck", category: "truck", title: "Trucks", hint: "Used for cartage from the supply plant.", match: (i) => i.category === "truck" },
+  { key: "plant", category: "plant", title: "Plant and hire", hint: "Bobcat, profiler, roller and so on. Min hrs: the least you pay for in a day (e.g. 6 for a bobcat with a 6-hour minimum). Leave it blank if there's no minimum.", match: (i) => i.category === "plant" },
+  { key: "truck", category: "truck", title: "Trucks", hint: "Used for cartage from the supply plant. Min hrs: the least each truck is paid for in a day.", match: (i) => i.category === "truck" },
   { key: "float", category: "float", title: "Float", hint: "Moving the paver and roller to site, per move. Added to every asphalt job as a cost and built into the asphalt rate; it isn't its own line on the quote.", match: (i) => i.category === "float" },
   { key: "other", category: "other", title: "Other", hint: "Anything else you charge.", match: (i) => i.category === "other" },
 ];
@@ -48,14 +48,14 @@ function columns(category: string, kinds?: [string, string][], plantId?: string)
   const base = ["Name", "Rate (ex GST)", "Per"];
   const t = ["minmax(160px, 1fr)", "104px", "104px"];
   if (category === "crew" || category === "plant") {
-    base.push("Normal hrs", "OT hrs", "OT ×", "Then ×");
-    t.push("78px", "64px", "64px", "64px");
+    base.push("Normal hrs", "OT hrs", "OT ×", "Then ×", "Min hrs");
+    t.push("78px", "64px", "64px", "64px", "64px");
   } else if (category === "material") {
     if (kinds && !plantId) { base.push("Type"); t.push("110px"); }
     // Seal and prime are per m² or litre: no density.
     if (!kinds?.some(([v]) => v === "seal")) { base.push("t/m³"); t.push("72px"); }
   } else if (category === "truck") {
-    base.push("Carries (t)"); t.push("84px");
+    base.push("Carries (t)", "Min hrs"); t.push("84px", "64px");
   }
   return { heads: [...base, ""], template: [...t, ACTIONS_COL].join(" ") };
 }
@@ -117,6 +117,9 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
           {category === "truck" && (
             <Cell label="Carries (t)"><input type="text" inputMode="decimal" name="truck_capacity_t" aria-label={`${n} carries (t)`} defaultValue={item?.truck_capacity_t ?? 12} /></Cell>
           )}
+          {hireMin && (
+            <Cell label="Min hrs a day"><input type="text" inputMode="decimal" name="min_hours" aria-label={`${n} minimum hours a day`} title="Minimum hire: charged at least this many hours a day" defaultValue={item?.min_hours ?? ""} placeholder="–" /></Cell>
+          )}
           {canEdit ? (
             <div className="cost-actions" style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
               {item && <button formAction={archiveCostItem} className="btn" style={{ padding: "9px 10px", color: "#9a3412", borderColor: "#f0b8a8", background: "#fdf1ed" }} aria-label={`Remove ${item.name}`}>Remove</button>}
@@ -124,15 +127,9 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
             </div>
           ) : <span />}
         </div>
-        {((isMaterial && !plantId) || tiers || hireMin) && (
+        {((isMaterial && !plantId) || tiers) && (
           <div className="row" style={{ gap: 16, marginTop: 6, fontSize: 13, flexWrap: "wrap" }}>
-            {hireMin && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
-                Minimum hire
-                <input type="text" inputMode="decimal" name="min_hours" defaultValue={item?.min_hours ?? ""} placeholder="none" style={{ width: 70 }} aria-label={`${n} minimum hours a day`} />
-                hours a day <span className="sub" style={{ marginTop: 0, fontSize: 12 }}>(when charged by the hour)</span>
-              </label>
-            )}
+
             {isMaterial && !plantId && (
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 400 }}>
                 <input type="checkbox" name="includes_delivery" defaultChecked={item?.includes_delivery ?? false} /> Price includes delivery
@@ -203,7 +200,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
   return (
     <div className="page" style={{ maxWidth: 1100 }}>
       <div>
-        <Link href="/setup" className="sub" style={{ fontSize: 13 }}>← Setup</Link>
+        <Link href="/setup" className="btn" style={{ padding: "8px 14px", display: "inline-block", marginBottom: 8 }}>← Back to Setup</Link>
         <h1>Your costs</h1>
         <p className="sub">Set these once. Talk-to-quote prices every job from them, so quotes come out your way. All rates ex GST.</p>
       </div>

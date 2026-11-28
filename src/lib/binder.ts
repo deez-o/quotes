@@ -10,7 +10,7 @@ export const BINDERS: { code: string; label: string }[] = [
   { code: "C320", label: "C320" },
   { code: "C450", label: "C450" },
   { code: "C600", label: "C600" },
-  { code: "M1000", label: "Multigrade (M1000)" },
+  { code: "M1000", label: "MG (Multigrade)" },
   { code: "M500", label: "Multigrade (M500)" },
   { code: "A10E", label: "PMB A10E" },
   { code: "A15E", label: "PMB A15E" },
@@ -26,6 +26,11 @@ export const BINDERS: { code: string; label: string }[] = [
 ];
 
 const LABEL = new Map(BINDERS.map((b) => [b.code, b.label]));
+
+/** The usual extras, offered first; anything else can be typed in. */
+export const COMMON_EXTRAS = ["C600", "M1000", "EME2", "A15E", "CRUMB"];
+/** What plants usually base their mix prices on. */
+export const COMMON_BASES = ["C320", "C170", "C450", "C600"];
 
 export function binderLabel(code: string | null | undefined): string {
   if (!code) return "";
@@ -43,6 +48,7 @@ export function normaliseBinder(raw: string | null | undefined): string | null {
   if (/\bRAP\b|RECYCL/.test(s)) return "RAP";
   const pmb = /\bA ?(10|15|20|25|30|35|40) ?([EPR])\b/.exec(s);
   if (pmb) return `A${pmb[1]}${pmb[2]}`;
+  if (/\bMG\b/.test(s)) return "M1000"; // "MG" is how most people write Multigrade
   const multi = /\bM ?(1000|500)\b/.exec(s);
   if (multi) return `M${multi[1]}`;
   if (/MULTI ?GRADE/.test(s)) return "M1000";
@@ -54,7 +60,7 @@ export function normaliseBinder(raw: string | null | undefined): string | null {
 /** The binder named in a mix's name ("AC14 A15E" -> A15E), or null if it doesn't say. */
 export function binderInName(name: string): string | null {
   const s = name.toUpperCase();
-  if (!/CRUMB|RUBBER|\bCRB\b|\bEME|MULTI ?GRADE|\bM ?(1000|500)\b|\bA ?(10|15|20|25|30|35|40) ?[EPR]\b|\b(?:C|CLASS) ?-?(170|240|320|450|600)\b/.test(s)) return null;
+  if (!/CRUMB|RUBBER|\bCRB\b|\bEME|\bMG\b|MULTI ?GRADE|\bM ?(1000|500)\b|\bA ?(10|15|20|25|30|35|40) ?[EPR]\b|\b(?:C|CLASS) ?-?(170|240|320|450|600)\b/.test(s)) return null;
   return normaliseBinder(s);
 }
 

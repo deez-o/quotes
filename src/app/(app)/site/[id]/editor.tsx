@@ -1,6 +1,6 @@
 "use client";
 
-import { BINDERS, binderLabel } from "@/lib/binder";
+import { COMMON_BASES, COMMON_EXTRAS, binderLabel } from "@/lib/binder";
 import Link from "next/link";
 import { AreaMap } from "./overview/area-map";
 import { SendQuoteDialog } from "./send";
@@ -368,8 +368,8 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                   <label style={small}>Binder
                     <select style={sel} value={i.binder ?? ""} onChange={(e) => setItem(i.key, { binder: e.target.value || null })}>
                       <option value="">{settings.binders?.defaultBinder ? `Default (${binderLabel(settings.binders.defaultBinder)})` : "As priced"}</option>
-                      {BINDERS.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-                      {i.binder && !BINDERS.some((b) => b.code === i.binder) && <option value={i.binder}>{i.binder}</option>}
+                      {[...new Set([...COMMON_BASES, ...COMMON_EXTRAS, ...new Set((settings.binders?.extras ?? []).map((e) => e.binder))])].map((c) => <option key={c} value={c}>{binderLabel(c)}</option>)}
+                      {i.binder && ![...COMMON_BASES, ...COMMON_EXTRAS, ...(settings.binders?.extras ?? []).map((e) => e.binder)].includes(i.binder) && <option value={i.binder}>{binderLabel(i.binder)}</option>}
                     </select>
                   </label>
                 )}

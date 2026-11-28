@@ -6,7 +6,7 @@ import { priceSiteQuote, type CostItem, type SiteScope } from "@/lib/site/price"
 describe("binder names", () => {
   it.each([
     ["Class 320", "C320"], ["C600 bitumen", "C600"], ["cl. 450", "C450"], ["Multigrade", "M1000"], ["M1000 multigrade", "M1000"],
-    ["PMB A15E", "A15E"], ["SBS A 15 E", "A15E"], ["crumb rubber", "CRUMB"], ["Rubberised", "CRUMB"], ["EME2", "EME2"], ["600", "C600"],
+    ["PMB A15E", "A15E"], ["SBS A 15 E", "A15E"], ["MG", "M1000"], ["AC14 MG", "M1000"], ["crumb rubber", "CRUMB"], ["Rubberised", "CRUMB"], ["EME2", "EME2"], ["600", "C600"],
   ])("%s -> %s", (raw, code) => expect(normaliseBinder(raw)).toBe(code));
   it("finds a binder in a mix name, or none", () => {
     expect(binderInName("AC14 A15E")).toBe("A15E");
@@ -58,4 +58,8 @@ describe("price list binder extras", () => {
     expect(r.base_binder).toBe("C320");
     expect(r.binder_extras.map((e) => [e.binder, e.extra_per_t])).toEqual([["M1000", 12], ["A15E", 35.5]]);
   });
+});
+
+describe("MG in a mix name", () => {
+  it("treats 'AC14 MG' as already Multigrade", () => expect(binderInName("AC14 MG")).toBe("M1000"));
 });
