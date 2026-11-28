@@ -62,7 +62,8 @@ export function QuoteBar({ v }: { v: QuoteBarView }) {
         </div>
       )}
 
-      {v.canEdit && !v.newer && (
+      {/* Won or lost only once it's gone to the customer (or been sent via Xero). */}
+      {v.canEdit && !v.newer && (v.sentAt || v.xeroNumber || v.status === "won" || v.status === "lost") && (
         <div className="row" style={{ gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           {v.status !== "won" && v.status !== "lost" ? (
             <>

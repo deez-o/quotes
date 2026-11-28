@@ -45,7 +45,7 @@ export default async function TeachPage() {
   return (
     <div className="page">
       <div>
-        <Link href="/setup" className="sub" style={{ fontSize: 13 }}>← Setup</Link>
+        <Link href="/setup" className="btn back-btn">← Back to Setup</Link>
         <h1>Your quoting rules</h1>
         <p className="sub">
           Your own way of quoting, in plain English. Your rules apply to every quote from now on and come first. Switch one off any time.

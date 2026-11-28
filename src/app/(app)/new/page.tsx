@@ -17,7 +17,7 @@ export default async function NewQuotePage() {
   return (
     <div className="page" style={{ maxWidth: 900 }}>
       <div>
-        <Link href="/start" className="sub" style={{ fontSize: 13 }}>← New Quote</Link>
+        <Link href="/start" className="btn back-btn">← Back to New Quote</Link>
         <h1>Import an RFQ</h1>
         <p className="sub">Forward it, drag it in, or paste it. quoteout reads the email and its files, files the job and drafts the quote for you to check.</p>
       </div>

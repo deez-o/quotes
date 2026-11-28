@@ -141,3 +141,6 @@ label { font-weight: 600; }
 .job-item-remove { margin-left: auto; border: 0; background: none; color: #9a3412; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 4px; text-decoration: underline; }
 .job-item select { min-width: 0; text-overflow: ellipsis; }
 @media (max-width: 520px) { .job-item { grid-template-columns: 1fr 1fr; } .job-item-cost { grid-column: 1 / -1 !important; } }
+
+/* Back to the previous screen: a real button, easy to hit on a phone. */
+.back-btn { display: inline-flex; align-items: center; padding: 8px 14px; margin: 0 0 8px; font-size: 14px; font-weight: 600; width: fit-content; }

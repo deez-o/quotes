@@ -202,7 +202,7 @@ export default async function CostsPage({ searchParams }: { searchParams: Promis
   return (
     <div className="page" style={{ maxWidth: 1100 }}>
       <div>
-        <Link href="/setup" className="btn" style={{ padding: "8px 14px", display: "inline-block", marginBottom: 8 }}>← Back to Setup</Link>
+        <Link href="/setup" className="btn back-btn">← Back to Setup</Link>
         <h1>Your costs</h1>
         <p className="sub">Set these once. Talk-to-quote prices every job from them, so quotes come out your way. All rates ex GST. Changes save as you go.</p>
       </div>

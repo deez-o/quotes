@@ -34,7 +34,7 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
   return (
     <>
       <div>
-        <Link href="/admin" className="sub" style={{ marginTop: 0 }}>← Overview</Link>
+        <Link href="/admin" className="btn back-btn">← Back to Overview</Link>
         <h1 style={{ marginTop: 6 }}>AI model</h1>
         <p className="sub">Which AI reads RFQs and site talk for every company, and a test bench to compare models on real RFQs before you switch.</p>
       </div>

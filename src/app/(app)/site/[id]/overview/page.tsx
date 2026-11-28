@@ -55,7 +55,7 @@ export default async function JobOverviewPage({ params }: { params: Promise<{ id
     <div style={{ maxWidth: 1040, margin: "0 auto", display: "grid", gap: 14 }}>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div>
-          <Link href={`/site/${q.id}`} className="sub">← Back to the quote</Link>
+          <Link href={`/site/${q.id}`} className="btn back-btn">← Back to the quote</Link>
           <h1 style={{ margin: "4px 0 0" }}>Job overview</h1>
           <div className="sub">{[q.quote_no, q.title, q.customer_name].filter(Boolean).join(" — ")}</div>
           {q.site_address && <div className="sub">{q.site_address}</div>}

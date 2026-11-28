@@ -31,7 +31,7 @@ export default async function CompanyPage({ params, searchParams }: { params: Pr
     <>
       <div className="row" style={{ justifyContent: "space-between" }}>
         <div>
-          <Link href="/admin" className="sub" style={{ marginTop: 0 }}>← Overview</Link>
+          <Link href="/admin" className="btn back-btn">← Back to Overview</Link>
           <h1 style={{ marginTop: 6 }}>{c.name}</h1>
           <p className="sub">Forwarding address: <strong>{c.slug}@in.quoteout.app</strong> · joined {new Date(c.created_at).toLocaleDateString("en-AU")}</p>
         </div>

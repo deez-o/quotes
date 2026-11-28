@@ -9,7 +9,7 @@ export default async function QuoteSheetPage() {
   return (
     <div className="page">
       <div>
-        <Link href="/setup" className="sub" style={{ marginTop: 0 }}>← Setup</Link>
+        <Link href="/setup" className="btn back-btn">← Back to Setup</Link>
         <h1 style={{ marginTop: 6 }}>Your quote spreadsheet</h1>
         <p className="sub">
           Every quote has an Excel button. By default it downloads the quoteout workings: every cost (tonnes, cartage, crew hours and

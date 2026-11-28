@@ -13,7 +13,7 @@ export default async function NewSiteQuotePage() {
   return (
     <div className="page" style={{ maxWidth: 640 }}>
       <div>
-        <Link href="/start" className="sub" style={{ marginTop: 0, fontSize: 13 }}>← New Quote</Link>
+        <Link href="/start" className="btn back-btn">← Back to New Quote</Link>
         <h1 style={{ fontSize: 26 }}>Tell me about the job</h1>
       </div>
       {ctx.role === "viewer" ? (
