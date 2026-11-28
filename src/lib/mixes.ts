@@ -6,6 +6,8 @@ const KNOWN: [RegExp, string][] = [
   [/\bEME\s?2\b/i, "EME2"],
   [/\bSMA\s?(10|14)\b/i, "SMA$1"],
   [/\bOG(?:A)?\s?(10|14)\b/i, "OG$1"],
+  [/\bFine\s?AC\s?(7|10)\b/i, "FineAC$1"], // SA light-medium duty
+  [/\bAC\s?(14|20)\s?IC\b/i, "AC$1 IC"], // WA intersection mixes
   [/\bAC\s?(7|10|14|20|28)[HM]?\b/i, "AC$1"], // AC14H, AC10M: H/M is the traffic class
   [/\b(?:Mix\s?)?Type\s?([1-6])\b/i, "Type$1"],
   [/\b(?:Size\s?)?(7|10|14|20)\s?(?:Type\s?)?(HP|VP|SI|SF|SP|SS|N|H|V|L)\b/, "$1$2"], // VIC / TAS: 10N, Size 14 Type H
@@ -59,26 +61,42 @@ export const STATE_BINDERS: Record<AuState, { base: string; extras: string[] }> 
 };
 
 /**
- * Compacted layer depth each mix allows (mm), from the state specs: QLD TMR MRTS30 Table 8.6.1 / MRTS32
- * (verified); NSW 3.0-5.0 x size (R116/R121, derived). Other states control depth by the drawings.
+ * Compacted layer depth each mix allows (mm), from the state specs (Australian_Asphalt_Specs, Nov 2026):
+ * QLD TMR MRTS30 Table 8.6.1 / MRTS32 (verified); NSW R116/R121 3.0-5.0 x size (derived); SA DIT RD-BP-C3
+ * (30 mm minimum, AC14 to 80 mm); WA MRWA 510 / ERN9; ACT MIS 03 (3 x size and 30 mm, collectors 45 mm);
+ * VIC and TAS go by the drawings, so Austroads typical ranges (AP-T65 Table 8.1) with council norms.
  */
-const DEPTHS: Partial<Record<AuState, Record<string, [number, number]>>> = {
+const DEPTHS: Record<AuState, Record<string, [number, number]>> = {
   QLD: { AC7: [25, 35], AC10: [35, 50], AC14: [50, 70], AC20: [60, 100], OG10: [25, 35], OG14: [35, 45], SMA10: [35, 40], SMA14: [50, 60], EME2: [70, 130] },
   NSW: { AC7: [21, 35], AC10: [30, 50], AC14: [42, 70], AC20: [60, 100], AC28: [84, 140], SMA10: [30, 50], SMA14: [42, 70] },
+  VIC: { "10N": [25, 40], "14N": [35, 55], "10H": [25, 40], "14H": [35, 55], "20SI": [50, 80] },
+  TAS: { "10N": [30, 40], "14N": [40, 55], "10H": [30, 40], "14H": [40, 55], "20SI": [50, 80] },
+  SA: { FineAC7: [25, 35], FineAC10: [30, 40], AC10: [30, 45], AC14: [40, 80], SMA10: [30, 40] },
+  WA: { AC7: [20, 30], AC10: [30, 40], AC14: [40, 55], "AC14 IC": [45, 55], "AC20 IC": [60, 90], SMA10: [30, 40] },
+  NT: { AC7: [20, 30], AC10: [25, 40], AC14: [35, 55], AC20: [50, 80] },
+  ACT: { AC10: [30, 50], AC14: [45, 70], AC20: [60, 100], SMA10: [40, 50], SMA14: [45, 70] },
 };
-const SPEC: Partial<Record<AuState, string>> = { QLD: "TMR MRTS30", NSW: "TfNSW R116" };
+const SPEC: Record<AuState, string> = {
+  QLD: "TMR MRTS30", NSW: "TfNSW R116", VIC: "Austroads typical, DTP 407 goes by the drawings", TAS: "Austroads typical, State Growth 407",
+  SA: "DIT RD-BP-C3", WA: "MRWA Spec 510", NT: "Austroads typical", ACT: "ACT MIS 03",
+};
+/** Dense graded mixes to suggest from a depth, smallest first (the wearing mix wins). */
+const DENSE: Record<AuState, string[]> = {
+  QLD: ["AC7", "AC10", "AC14", "AC20"], NSW: ["AC7", "AC10", "AC14", "AC20", "AC28"], VIC: ["10N", "14N", "20SI"], TAS: ["10N", "14N", "20SI"],
+  SA: ["AC10", "AC14"], WA: ["AC7", "AC10", "AC14", "AC20 IC"], NT: ["AC7", "AC10", "AC14", "AC20"], ACT: ["AC10", "AC14", "AC20"],
+};
 
 /** A depth outside what the state's spec allows for the mix, as a short warning. Null if fine or unknown. */
 export function depthWarning(state: string | null | undefined, mixText: string, depthMm: number | null): string | null {
   const st = (state ?? "QLD") as AuState;
   const mix = knownMix(mixText);
-  const lim = mix ? DEPTHS[st]?.[mix] : undefined;
+  const lim = mix ? (DEPTHS[st] ?? DEPTHS.QLD)[mix] : undefined;
   if (!lim || depthMm == null || !(depthMm > 0)) return null;
   // EME2 is usually laid as several layers: check the layer, not the total.
   const layers = mix === "EME2" && depthMm > lim[1] ? Math.ceil(depthMm / lim[1]) : 1;
   const layer = depthMm / layers;
-  if (layer < lim[0]) return `${mix} at ${Math.round(layer)} mm is under the ${lim[0]} mm minimum (${SPEC[st]}). Check the mix or depth.`;
-  if (layer > lim[1]) return `${mix} at ${Math.round(layer)} mm is over the ${lim[1]} mm maximum a layer (${SPEC[st]}): it may need two layers.`;
+  if (layer < lim[0]) return `${mix} at ${Math.round(layer)} mm is under the ${lim[0]} mm minimum (${SPEC[st] ?? SPEC.QLD}). Check the mix or depth.`;
+  if (layer > lim[1]) return `${mix} at ${Math.round(layer)} mm is over the ${lim[1]} mm maximum a layer (${SPEC[st] ?? SPEC.QLD}): it may need two layers.`;
   return null;
 }
 
@@ -96,8 +114,8 @@ export function ownBinder(mixName: string): string | null {
 export function mixForDepth(state: string | null | undefined, depthMm: number | null): string | null {
   if (depthMm == null || !(depthMm > 0)) return null;
   const st = (state ?? "QLD") as AuState;
-  const table = DEPTHS[st] ?? DEPTHS.QLD!;
-  const dense = Object.entries(table).filter(([m]) => /^AC\d+$/.test(m)).sort((a, b) => a[1][0] - b[1][0]);
+  const table = DEPTHS[st] ?? DEPTHS.QLD;
+  const dense = (DENSE[st] ?? DENSE.QLD).filter((m) => table[m]).map((m) => [m, table[m]] as [string, [number, number]]);
   const fit = dense.find(([, [lo, hi]]) => depthMm >= lo && depthMm <= hi);
   if (fit) return fit[0];
   // Thicker than any one layer: the biggest dense mix (laid in layers).

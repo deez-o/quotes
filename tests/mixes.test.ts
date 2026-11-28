@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasMix, knownMix } from "@/lib/mixes";
+import { depthWarning, hasMix, knownMix, mixForDepth } from "@/lib/mixes";
 
 describe("known mixes", () => {
   it("spots real mixes in an item", () => {
@@ -42,5 +42,21 @@ describe("mix from depth", () => {
     expect(mixForDepth("QLD", 80)).toBe("AC20");
     expect(mixForDepth("QLD", 30)).toBe("AC7");
     expect(mixForDepth("NSW", 45)).toBe("AC10");
+  });
+});
+
+describe("depths in every state", () => {
+  it("suggests the state's dense mix from a depth", () => {
+    expect(mixForDepth("VIC", 40)).toBe("10N");
+    expect(mixForDepth("VIC", 50)).toBe("14N");
+    expect(mixForDepth("SA", 60)).toBe("AC14");
+    expect(mixForDepth("WA", 35)).toBe("AC10");
+    expect(mixForDepth("ACT", 60)).toBe("AC14");
+    expect(mixForDepth("NT", 50)).toBe("AC14");
+  });
+  it("warns against each state's spec", () => {
+    expect(depthWarning("SA", "AC10", 25)).toMatch(/under the 30 mm minimum \(DIT/);
+    expect(depthWarning("WA", "AC14 IC", 70)).toMatch(/over the 55 mm/);
+    expect(knownMix("FineAC10 C320")).toBe("FineAC10");
   });
 });
