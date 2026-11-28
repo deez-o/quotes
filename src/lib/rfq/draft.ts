@@ -59,8 +59,10 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   // Already drafted: a follow-up email in the thread. Flag it rather than overwrite their edits.
   let { data: existing } = await db.from("site_quotes").select("id, scope, rfq_summary, sent_at, option_group, revision").eq("tenant_id", tenantId).eq("job_id", jobId).maybeSingle();
   // Read again (e.g. the costs weren't in yet): only a draft nobody has sent or turned into options/revisions.
+  // Redone in place, so the quote keeps its address and an open page doesn't break.
+  let redoId: string | null = null;
   if (existing && opts.redo && !existing.sent_at && !existing.option_group && !(Number(existing.revision) > 0)) {
-    await db.from("site_quotes").delete().eq("tenant_id", tenantId).eq("id", existing.id);
+    redoId = existing.id as string;
     existing = null;
   }
   if (existing) {
@@ -152,14 +154,17 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   const { site, routes, priced } = placed;
 
   const overview = await overviewPromise;
-  const { data: made, error } = await db.from("site_quotes").insert({
+  const row = {
     tenant_id: tenantId, job_id: jobId, quote_no: job.quote_no, title: scope.title,
     customer_name: scope.customer_name ?? null, customer_email: scope.customer_email ?? null,
     site_address: site.address || null, site_lat: site.lat, site_lng: site.lng, haul_routes: routes,
     transcript: null, photos: [], scope, costing: priced, margin_percent: pc.defaultMargin, total_ex_gst: priced.priceExGst,
     created_by: null, rfq_summary: { ...summary, model: opts.call === undefined ? mainModel : null },
     overview, exclusions: (overview?.exclusions ?? []).slice(0, 30), portal_fetch: opts.portalFetch ?? null,
-  }).select("id").single();
+  };
+  const { data: made, error } = redoId
+    ? await db.from("site_quotes").update({ ...row, updated_at: new Date().toISOString() }).eq("tenant_id", tenantId).eq("id", redoId).select("id").single()
+    : await db.from("site_quotes").insert(row).select("id").single();
   if (error || !made) throw new Error(`Couldn't save the draft quote: ${error?.message}`);
 
   // A tender portal invite: fetch the documents with the saved login (once per RFQ automatically).
