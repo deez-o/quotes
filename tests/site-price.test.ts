@@ -110,3 +110,22 @@ describe("haul from GPS", () => {
     expect(tonnesFor(60, 100, 2.2)).toBe(13.2);
   });
 });
+
+describe("establishments and rates", () => {
+  const est: CostItem = { id: "est", category: "establishment", material_kind: null, name: "Establishment", unit: "each", rate: 1000, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true };
+  const mtv: CostItem = { id: "mtv", category: "plant", material_kind: null, name: "MTV / shuttle buggy", unit: "h", rate: 400, density_t_per_m3: null, includes_delivery: false, truck_capacity_t: null, active: true };
+  const haul = { km: 38, minutes: 42, source: "entered" as const };
+
+  it("prices one establishment per set-up as its own line, first", () => {
+    const p = priceSiteQuote({ scope: { ...carpark(), establishments: 4 }, library: [...lib, est], settings, haul, marginPercent: 20 });
+    expect(p.customerLines[0]).toMatchObject({ key: "establishment", quantity: 4, unit: "each", total: 5000 });
+    expect(p.customerLines.reduce((s, l) => s + l.total, 0)).toBe(p.priceExGst);
+  });
+
+  it("shows asked-for rates with the margin on, outside the total", () => {
+    const base = priceSiteQuote({ scope: carpark(), library: [...lib, est, mtv], settings, haul, marginPercent: 20 });
+    const p = priceSiteQuote({ scope: { ...carpark(), optional_rates: [{ key: "o1", cost_item_id: "est", description: "Extra establishment (each)" }, { key: "o2", cost_item_id: "mtv", description: "MTV (optional)" }] }, library: [...lib, est, mtv], settings, haul, marginPercent: 20 });
+    expect(p.optionalRates).toEqual([{ key: "o1", description: "Extra establishment (each)", unit: "each", rate: 1250 }, { key: "o2", description: "MTV (optional)", unit: "h", rate: 500 }]);
+    expect(p.priceExGst).toBe(base.priceExGst);
+  });
+});

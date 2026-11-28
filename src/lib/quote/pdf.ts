@@ -26,6 +26,8 @@ export type PdfOption = {
   label: string | null;
   title: string;
   lines: { description: string; quantity: number; unit: string; rate: number; total: number }[];
+  /** Rates asked for that aren't in the total (extra establishment, optional MTV). */
+  rates?: { description: string; unit: string; rate: number }[];
   totals: { exGst: number; gst: number; incGst: number };
 };
 
@@ -193,6 +195,16 @@ export async function quotePdf(d: QuotePdfData): Promise<Uint8Array> {
     y -= 16;
     right(many ? `Option ${o.label ?? ""} inc GST` : "Total inc GST", cRate, y, 12, bold, accent); right(money(o.totals.incGst), cAmt, y, 12, bold, accent);
     y -= 34;
+    if (o.rates?.length) {
+      need(30 + o.rates.length * 16);
+      text("Rates, if needed (not included in the total, ex GST)", M, y, 10, bold); y -= 15;
+      for (const r of o.rates) {
+        text(r.description, M + 6, y, 10);
+        right(`${money(r.rate)} per ${r.unit}`, cAmt, y, 10);
+        y -= 15;
+      }
+      y -= 14;
+    }
   }
 
   // What's included and what isn't.

@@ -10,7 +10,7 @@ import { binderExtraFor, binderLabel, type BinderSetup } from "@/lib/binder";
 
 export type CostItem = {
   id: string;
-  category: "crew" | "material" | "plant" | "truck" | "float" | "other";
+  category: "crew" | "material" | "plant" | "truck" | "float" | "establishment" | "other";
   material_kind: "asphalt" | "base" | "prime" | "seal" | "other" | null;
   name: string;
   unit: "shift" | "day" | "h" | "t" | "m2" | "m3" | "each" | "km";
@@ -67,6 +67,10 @@ export type SiteScope = {
   haul_override?: { km: number; minutes: number } | null;
   /** Float moves (paver and roller to site and back). Null = automatic: 1 when the job has asphalt. */
   float_moves?: number | null;
+  /** Set-ups on site the job needs (e.g. one for the prime and one per asphalt layer). Null = 1 when there's work. */
+  establishments?: number | null;
+  /** Rates the customer asked for that aren't in the price (extra establishment, MTV if needed). */
+  optional_rates?: { key: string; cost_item_id: string; description: string }[];
   /** The job's address or suburb as they said it (the AI hears it); used instead of the phone's location. */
   site_location?: string | null;
   /** True when the plant was picked as the nearest one (re-picked if the site moves); false once the user chooses. */
@@ -129,6 +133,8 @@ export type Priced = {
   /** Crew shifts priced (cost items charged per shift), and profit per shift. */
   shifts: number;
   profitPerShift: number | null;
+  /** Rate-only lines shown on the quote, not added to the total: the cost rate with the margin on. */
+  optionalRates: { key: string; description: string; unit: string; rate: number }[];
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -404,6 +410,18 @@ export function priceSiteQuote(input: {
     });
   }
 
+  // Establishment: one charge per set-up on site, its own line on the quote.
+  const estItem = library.find((c) => c.category === "establishment" && c.active);
+  const estCount = scope.establishments != null && scope.establishments > 0 ? Math.round(scope.establishments) : scope.items.length ? 1 : 0;
+  const estCost = estItem && estCount > 0 ? round2(estCount * estItem.rate) : 0;
+  if (estItem && estCost > 0) {
+    costLines.push({
+      key: "establishment", group: "plant", label: estItem.name, cost: estCost,
+      calc: { kind: "qty", qty: estCount, rate: estItem.rate, unit: "each", band: null },
+      working: `${estCount} × ${money(estItem.rate)}${scope.establishments == null ? " (one per job)" : ""}`,
+    });
+  }
+
   const cost = round2(costLines.reduce((s, l) => s + l.cost, 0));
   // Job lines listed but none of them priced (no areas, no matching mix): nothing to quote yet.
   // Don't turn a float or a crew day into a "1 lot" price that looks like a real quote.
@@ -414,7 +432,7 @@ export function priceSiteQuote(input: {
   // Customer lines: one per scope item. Shared costs (trucks, crew, plant) are spread over the
   // items by their share of direct cost, then the margin. Rounded to dollars; the largest line
   // absorbs rounding so the lines add up to the price exactly.
-  const shared = cost - [...direct.values()].reduce((s, v) => s + v, 0);
+  const shared = cost - estCost - [...direct.values()].reduce((s, v) => s + v, 0);
   const directTotal = [...direct.values()].reduce((s, v) => s + v, 0);
   const priced = scope.items.filter((i) => (direct.get(i.key) ?? 0) > 0);
   const customerLines: CustomerLine[] = priced.map((item) => {
@@ -430,6 +448,10 @@ export function priceSiteQuote(input: {
     const unit = isArea ? "m²" : UNIT_LABEL[ci.unit];
     return { key: item.key, description: item.description, quantity, unit, rate: round2(total / quantity), total };
   });
+  if (estItem && estCost > 0 && !unpriced && customerLines.length) {
+    const total = Math.round(estCost / (1 - marginPercent / 100));
+    customerLines.push({ key: "establishment", description: estCount > 1 ? `${estItem.name} (${estCount} set-ups)` : estItem.name, quantity: estCount, unit: "each", rate: round2(total / estCount), total });
+  }
   // Prime and seal go on the quote as one line over the whole area (same product), not one per layer.
   for (const kind of ["prime", "seal"] as const) {
     const keys = scope.items.filter((i) => i.kind === kind).map((i) => i.key);
@@ -450,7 +472,7 @@ export function priceSiteQuote(input: {
     }
   }
   // The order the work is done, whatever order the lines were added in: prime always above the asphalt.
-  const kindOf = new Map(scope.items.map((i, n) => [i.key, { k: WORK_ORDER[i.kind] ?? 9, n }]));
+  const kindOf = new Map([["establishment", { k: -1, n: 0 }], ...scope.items.map((i, n) => [i.key, { k: WORK_ORDER[i.kind] ?? 9, n }] as [string, { k: number; n: number }])]);
   customerLines.sort((a, b) => (kindOf.get(a.key)?.k ?? 9) - (kindOf.get(b.key)?.k ?? 9) || (kindOf.get(a.key)?.n ?? 0) - (kindOf.get(b.key)?.n ?? 0));
   if (customerLines.length) {
     const diff = priceExGst - customerLines.reduce((s, l) => s + l.total, 0);
@@ -481,7 +503,14 @@ export function priceSiteQuote(input: {
   }, 0);
   const profit = round2(priceExGst - cost);
 
+  // Rates asked for but not in the price: the cost rate with the same margin on.
+  const optionalRates = (scope.optional_rates ?? []).flatMap((o) => {
+    const ci = byId.get(o.cost_item_id);
+    return ci && ci.active ? [{ key: o.key, description: o.description || ci.name, unit: UNIT_LABEL[ci.unit], rate: Math.round(ci.rate / (1 - marginPercent / 100)) }] : [];
+  });
+
   return {
+    optionalRates,
     costLines, customerLines, cost, marginPercent, priceExGst,
     profit, gst, priceIncGst: round2(priceExGst + gst),
     trucks, haul, warnings, perTonne, shifts, profitPerShift: shifts > 0 ? round2(profit / shifts) : null,

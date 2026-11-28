@@ -9,7 +9,7 @@ import { requireTenant } from "@/lib/tenant";
 import { createClient } from "@/lib/supabase/server";
 import { searchPlaces } from "@/lib/maps";
 
-const CATEGORIES = ["crew", "material", "plant", "truck", "float", "other"] as const;
+const CATEGORIES = ["crew", "material", "plant", "truck", "float", "establishment", "other"] as const;
 const KINDS = ["asphalt", "base", "prime", "seal", "other"] as const;
 const UNITS = ["shift", "day", "h", "t", "m2", "m3", "each", "km"] as const;
 

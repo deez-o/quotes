@@ -111,7 +111,7 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
   // Mixes from the chosen plant (and general costs) first, then other plants' mixes.
   const plantOrder = (c: CostItem) => (!c.supply_plant_id || c.supply_plant_id === scope.supply_plant_id ? 0 : 1);
   const optionsFor = (kind: ScopeItem["kind"]) =>
-    active.toSorted((a, b) => plantOrder(a) - plantOrder(b)).filter((c) => (["asphalt", "base", "prime", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck" && c.category !== "float"));
+    active.toSorted((a, b) => plantOrder(a) - plantOrder(b)).filter((c) => (["asphalt", "base", "prime", "seal"].includes(kind) ? c.category === "material" && (c.material_kind === kind || c.material_kind === "other") : c.category !== "crew" && c.category !== "truck" && c.category !== "float" && c.category !== "establishment"));
 
   const [xeroNo, setXeroNo] = useState<string | null>(quote.xero_quote_number);
   async function toXero() {
@@ -495,6 +495,12 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
                 : "Pick a plant and find the site, or enter the distance."}
             </span>
           </div>
+          {active.some((c) => c.category === "establishment") && (
+            <label style={{ ...small, maxWidth: 220 }}>Establishments (set-ups on site)
+              <input type="text" inputMode="numeric" value={scope.establishments ?? (scope.items.length ? 1 : 0)}
+                onChange={(e) => update({ ...scope, establishments: toNum(e.target.value) })} />
+            </label>
+          )}
           {active.some((c) => c.category === "float") && (
             <label style={{ ...small, maxWidth: 220 }}>Float moves (cost only, not on the quote)
               <input type="text" inputMode="decimal" value={scope.float_moves ?? (scope.items.some((i) => i.kind === "asphalt") ? 1 : 0)}
@@ -543,6 +549,25 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
           <li className="row" style={{ padding: "2px 0", color: "var(--muted)" }}><span className="grow">GST</span><span>{money(priced.gst)}</span></li>
           <li className="row" style={{ padding: "2px 0", fontWeight: 600 }}><span className="grow">Total inc GST</span><span>{money(priced.priceIncGst)}</span></li>
         </ul>
+        {(priced.optionalRates.length > 0 || canEdit) && (
+          <div style={{ marginTop: 14, borderTop: "1px solid var(--line-soft)", paddingTop: 10 }}>
+            <strong style={{ fontSize: 14 }}>Rates, not in the total</strong>
+            <p className="sub" style={{ margin: "2px 0 6px", fontSize: 12 }}>Extras the customer asked for a rate on (extra establishment, optional MTV). Shown on the quote with your margin on.</p>
+            {priced.optionalRates.map((o) => (
+              <div key={o.key} className="row" style={{ gap: 10, padding: "4px 0", alignItems: "center" }}>
+                <span className="grow">{o.description}</span><span style={{ fontWeight: 600 }}>{money(o.rate)} per {o.unit}</span>
+                {canEdit && <button type="button" className="job-item-remove" style={{ marginLeft: 0 }} onClick={() => update({ ...scope, optional_rates: (scope.optional_rates ?? []).filter((x) => x.key !== o.key) })}>Remove</button>}
+              </div>
+            ))}
+            {canEdit && (
+              <select style={{ ...sel, maxWidth: 320, marginTop: 6 }} value="" aria-label="Add a rate"
+                onChange={(e) => { const c = active.find((x) => x.id === e.target.value); if (c) update({ ...scope, optional_rates: [...(scope.optional_rates ?? []), { key: newKey("o"), cost_item_id: c.id, description: c.category === "establishment" ? "Extra establishment (each)" : `${c.name} (optional)` }] }); }}>
+                <option value="">+ Add a rate...</option>
+                {active.filter((c) => ["establishment", "plant", "crew", "other"].includes(c.category)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
+          </div>
+        )}
       </section>
 
       <details className="card" open>

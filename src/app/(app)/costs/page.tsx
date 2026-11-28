@@ -32,9 +32,10 @@ const SECTIONS: Section[] = [
     match: (i) => i.category === "material" && !i.supply_plant_id && ["seal", "prime"].includes(i.material_kind ?? "") },
 ];
 const AFTER_ASPHALT: Section[] = [
-  { key: "plant", category: "plant", title: "Plant and hire", hint: "Bobcat, profiler, roller and so on. Min hrs: the least you pay for in a day (e.g. 6 for a bobcat with a 6-hour minimum). Leave it blank if there's no minimum.", match: (i) => i.category === "plant" },
+  { key: "plant", category: "plant", title: "Plant and hire", hint: "Bobcat, profiler, MTV / shuttle buggy and so on. Min hrs: the least you pay for in a day (e.g. 6 for a bobcat with a 6-hour minimum). Leave it blank if there's no minimum. Call the MTV \"MTV\" or \"shuttle buggy\" so RFQs that ask for one pick it up.", match: (i) => i.category === "plant" },
   { key: "truck", category: "truck", title: "Trucks", hint: "Used for cartage from the supply plant. Min hrs: the least each truck is paid for in a day.", match: (i) => i.category === "truck" },
   { key: "float", category: "float", title: "Float", hint: "Moving the paver and roller to site, per move. Added to every asphalt job as a cost and built into the asphalt rate; it isn't its own line on the quote.", match: (i) => i.category === "float" },
+  { key: "establishment", category: "establishment", title: "Establishment", hint: "What you charge each time you set up on site (per establishment). Shown as its own line on the quote, once per set-up the job needs: an RFQ asking for four establishments gets four. Also used for \"extra establishment\" rates when a builder asks.", match: (i) => i.category === "establishment" },
   { key: "other", category: "other", title: "Other", hint: "Anything else you charge.", match: (i) => i.category === "other" },
 ];
 const UNITS = [["shift", "shift"], ["day", "day"], ["h", "hour"], ["t", "tonne"], ["m2", "m²"], ["m3", "m³"], ["each", "each"], ["km", "km"]];
@@ -97,7 +98,7 @@ function ItemForm({ item, category, canEdit, plantId, kinds, unitDefault, slidin
         <div className="cost-row" style={{ "--cols": c.template } as React.CSSProperties}>
           <Cell label="Name" wide><input type="text" name="name" aria-label="Name" defaultValue={item?.name ?? ""} required placeholder={item ? "" : plantId ? "Add a mix, e.g. AC10 C320" : "Add a new one"} /></Cell>
           <Cell label="Rate (ex GST)"><input type="text" inputMode="decimal" name="rate" aria-label={`${n} rate (ex GST)`} defaultValue={item?.rate ?? ""} required placeholder="$" /></Cell>
-          <Cell label="Per"><select name="unit" aria-label={`${n} per`} defaultValue={item?.unit ?? unitDefault ?? (isMaterial ? "t" : category === "float" ? "each" : "h")} style={sel}>
+          <Cell label="Per"><select name="unit" aria-label={`${n} per`} defaultValue={item?.unit ?? unitDefault ?? (isMaterial ? "t" : category === "float" || category === "establishment" ? "each" : "h")} style={sel}>
             {UNITS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select></Cell>
           {hourly && (
