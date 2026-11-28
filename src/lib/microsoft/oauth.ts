@@ -4,7 +4,7 @@ import { createHmac } from "node:crypto";
  * multi-tenant app). The app gets tokens, never a password.
  * Scopes: offline_access (refresh token), User.Read (who connected), Mail.ReadWrite (read, label, draft).
  */
-export const MS_SCOPES = ["offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send"] as const;
+export const MS_SCOPES = ["offline_access", "User.Read", "Mail.ReadWrite", "Mail.Send", "Files.Read.All"] as const;
 const AUTHORITY = "https://login.microsoftonline.com/common/oauth2/v2.0";
 
 export type MsConfig = { clientId: string; clientSecret: string; redirectUri: string };
@@ -66,8 +66,18 @@ export function exchangeCode(cfg: MsConfig, code: string, fetchImpl: typeof fetc
   return tokenRequest(cfg, { grant_type: "authorization_code", code, redirect_uri: cfg.redirectUri, scope: MS_SCOPES.join(" ") }, fetchImpl, now);
 }
 
-export function refreshTokens(cfg: MsConfig, refreshToken: string, fetchImpl: typeof fetch = fetch, now = Date.now()) {
-  return tokenRequest(cfg, { grant_type: "refresh_token", refresh_token: refreshToken, scope: MS_SCOPES.join(" ") }, fetchImpl, now);
+/**
+ * Refresh with the scopes this connection was actually granted (older connections didn't approve
+ * newer permissions; asking for them on refresh would fail and break the inbox).
+ */
+export function refreshTokens(cfg: MsConfig, refreshToken: string, fetchImpl: typeof fetch = fetch, now = Date.now(), granted?: string) {
+  const scope = granted?.trim() ? (/offline_access/.test(granted) ? granted.trim() : `${granted.trim()} offline_access`) : MS_SCOPES.join(" ");
+  return tokenRequest(cfg, { grant_type: "refresh_token", refresh_token: refreshToken, scope }, fetchImpl, now);
+}
+
+/** Did this connection approve reading shared files (SharePoint / OneDrive links)? */
+export function canReadFiles(tokens: Pick<MsTokens, "scope">): boolean {
+  return /files\.read\.all/i.test(tokens.scope ?? "");
 }
 
 /** Returns a valid access token, refreshing (and reporting the new tokens to save) when needed. */
@@ -79,7 +89,7 @@ export async function validAccessToken(
   now = Date.now(),
 ): Promise<string> {
   if (tokens.expires_at > now) return tokens.access_token;
-  const fresh = await refreshTokens(cfg, tokens.refresh_token, fetchImpl, now);
+  const fresh = await refreshTokens(cfg, tokens.refresh_token, fetchImpl, now, tokens.scope);
   await save(fresh);
   return fresh.access_token;
 }

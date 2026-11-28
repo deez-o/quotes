@@ -63,3 +63,26 @@ describe("price list binder extras", () => {
 describe("MG in a mix name", () => {
   it("treats 'AC14 MG' as already Multigrade", () => expect(binderInName("AC14 MG")).toBe("M1000"));
 });
+
+describe("prime on the quote", () => {
+  it("is one line over the whole area", () => {
+    const lib: CostItem[] = [
+      { id: "m", category: "material", material_kind: "asphalt", name: "AC14", unit: "t", rate: 160, density_t_per_m3: 2.4, includes_delivery: true, truck_capacity_t: null, active: true },
+      { id: "k", category: "material", material_kind: "prime", name: "K2", unit: "m2", rate: 2, density_t_per_m3: null, includes_delivery: true, truck_capacity_t: null, active: true },
+    ];
+    const scope: SiteScope = {
+      title: "t", job_type: "carpark", supply_plant_id: null, truck_cost_item_id: null, assumptions: [], questions: [], float_moves: 0, crew: [], plant: [],
+      items: [
+        { key: "a", kind: "asphalt", description: "40 mm", area_m2: 100, depth_mm: 40, cost_item_id: "m", quantity: null },
+        { key: "p1", kind: "prime", description: "Prime under 40 mm asphalt", area_m2: 100, depth_mm: null, cost_item_id: "k", quantity: null },
+        { key: "p2", kind: "prime", description: "Prime under 50 mm asphalt", area_m2: 50, depth_mm: null, cost_item_id: "k", quantity: null },
+      ],
+    };
+    const p = priceSiteQuote({ scope, library: lib, settings: { truck_load_minutes: 15, truck_unload_minutes: 10, shift_minutes: 480, road_factor: 1.3, average_speed_kmh: 60, gst_percent: 10 }, haul: null, marginPercent: 10 });
+    const primes = p.customerLines.filter((l) => l.unit === "m²");
+    expect(primes).toHaveLength(1);
+    expect(primes[0].quantity).toBe(150);
+    expect(primes[0].description).toBe("Prime");
+    expect(p.customerLines.reduce((s, l) => s + l.total, 0)).toBe(p.priceExGst);
+  });
+});

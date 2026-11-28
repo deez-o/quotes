@@ -13,7 +13,7 @@ const safeName = (n: string) => n.replace(/[\\/:*?"<>|#%{}^~[\]`]+/g, "_").repla
 /** Tender portal card and "add the documents" for an RFQ quote. */
 export type PortalFetch = { ok: boolean | null; at: string; message?: string; note?: string; reason?: string; added?: number } | null;
 
-export function RfqFiles({ quoteId, tenantId, portal, canEdit, fetched, hasLogin }: { quoteId: string; tenantId: string; portal: PortalInvite | null; canEdit: boolean; fetched: PortalFetch; hasLogin: boolean }) {
+export function RfqFiles({ quoteId, tenantId, portal, canEdit, fetched, hasLogin, linkCount = 0 }: { quoteId: string; tenantId: string; portal: PortalInvite | null; canEdit: boolean; fetched: PortalFetch; hasLogin: boolean; linkCount?: number }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -86,8 +86,22 @@ export function RfqFiles({ quoteId, tenantId, portal, canEdit, fetched, hasLogin
         </>
       ) : (
         <>
-          <h2 style={{ margin: 0 }}>Add documents</h2>
-          <p className="sub" style={{ marginTop: 0 }}>Drawings, specs or a schedule that didn&apos;t come with the email. quoteout reads them and redoes the draft.</p>
+          <h2 style={{ margin: 0 }}>{linkCount ? "Linked documents" : "Add documents"}</h2>
+          {linkCount > 0 && fetched?.ok === true && <p style={{ margin: 0, color: "var(--good)", fontWeight: 600 }}>✓ quoteout downloaded {fetched.added ?? 0} document{fetched.added === 1 ? "" : "s"} from the link{linkCount > 1 ? "s" : ""} in the email and read them.</p>}
+          {linkCount > 0 && fetched?.ok === null && <p style={{ margin: 0, fontWeight: 600 }}>Downloading the linked documents... refresh in a minute or two.</p>}
+          {linkCount > 0 && fetched?.ok === false && (
+            <p style={{ margin: 0, background: "var(--warn-bg)", padding: "8px 10px", borderRadius: 8 }}>
+              Couldn&apos;t download the linked documents: {fetched.message}{" "}
+              {fetched.reason === "reconnect" && <a href="/api/connect/microsoft" style={{ textDecoration: "underline", fontWeight: 600 }}>Reconnect Outlook</a>}
+            </p>
+          )}
+          {linkCount > 0 && canEdit && fetched?.ok !== null && (
+            <div><button type="button" className="btn" disabled={busy} onClick={async () => {
+              setBusy(true); const r = await fetchPortalNow({ id: quoteId }); setBusy(false);
+              setMsg(r.ok ? { ok: true, text: "Downloading. Refresh in a minute or two." } : { ok: false, text: r.message }); router.refresh();
+            }}>Download the linked documents now</button></div>
+          )}
+          <p className="sub" style={{ marginTop: 0 }}>{linkCount ? "Or add them by hand: d" : "D"}rawings, specs or a schedule that didn&apos;t come with the email. quoteout reads them and redoes the draft.</p>
         </>
       )}
       {canEdit && (

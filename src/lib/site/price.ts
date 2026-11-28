@@ -426,6 +426,25 @@ export function priceSiteQuote(input: {
     const unit = isArea ? "m²" : UNIT_LABEL[ci.unit];
     return { key: item.key, description: item.description, quantity, unit, rate: round2(total / quantity), total };
   });
+  // Prime and seal go on the quote as one line over the whole area (same product), not one per layer.
+  for (const kind of ["prime", "seal"] as const) {
+    const keys = scope.items.filter((i) => i.kind === kind).map((i) => i.key);
+    const lines = customerLines.filter((l) => keys.includes(l.key) && l.unit === "m²");
+    const byCost = new Map<string, CustomerLine[]>();
+    for (const l of lines) {
+      const ci = scope.items.find((i) => i.key === l.key)!.cost_item_id ?? "";
+      byCost.set(ci, [...(byCost.get(ci) ?? []), l]);
+    }
+    for (const group of byCost.values()) {
+      if (group.length < 2) continue;
+      const [first, ...rest] = group;
+      first.quantity = round2(group.reduce((s, l) => s + l.quantity, 0));
+      first.total = group.reduce((s, l) => s + l.total, 0);
+      first.rate = round2(first.total / first.quantity);
+      first.description = first.description.replace(/\s+(under|beneath|below|to|for)\s+.*$/i, "").trim() || first.description;
+      for (const r of rest) customerLines.splice(customerLines.indexOf(r), 1);
+    }
+  }
   if (customerLines.length) {
     const diff = priceExGst - customerLines.reduce((s, l) => s + l.total, 0);
     const biggest = customerLines.reduce((a, b) => (b.total > a.total ? b : a));

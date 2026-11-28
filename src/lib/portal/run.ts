@@ -9,11 +9,17 @@ import { attachToJob, unpackFiles } from "@/lib/rfq/attach";
 import { notifyDrafted } from "@/lib/rfq/notify";
 import { fetchPortalDocs } from "./fetch";
 import { loadPortalLogin, providerFor } from "./logins";
+import { fetchMicrosoftShare, fetchPublicLink, type DocLink } from "@/lib/rfq/links";
 
-export async function runPortalFetch(db: SupabaseClient, tenantId: string, jobId: string): Promise<void> {
+export async function runPortalFetch(db: SupabaseClient, tenantId: string, jobId: string, msToken?: () => Promise<{ token: string; canReadFiles: boolean } | null>): Promise<void> {
   const { data: q } = await db.from("site_quotes").select("id, rfq_summary, sent_at, portal_fetch").eq("tenant_id", tenantId).eq("job_id", jobId).maybeSingle();
-  const portal = (q?.rfq_summary as RfqSummary | null)?.portal;
-  if (!q || !portal?.docsUrl || q.sent_at) return;
+  if (!q || q.sent_at) return;
+  const summary = q.rfq_summary as RfqSummary | null;
+  const portal = summary?.portal;
+  if (!portal?.docsUrl) {
+    if (summary?.links?.length) await runLinkFetch(db, tenantId, jobId, q.id as string, summary.links, q.portal_fetch as { notified?: boolean } | null, msToken);
+    return;
+  }
   const provider = providerFor(portal.portal);
   const login = provider ? await loadPortalLogin(db, tenantId, provider) : null;
   const at = new Date().toISOString();
@@ -38,5 +44,41 @@ export async function runPortalFetch(db: SupabaseClient, tenantId: string, jobId
     // Read it again with the documents. The redo keeps portal_fetch by passing it on.
     await db.from("queue_jobs").insert({ tenant_id: tenantId, kind: "draft_quote", payload: { job_id: jobId, redo: true, portal_fetch: fetchInfo } });
     await db.from("jobs").update({ status: "processing", updated_at: at }).eq("tenant_id", tenantId).eq("id", jobId);
+  }
+}
+
+
+/** Documents behind SharePoint / OneDrive / Dropbox / Drive links. */
+async function runLinkFetch(db: SupabaseClient, tenantId: string, jobId: string, quoteId: string, links: DocLink[], prev: { notified?: boolean } | null,
+  msToken?: () => Promise<{ token: string; canReadFiles: boolean } | null>): Promise<void> {
+  const at = new Date().toISOString();
+  const got: { name: string; bytes: Uint8Array }[] = [];
+  const problems: string[] = [];
+  let reconnect = false;
+  for (const l of links) {
+    try {
+      if (l.kind === "microsoft") {
+        const ms = msToken ? await msToken() : null;
+        if (!ms) { problems.push("SharePoint link: connect your Outlook (Microsoft 365) in Setup so quoteout can open it"); continue; }
+        if (!ms.canReadFiles) { problems.push("SharePoint link: reconnect Outlook in Setup and allow file access"); reconnect = true; continue; }
+        got.push(...await fetchMicrosoftShare(l.url, ms.token));
+      } else {
+        got.push(...await fetchPublicLink(l));
+      }
+    } catch (e) {
+      problems.push(`${l.kind === "microsoft" ? "SharePoint" : l.kind === "dropbox" ? "Dropbox" : "Google Drive"} link: ${e instanceof Error ? e.message : "couldn't open it"}`);
+    }
+  }
+  const { files, skipped } = await unpackFiles(got);
+  const { added } = files.length ? await attachToJob(db, tenantId, jobId, files) : { added: 0 };
+  const info = added
+    ? { ok: true, at, source: "links", note: `Downloaded from the linked folder${links.length > 1 ? "s" : ""}.`, added, skipped: [...skipped, ...problems].slice(0, 10) }
+    : { ok: false, at, source: "links", reason: reconnect ? "reconnect" : "links", message: problems.join(". ") || "Nothing readable in the linked documents.", notified: true };
+  await db.from("site_quotes").update({ portal_fetch: info }).eq("tenant_id", tenantId).eq("id", quoteId);
+  if (added) {
+    await db.from("queue_jobs").insert({ tenant_id: tenantId, kind: "draft_quote", payload: { job_id: jobId, redo: true, portal_fetch: info } });
+    await db.from("jobs").update({ status: "processing", updated_at: at }).eq("tenant_id", tenantId).eq("id", jobId);
+  } else if (!prev?.notified) {
+    await notifyDrafted(db, tenantId, quoteId, "portal_login", 0, info.message as string);
   }
 }

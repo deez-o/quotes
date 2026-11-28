@@ -37,6 +37,11 @@ export class GraphMailbox {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
+  /** A current access token, for other Graph calls (e.g. shared files). */
+  accessToken(): Promise<string> {
+    return this.token();
+  }
+
   private async call<T>(path: string, init: RequestInit = {}, expectJson = true): Promise<T> {
     const res = await this.fetchImpl(`${GRAPH}${path}`, {
       ...init,

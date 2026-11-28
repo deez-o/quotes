@@ -111,7 +111,15 @@ export function buildHandlers(db: SupabaseClient, siteUrl: string): Handlers {
 
     async portal_fetch(job: QueueJob) {
       // Download a tender's documents from its portal with the saved login, then read it again.
-      await runPortalFetch(db, job.tenant_id, String(job.payload.job_id));
+      await runPortalFetch(db, job.tenant_id, String(job.payload.job_id), async () => {
+        const { data: c } = await db.from("connections").select("id, scopes").eq("tenant_id", job.tenant_id).eq("provider", "microsoft").eq("purpose", "mailbox").eq("status", "ok").maybeSingle();
+        if (!c) return null;
+        const g = await graphForConnection(db, siteUrl, job.tenant_id, c.id as string);
+        const token = await g.accessToken();
+        const { data: sec } = await db.from("connection_secrets").select("token_ciphertext").eq("tenant_id", job.tenant_id).eq("connection_id", c.id).maybeSingle();
+        const granted = sec ? (JSON.parse(decryptToken(job.tenant_id, sec.token_ciphertext as string)) as { scope?: string }).scope ?? "" : "";
+        return { token, canReadFiles: /files\.read\.all/i.test(granted) };
+      });
     },
 
     async draft_quote(job: QueueJob) {

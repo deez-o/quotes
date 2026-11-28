@@ -13,10 +13,10 @@ function tokenFetch(response: object, status = 200) {
 }
 
 describe("Microsoft OAuth", () => {
-  it("asks only for the three scopes, with state", () => {
+  it("asks only for the scopes it needs, with state", () => {
     const url = new URL(authorizeUrl(cfg, "abc"));
     expect(url.origin + url.pathname).toBe("https://login.microsoftonline.com/common/oauth2/v2.0/authorize");
-    expect(url.searchParams.get("scope")).toBe("offline_access User.Read Mail.ReadWrite Mail.Send");
+    expect(url.searchParams.get("scope")).toBe("offline_access User.Read Mail.ReadWrite Mail.Send Files.Read.All");
     expect(url.searchParams.get("state")).toBe("abc");
     expect(url.searchParams.get("redirect_uri")).toBe(cfg.redirectUri);
   });
@@ -44,5 +44,15 @@ describe("Microsoft OAuth", () => {
 
     expect(await validAccessToken(cfg, tokens, async (t) => { saved = t; }, impl, 3_000)).toBe("new");
     expect(saved).toMatchObject({ access_token: "new", refresh_token: "rt1" });
+  });
+});
+
+describe("refresh keeps the granted scopes", () => {
+  it("doesn't ask an older connection for new permissions", async () => {
+    const { refreshTokens } = await import("@/lib/microsoft/oauth");
+    let sent = "";
+    const fake = (async (_u: string, init: RequestInit) => { sent = String(init.body); return new Response(JSON.stringify({ access_token: "a", refresh_token: "r", expires_in: 3600, scope: "Mail.Send" })); }) as unknown as typeof fetch;
+    await refreshTokens({ clientId: "c", clientSecret: "s", redirectUri: "https://x/cb" } as never, "rt", fake, Date.now(), "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send");
+    expect(new URLSearchParams(sent).get("scope")).toBe("https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send offline_access");
   });
 });

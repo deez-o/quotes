@@ -8,6 +8,8 @@ export type RfqSummary = {
   original?: OriginalSender | null;
   /** A tender portal invitation: the documents are behind its link. */
   portal?: import("./portal").PortalInvite | null;
+  /** Documents linked from the email (SharePoint, Dropbox...) rather than attached. */
+  links?: import("./links").DocLink[];
   /** The AI model that drafted it. */
   model?: string | null;
 };

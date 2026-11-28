@@ -14,6 +14,7 @@ import { SITE_SCOPE_SCHEMA, scopeFromRfq, type RfqAttachment, type ScopeCall } f
 import { readFile } from "./read";
 import { cleanSubject, forwardedFrom, splitSavedEmail, type RfqSummary } from "./split";
 import { detectPortal } from "./portal";
+import { findDocLinks } from "./links";
 export { splitSavedEmail, type RfqSummary };
 
 const BUCKET = "job-files";
@@ -154,7 +155,8 @@ export async function draftRfqQuote(db: SupabaseClient, tenantId: string, jobId:
   if (error || !made) throw new Error(`Couldn't save the draft quote: ${error?.message}`);
 
   // A tender portal invite: fetch the documents with the saved login (once per RFQ automatically).
-  if (summary.portal?.docsUrl && !opts.portalFetch && opts.call === undefined) {
+  // Or documents behind SharePoint / Dropbox / Drive links: fetch those (once automatically).
+  if ((summary.portal?.docsUrl || summary.links?.length) && !opts.portalFetch && opts.call === undefined) {
     await db.from("queue_jobs").upsert(
       { tenant_id: tenantId, kind: "portal_fetch", payload: { job_id: jobId }, dedupe_key: `portal:${jobId}` },
       { onConflict: "tenant_id,dedupe_key", ignoreDuplicates: true },
@@ -246,6 +248,7 @@ export async function gatherRfq(db: SupabaseClient, tenantId: string, jobId: str
     forwardedBy: fwdFrom ? (rfq.from ?? first?.from_address ?? null) : null,
     original: fwd,
     portal: detectPortal(rfq.body, fwd?.email ?? rfq.from),
+    links: findDocLinks(rfq.body),
     files: summaryFiles,
     followUps: Math.max(0, (messages?.length ?? 1) - 1),
   };
