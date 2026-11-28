@@ -18,7 +18,9 @@ export function findDocLinks(body: string): DocLink[] {
       /\.sharepoint\.com$|^1drv\.ms$|^onedrive\.live\.com$/.test(host) ? "microsoft"
       : /(^|\.)dropbox\.com$/.test(host) && /\/(s|sh|scl)\//.test(url) ? "dropbox"
       : /^drive\.google\.com$/.test(host) ? "gdrive" : null;
-    if (!kind || seen.has(url)) continue;
+    if (!kind) continue;
+    if (kind === "microsoft") url = cleanShareUrl(url);
+    if (seen.has(url)) continue;
     // Not a document link: profile pages, sign-in pages, unsubscribes.
     if (/\/_layouts\/15\/(authenticate|signout)|\/personal\/[^/]+\/?$|login\./i.test(url)) continue;
     seen.add(url);
@@ -27,17 +29,35 @@ export function findDocLinks(body: string): DocLink[] {
   return out.slice(0, 5);
 }
 
+/** Outlook adds tracking (xsdata, sdata...) to SharePoint links; Microsoft rejects the link with them on. */
+export function cleanShareUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    for (const k of [...u.searchParams.keys()]) if (k !== "e") u.searchParams.delete(k);
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 type File = { name: string; bytes: Uint8Array };
 const GRAPH = "https://graph.microsoft.com/v1.0";
 const MAX_FILES = 40;
 const MAX_BYTES = 50 * 1024 * 1024;
 
 /** A SharePoint / OneDrive sharing link -> its files (folders walked a few levels deep). */
-export async function fetchMicrosoftShare(url: string, token: string, fetchImpl: typeof fetch = fetch): Promise<File[]> {
+export async function fetchMicrosoftShare(rawUrl: string, token: string, fetchImpl: typeof fetch = fetch): Promise<File[]> {
+  const url = cleanShareUrl(rawUrl);
   const id = "u!" + Buffer.from(url).toString("base64").replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
   const get = async (path: string) => {
     const r = await fetchImpl(`${GRAPH}${path}`, { headers: { Authorization: `Bearer ${token}`, Prefer: "redeemSharingLinkIfNecessary" } });
-    if (!r.ok) throw new Error(r.status === 403 || r.status === 401 ? "the connected Microsoft account doesn't have access to that link" : r.status === 404 ? "that link has expired or was removed" : `Microsoft said ${r.status}`);
+    if (!r.ok) {
+      const detail = await r.text().catch(() => "");
+      throw new Error(r.status === 403 || r.status === 401 || /accessDenied|unauthenticated/i.test(detail)
+        ? "the connected Microsoft account doesn't have access to that folder (it was probably shared only with the inbox it was sent to)"
+        : r.status === 404 ? "that link has expired or was removed"
+        : `Microsoft said ${r.status}${/"message":"([^"]{1,140})/.exec(detail)?.[1] ? `: ${/"message":"([^"]{1,140})/.exec(detail)![1]}` : ""}`);
+    }
     return r.json() as Promise<Record<string, unknown>>;
   };
   type Item = { id: string; name: string; size?: number; folder?: unknown; file?: unknown; parentReference?: { driveId: string }; "@microsoft.graph.downloadUrl"?: string };

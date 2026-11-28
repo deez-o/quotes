@@ -13,3 +13,10 @@ describe("linked documents", () => {
     expect(findDocLinks("Regards, https://builder.com.au")).toEqual([]);
   });
 });
+
+describe("SharePoint link tidy", () => {
+  it("drops Outlook's tracking but keeps the share key", async () => {
+    const { cleanShareUrl } = await import("@/lib/rfq/links");
+    expect(cleanShareUrl("https://x-my.sharepoint.com/:f:/g/personal/a/IgA5?e=bXf&xsdata=MDV8&sdata=Nmkw")).toBe("https://x-my.sharepoint.com/:f:/g/personal/a/IgA5?e=bXf");
+  });
+});
