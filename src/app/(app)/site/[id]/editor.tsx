@@ -344,7 +344,14 @@ export function SiteQuoteEditor({ quote, library, plants, settings, hasAi, canEd
               <div key={i.key} className="job-item" data-kind={i.kind}>
                 <div className="job-item-head">
                   <span className="job-item-kind">{KIND_LABEL[i.kind]}</span>
-                  {tonnesOf(i) != null && <span className="job-item-sum">{tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: 1 })} t</span>}
+                  {[
+                    ci?.name ?? null,
+                    i.depth_mm ? `${i.depth_mm} mm` : null,
+                    i.area_m2 ? `${i.area_m2.toLocaleString("en-AU", { maximumFractionDigits: 0 })} m²` : null,
+                    tonnesOf(i) != null ? `${tonnesOf(i)!.toLocaleString("en-AU", { maximumFractionDigits: 1 })} t` : null,
+                    i.kind === "asphalt" ? binderLabel(i.binder || settings.binders?.defaultBinder || "C320") : null,
+                    !byArea && i.quantity ? `${i.quantity.toLocaleString("en-AU")} ${ci ? UNIT[ci.unit] : ""}`.trim() : null,
+                  ].filter(Boolean).map((t) => <span key={t} className="job-item-sum">{t}</span>)}
                   <button type="button" className="job-item-remove" aria-label={`Remove ${i.description || KIND_LABEL[i.kind]}`} title="Remove this item"
                     onClick={() => update({ ...scope, items: scope.items.filter((x) => x.key !== i.key) })}>
                     Remove

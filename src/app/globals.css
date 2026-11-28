@@ -134,7 +134,8 @@ label { font-weight: 600; }
 .job-item[data-kind="asphalt"] { border-left-color: #2b2f36; }
 .job-item[data-kind="prime"], .job-item[data-kind="seal"] { border-left-color: #b45309; }
 .job-item[data-kind="base"], .job-item[data-kind="excavation"] { border-left-color: #8a7a5c; }
-.job-item-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+.job-item-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.job-item-kind { margin-right: 4px; }
 .job-item-kind { font-weight: 700; font-size: 15px; }
 .job-item-sum { font-size: 13px; color: var(--muted, #5b6470); background: var(--ground); border-radius: 999px; padding: 2px 10px; }
 .job-item-remove { margin-left: auto; border: 0; background: none; color: #9a3412; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; padding: 6px 4px; text-decoration: underline; }
